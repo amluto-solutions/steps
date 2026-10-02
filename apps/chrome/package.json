@@ -1,0 +1,32 @@
+{
+  "name": "@amluto-steps/chrome",
+  "private": true,
+  "version": "1.0.0",
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "description": "Steps for Chrome (docs/spec/02-capture.md#chrome-edition).",
+  "scripts": {
+    "dev": "wxt",
+    "build": "wxt build",
+    "zip": "wxt zip",
+    "postinstall": "wxt prepare",
+    "build:firefox": "wxt build -b firefox --mv3",
+    "zip:firefox": "wxt zip -b firefox --mv3"
+  },
+  "dependencies": {
+    "@amluto-steps/core": "*",
+    "@amluto-steps/ui": "*",
+    "fflate": "^0.8.3",
+    "idb": "^8.0.3",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/chrome": "^0.3.4",
+    "@wxt-dev/module-react": "^1.2.2",
+    "fake-indexeddb": "^6.2.5",
+    "tailwindcss": "^4.3.3",
+    "wxt": "^0.21.4"
+  }
+}

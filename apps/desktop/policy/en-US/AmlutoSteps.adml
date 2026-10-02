@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="utf-8"?>
+<policyDefinitionResources xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" revision="1.0" schemaVersion="1.0" xmlns="http://schemas.microsoft.com/GroupPolicy/2006/07/PolicyDefinitions">
+  <displayName>Steps</displayName>
+  <description>Settings for Steps, the app that records clicks into how-to guides.</description>
+  <resources>
+    <stringTable>
+      <string id="SUPPORTED_Windows11">Windows 11 (24H2 and later)</string>
+      <string id="Amluto">Amluto</string>
+      <string id="AmlutoSteps">Steps</string>
+      <string id="Cat_Libraries">Libraries</string>
+      <string id="Cat_Recording">Recording</string>
+      <string id="Cat_Privacy">Privacy</string>
+      <string id="Cat_Branding">Branding</string>
+
+      <string id="Libraries">Add libraries</string>
+      <string id="Libraries_Help">Adds guide libraries for everyone, for example a SharePoint library synced with OneDrive. Staff see them in Settings > Libraries marked "Set by your organisation" and can't rename or remove them.
+
+Enter one library per line as Name=Path, for example:
+Team guides=%USERPROFILE%\Contoso\Guides - Documents
+
+A line with only a path uses the folder's name. A library is added once its folder exists on the PC, so a synced library appears after OneDrive has downloaded it; Steps never creates the folder itself.
+
+If both Computer and User Configuration set this, the Computer Configuration list is used.</string>
+
+      <string id="DefaultLibrary">Default library for new recordings</string>
+      <string id="DefaultLibrary_Help">New recordings are saved to this library. Enter the library's name as shown in Settings, or its folder path. Staff can't change the default while this is set.</string>
+
+      <string id="ExcludedApps">Apps never recorded</string>
+      <string id="ExcludedApps_Help">Steps never records clicks or takes screenshots in these apps. Enter one program file name per line, for example KeePass.exe. These are added to each person's own list and can't be removed by them.
+
+Settings from Computer and User Configuration are combined.</string>
+
+      <string id="Locked">Lock settings</string>
+      <string id="Locked_Help">Shows these settings read-only, at their default values. Enter one per line:
+
+ScreenshotMode - screenshots are of the window clicked in.
+ScreenshotQuality - screenshots are kept at Balanced quality.
+Monitors - all monitors are recorded.
+AppSwitchSteps - switching apps adds an "Open" step.
+ExportFolder - exports are saved to the Downloads folder.
+AskWhereToSave - exports go to the export folder without asking.
+IncludeOriginals - Steps files (.amlsteps) never include unblurred original screenshots.
+
+Other names are ignored. Settings from Computer and User Configuration are combined.</string>
+
+      <string id="AutoStart">Start with Windows</string>
+      <string id="AutoStart_Help">Enabled: Steps starts, minimised, when someone signs in, and they can't turn it off in Settings.
+Disabled: it doesn't start with Windows, and they can't turn it on.
+Not configured: each person chooses.</string>
+
+      <string id="BlurTerms">Always-blur words</string>
+      <string id="BlurTerms_Help">Words and phrases, such as internal project names or client codes, that Steps always suggests blurring when it finds them in a screenshot. Enter one per line. They are added to each person's own list.
+
+Suggested blurs are a safety net, not a guarantee: people still check each screenshot before exporting.</string>
+
+      <string id="SensitiveFieldPatterns">Sensitive field names</string>
+      <string id="SensitiveFieldPatterns_Help">Extra words that mark a field, a command parameter or a variable as sensitive. When "Record what's typed" is ticked for a recording, Steps never reads the value of a field whose name, label or help text contains one of these words, and masks the value that follows such a parameter or variable in a command (-Password x, $env:API_KEY = "x"). Enter one per line, for example "customer reference".
+
+These are added to the built-in list, which already covers passwords, PINs, tokens, API keys, one-time and verification codes, card and account numbers, sort codes and memorable information.</string>
+
+      <string id="DisableKeystrokeRecording">Turn off "Record what's typed"</string>
+      <string id="DisableKeystrokeRecording_Help">Enabled: "Record what's typed" and "Include command output" can't be ticked when a recording starts. Steps never reads the keyboard, commands, command output or the values typed into fields; recordings have clicks and screenshots only.
+Disabled or not configured: each person chooses per recording, and the recording bar shows "Keys recorded" while keys are read. Whether the two tick boxes start ticked is set by "Start recordings with 'Record what's typed' ticked" and its partner, or by each person in Settings.</string>
+      <string id="RecordTypingByDefault">Start recordings with "Record what's typed" ticked</string>
+      <string id="RecordTypingByDefault_Help">Enabled: "Record what's typed" is ticked to begin with when a recording starts. Each person can still untick it for any recording; commands, typing and shortcuts are then recorded, and passwords never are.
+Disabled: it starts unticked, and people can't change that in Settings.
+Not configured: each person chooses in Settings > Recording (unticked unless they change it).
+
+"Turn off 'Record what's typed'" wins over this: with it enabled, nothing typed is ever recorded.</string>
+      <string id="IncludeCommandOutputByDefault">Start recordings with "Include command output" ticked</string>
+      <string id="IncludeCommandOutputByDefault_Help">Enabled: "Include command output" is ticked to begin with when "Record what's typed" is, so what commands print goes into guides. Each person can still untick it for any recording. Output can hold personal or confidential data: people should check it before sharing.
+Disabled: it starts unticked, and people can't change that in Settings.
+Not configured: each person chooses in Settings > Recording (unticked unless they change it).</string>
+
+      <string id="BrandProfiles">Deploy brands</string>
+      <string id="BrandProfiles_Help">Brand files (.amlbrand) to give everyone, for example on a file share or in a SharePoint library synced with OneDrive. Enter one full path per line, for example:
+%USERPROFILE%\Contoso\Brand - Documents\Contoso.amlbrand
+
+Steps imports each one when it starts, and updates it when the file's version is higher (export a new version from Settings > Brand profiles to update everyone). Staff see these brands marked "Set by your organisation" and can't edit or delete them. A file that can't be reached is tried again next time.
+
+If both Computer and User Configuration set this, the Computer Configuration list is used.</string>
+
+      <string id="AppColoursBrand">App colours</string>
+      <string id="AppColoursBrand_Help">The brand whose colours Steps itself uses (enter the brand profile's id, for example one deployed with Deploy brands). The colours are adjusted where needed so text stays readable in light and dark. Staff can't change it while this is set.</string>
+
+      <string id="DefaultPdfBrand">Default brand for exports</string>
+      <string id="DefaultPdfBrand_Help">The brand profile that PDF, Word and web page exports use unless someone picks another one for a single export. Enter the profile's id. Staff can't change the default while this is set.</string>
+      <string id="DisableUpdateCheck">Turn off update checks</string>
+      <string id="DisableUpdateCheck_Help">Enabled: no copy of Steps on the PC checks steps.amluto.com for new versions: neither those installed from the downloadable setup (.exe) nor the portable program. Use this when you deploy new versions yourself.
+Disabled or not configured: copies from the setup check at most once a day, download a new version in the background, and install it the next time Steps opens (or at once, if someone chooses Restart now). The portable program checks only once someone switches on "Update automatically" in Settings > About, or presses Check for updates.
+The Microsoft Store version is updated by the Store, and the .msi version never checks.</string>
+      <string id="Language">Language of Steps</string>
+      <string id="Language_Help">The language Steps is in: its screens and messages, the words new recordings are written in, and the fixed words in exports. Staff can't change it while this is set.
+
+Not configured: Steps follows Windows' display language, or English if Steps doesn't have it, and each person can choose another in Settings > General.</string>
+      <string id="Lang_en">English</string>
+      <string id="Lang_de">Deutsch</string>
+      <string id="Lang_fr">Français</string>
+      <string id="Lang_es">Español</string>
+      <string id="Lang_it">Italiano</string>
+      <string id="Lang_pt_BR">Português (Brasil)</string>
+      <string id="Lang_ja">日本語</string>
+      <string id="Lang_zh_Hans">简体中文</string>
+      <string id="Lang_nl">Nederlands</string>
+      <string id="Lang_pl">Polski</string>
+      <string id="Lang_ko">한국어</string>
+      <string id="Lang_ru">Русский</string>
+      <string id="Lang_tr">Türkçe</string>
+      <string id="Lang_zh_Hant">繁體中文</string>
+      <string id="Lang_uk">Українська</string>
+      <string id="Lang_sv">Svenska</string>
+      <string id="Lang_cs">Čeština</string>
+      <string id="Lang_id">Bahasa Indonesia</string>
+      <string id="Lang_vi">Tiếng Việt</string>
+      <string id="Lang_da">Dansk</string>
+      <string id="Lang_pt_PT">Português (Portugal)</string>
+      <string id="Lang_ro">Română</string>
+      <string id="Lang_hu">Magyar</string>
+      <string id="Lang_el">Ελληνικά</string>
+      <string id="Lang_fi">Suomi</string>
+      <string id="Lang_nb">Norsk bokmål</string>
+      <string id="Lang_sk">Slovenčina</string>
+      <string id="Lang_bg">Български</string>
+      <string id="Lang_hr">Hrvatski</string>
+      <string id="Lang_sr_Latn">Srpski (latinica)</string>
+      <string id="Lang_sr_Cyrl">Српски (ћирилица)</string>
+      <string id="Lang_ca">Català</string>
+      <string id="Lang_lt">Lietuvių</string>
+      <string id="Lang_sl">Slovenščina</string>
+      <string id="Lang_lv">Latviešu</string>
+      <string id="Lang_et">Eesti</string>
+      <string id="Lang_ga">Gaeilge</string>
+      <string id="Lang_mt">Malti</string>
+      <string id="LanguageTone">Language tone of new recordings</string>
+      <string id="LanguageTone_Help">How the steps of new recordings are worded. Casual is Steps' own short style ("Click "Save""); Plain language uses everyday words ("Select the "Save" button"); Formal writes full sentences ("Click the "Save" button."). Staff can't change it in Settings while this is set; a guide can still be reworded with Language and tone.
+
+Not configured: casual, and each person can choose another in Settings > Recording.</string>
+      <string id="ShowUnnamedTyping">Show typing into unnamed boxes</string>
+      <string id="ShowUnnamedTyping_Help">Whether a step shows what was typed into something the recording couldn't name, such as a document or a box with no label. Enabled: shown, as for named fields. Disabled: the step says only "Type", and the person can show the text step by step. Staff can't change it in Settings while this is set.
+
+Not configured: off, and each person can turn it on in Settings > Recording.</string>
+      <string id="BlurStrength">Blur suggestions</string>
+      <string id="BlurStrength_Help">How much Steps looks for in screenshots to suggest blurring. Light: emails, phone, card and bank numbers, and the always-blur words. Standard: also postcodes, National Insurance numbers, names and IDs beside their labels, and the person's own Windows and OneDrive account names. Thorough: also file names (such as recent-file lists) and file paths. Suggestions are never blurred by themselves: people blur them, one at a time or all at once. Staff can't change it in Settings while this is set.
+
+Not configured: standard, and each person can choose another in Settings > Privacy.</string>
+      <string id="Blur_light">Light</string>
+      <string id="Blur_standard">Standard</string>
+      <string id="Blur_thorough">Thorough</string>
+      <string id="Tone_casual">Casual</string>
+      <string id="Tone_plain">Plain language</string>
+      <string id="Tone_formal">Formal</string>
+    </stringTable>
+    <presentationTable>
+      <presentation id="Libraries">
+        <multiTextBox refId="Libraries">Libraries (one per line, Name=Path):</multiTextBox>
+      </presentation>
+      <presentation id="DefaultLibrary">
+        <textBox refId="DefaultLibrary">
+          <label>Library name or folder:</label>
+        </textBox>
+      </presentation>
+      <presentation id="ExcludedApps">
+        <multiTextBox refId="ExcludedApps">Program file names (one per line):</multiTextBox>
+      </presentation>
+      <presentation id="Locked">
+        <multiTextBox refId="Locked">Settings to lock (one per line):</multiTextBox>
+      </presentation>
+      <presentation id="BlurTerms">
+        <multiTextBox refId="BlurTerms">Words and phrases (one per line):</multiTextBox>
+      </presentation>
+      <presentation id="SensitiveFieldPatterns">
+        <multiTextBox refId="SensitiveFieldPatterns">Field name words (one per line):</multiTextBox>
+      </presentation>
+      <presentation id="BrandProfiles">
+        <multiTextBox refId="BrandProfiles">Brand files (one full path per line):</multiTextBox>
+      </presentation>
+      <presentation id="AppColoursBrand">
+        <textBox refId="AppColoursBrand">
+          <label>Brand profile id:</label>
+        </textBox>
+      </presentation>
+      <presentation id="DefaultPdfBrand">
+        <textBox refId="DefaultPdfBrand">
+          <label>Brand profile id:</label>
+        </textBox>
+      </presentation>
+      <presentation id="Language">
+        <dropdownList refId="Language" defaultItem="0">Language:</dropdownList>
+      </presentation>
+      <presentation id="LanguageTone">
+        <dropdownList refId="LanguageTone" defaultItem="0">Language tone:</dropdownList>
+      </presentation>
+      <presentation id="BlurStrength">
+        <dropdownList refId="BlurStrength" defaultItem="1">Blur suggestions:</dropdownList>
+      </presentation>
+    </presentationTable>
+  </resources>
+</policyDefinitionResources>

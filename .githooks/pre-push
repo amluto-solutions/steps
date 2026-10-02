@@ -1,0 +1,5 @@
+#!/bin/sh
+# Local gate (decision D4): no push without a passing `npm run check`.
+# Enabled by `npm install` (the prepare script sets core.hooksPath). Never bypass with --no-verify.
+echo "pre-push: running npm run check…"
+npm run check

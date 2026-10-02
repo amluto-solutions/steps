@@ -1,0 +1,14 @@
+{
+  "extName": {
+    "message": "Steps by Amluto",
+    "description": "The extension's name in the browser and its store. A brand: the same in every language."
+  },
+  "extDescriptionChrome": {
+    "message": "Enregistrez une tâche dans Chrome, clic par clic, et transformez-la en guide pas à pas.",
+    "description": "The extension's description in Chrome and Edge (up to 132 characters)."
+  },
+  "extDescriptionFirefox": {
+    "message": "Enregistrez une tâche dans Firefox, clic par clic, et transformez-la en guide pas à pas.",
+    "description": "The extension's description in Firefox (up to 132 characters)."
+  }
+}

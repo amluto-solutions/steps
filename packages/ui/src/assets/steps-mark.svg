@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- The Steps mark: three rising steps in the brand's cyan, on its navy (store/art/art.html). -->
+  <rect width="64" height="64" rx="14" fill="#0e2542"/>
+  <rect x="11" y="38" width="11" height="14" rx="3" fill="#2e819f"/>
+  <rect x="26.5" y="25" width="11" height="27" rx="3" fill="#3ba8c6"/>
+  <rect x="42" y="12" width="11" height="40" rx="3" fill="#48cdeb"/>
+</svg>

@@ -1,0 +1,324 @@
+[[permission]]
+identifier = "allow-recorder-start"
+description = "Allows the frontend to start a user-requested recording."
+commands.allow = ["recorder_start"]
+
+[[permission]]
+identifier = "allow-recorder-get-preferences"
+description = "Allows the frontend to read the name and selected library folder."
+commands.allow = ["recorder_get_preferences"]
+
+[[permission]]
+identifier = "allow-recorder-set-preferences"
+description = "Allows the user to save their name and choose one local library folder."
+commands.allow = ["recorder_set_preferences"]
+
+[[permission]]
+identifier = "allow-recorder-get-state"
+description = "Allows the frontend to read the recorder state."
+commands.allow = ["recorder_get_state"]
+
+[[permission]]
+identifier = "allow-recorder-pause"
+description = "Allows the frontend to pause recording."
+commands.allow = ["recorder_pause"]
+
+[[permission]]
+identifier = "allow-recorder-resume"
+description = "Allows the frontend to resume recording."
+commands.allow = ["recorder_resume"]
+
+[[permission]]
+identifier = "allow-recorder-stop"
+description = "Allows the frontend to stop recording."
+commands.allow = ["recorder_stop"]
+
+[[permission]]
+identifier = "allow-recorder-discard"
+description = "Allows the frontend to discard a recording after confirmation."
+commands.allow = ["recorder_discard"]
+
+[[permission]]
+identifier = "allow-recorder-set-input-source"
+description = "Allows the user to choose a mouse input source."
+commands.allow = ["recorder_set_input_source"]
+
+[[permission]]
+identifier = "allow-recorder-exclude-app"
+description = "Allows the user to exclude an application observed during the recording."
+commands.allow = ["recorder_exclude_app"]
+
+[[permission]]
+identifier = "allow-recorder-include-app"
+description = "Allows the user to remove an application from the exclusion list."
+commands.allow = ["recorder_include_app"]
+
+[[permission]]
+identifier = "allow-recorder-set-capture-mode"
+description = "Allows the user to choose window or monitor screenshot capture."
+commands.allow = ["recorder_set_capture_mode"]
+
+[[permission]]
+identifier = "allow-open-web-page"
+description = "Allows Settings > About to open amluto.com or an open-source component's page, and nothing else."
+commands.allow = ["open_web_page"]
+
+[[permission]]
+identifier = "allow-recorder-set-bar-hidden"
+description = "Allows the user to hide the recording bar from screenshots, or show it again."
+commands.allow = ["recorder_set_bar_hidden"]
+
+[[permission]]
+identifier = "allow-recorder-get-monitors"
+description = "Allows the frontend to list the monitors a recording can capture."
+commands.allow = ["recorder_get_monitors"]
+
+[[permission]]
+identifier = "allow-recorder-set-target-monitor"
+description = "Allows the user to choose which monitor to record."
+commands.allow = ["recorder_set_target_monitor"]
+
+[[permission]]
+identifier = "allow-recorder-append-step"
+description = "Allows the frontend to save a step generated from captured facts."
+commands.allow = ["recorder_append_step"]
+
+[[permission]]
+identifier = "allow-recorder-finalize"
+description = "Allows the frontend to save a completed guide into the local library."
+commands.allow = ["recorder_finalize"]
+
+[[permission]]
+identifier = "allow-recorder-get-recoveries"
+description = "Allows the frontend to list interrupted or stopped recordings for recovery."
+commands.allow = ["recorder_get_recoveries"]
+
+[[permission]]
+identifier = "allow-recorder-recover-session"
+description = "Allows the frontend to reopen an interrupted recording for review."
+commands.allow = ["recorder_recover_session"]
+
+[[permission]]
+identifier = "allow-recorder-get-recovery-records"
+description = "Allows the frontend to read a recording journal for recovery."
+commands.allow = ["recorder_get_recovery_records"]
+
+[[permission]]
+identifier = "allow-recorder-get-session-steps"
+description = "Allows the frontend to read completed step files from a recording journal."
+commands.allow = ["recorder_get_session_steps"]
+
+[[permission]]
+identifier = "allow-recorder-load-image"
+description = "Allows the frontend to read a screenshot from a saved guide or recording."
+commands.allow = ["recorder_load_image"]
+
+[[permission]]
+identifier = "allow-recorder-close-shortcut-popup"
+description = "Allows the shortcut popup to close after capturing a combination."
+commands.allow = ["recorder_close_shortcut_popup"]
+
+[[permission]]
+identifier = "allow-recorder-capture-now"
+description = "Allows the user to add a screenshot step while recording."
+commands.allow = ["recorder_capture_now"]
+
+[[permission]]
+identifier = "allow-recorder-add-shortcut"
+description = "Allows the user to open the shortcut popup while recording."
+commands.allow = ["recorder_add_shortcut"]
+
+[[permission]]
+identifier = "allow-recorder-bar-heartbeat"
+description = "Allows the recorder bar to report that it is still showing, so recording pauses if it stops."
+commands.allow = ["recorder_bar_heartbeat"]
+
+[[permission]]
+identifier = "allow-hotkeys-get"
+description = "Allows Settings to read the keyboard shortcuts."
+commands.allow = ["hotkeys_get"]
+
+[[permission]]
+identifier = "allow-hotkeys-set"
+description = "Allows the user to change or turn off one keyboard shortcut."
+commands.allow = ["hotkeys_set"]
+
+[[permission]]
+identifier = "allow-hotkeys-suspend"
+description = "Allows Settings to switch the keyboard shortcuts off while it reads a new one."
+commands.allow = ["hotkeys_suspend"]
+
+[[permission]]
+identifier = "allow-hotkeys-reset"
+description = "Allows the user to put every keyboard shortcut back to its default."
+commands.allow = ["hotkeys_reset"]
+
+[[permission]]
+identifier = "allow-recorder-start-again"
+description = "Allows the recorder bar to start the recording again from nothing."
+commands.allow = ["recorder_start_again"]
+
+[[permission]]
+identifier = "allow-recorder-undo-start-again"
+description = "Allows the recorder bar to undo Start again before the next step."
+commands.allow = ["recorder_undo_start_again"]
+
+[[permission]]
+identifier = "allow-recorder-get-restart-point"
+description = "Allows the frontend to read where a recording was started again."
+commands.allow = ["recorder_get_restart_point"]
+
+[[permission]]
+identifier = "allow-recorder-save-draft"
+description = "Allows the editor to publish a stopped recording's draft as a guide."
+commands.allow = ["recorder_save_draft"]
+
+[[permission]]
+identifier = "allow-recorder-save-draft-guide"
+description = "Allows the editor to save a draft's guide details."
+commands.allow = ["recorder_save_draft_guide"]
+
+[[permission]]
+identifier = "allow-recorder-save-draft-step"
+description = "Allows the editor to save one step of a draft."
+commands.allow = ["recorder_save_draft_step"]
+
+[[permission]]
+identifier = "allow-recorder-delete-draft-step"
+description = "Allows the editor to delete one step of a draft."
+commands.allow = ["recorder_delete_draft_step"]
+
+[[permission]]
+identifier = "allow-recorder-load-draft"
+description = "Allows the editor to open a stopped recording's draft."
+commands.allow = ["recorder_load_draft"]
+
+[[permission]]
+identifier = "allow-settings-read-file"
+description = "Allows importing a .amlsettings file the user chose."
+commands.allow = ["settings_read_file"]
+
+[[permission]]
+identifier = "allow-settings-write-file"
+description = "Allows exporting settings to a .amlsettings file the user chose."
+commands.allow = ["settings_write_file"]
+
+[[permission]]
+identifier = "allow-fonts-family"
+description = "Allows reading an installed font family whose licence allows embedding it in a PDF."
+commands.allow = ["fonts_family"]
+
+[[permission]]
+identifier = "allow-fonts-check"
+description = "Allows checking an uploaded font file's family and embedding permission."
+commands.allow = ["fonts_check"]
+
+[[permission]]
+identifier = "allow-export-write-file"
+description = "Allows saving a PDF, Word or web page export where the user chose."
+commands.allow = ["export_write_file"]
+
+[[permission]]
+identifier = "allow-export-default-folder"
+description = "Allows reading the Downloads folder, where exports go by default."
+commands.allow = ["export_default_folder"]
+
+[[permission]]
+identifier = "allow-export-show"
+description = "Allows opening an exported file, or showing it in its folder."
+commands.allow = ["export_show"]
+
+[[permission]]
+identifier = "allow-export-preview"
+description = "Allows opening a walkthrough preview from app data in the default browser."
+commands.allow = ["export_preview"]
+
+[[permission]]
+identifier = "allow-brands-list"
+description = "Allows reading the brand profiles."
+commands.allow = ["brands_list"]
+
+[[permission]]
+identifier = "allow-brands-save"
+description = "Allows saving a brand profile."
+commands.allow = ["brands_save"]
+
+[[permission]]
+identifier = "allow-brands-delete"
+description = "Allows deleting a brand profile."
+commands.allow = ["brands_delete"]
+
+[[permission]]
+identifier = "allow-privacy-ocr"
+description = "Allows reading text from a screenshot on this PC (Windows OCR) to suggest blurs."
+commands.allow = ["privacy_ocr"]
+
+[[permission]]
+identifier = "allow-privacy-clear-ocr-cache"
+description = "Allows the user to clear the cache of text read from screenshots."
+commands.allow = ["privacy_clear_ocr_cache"]
+
+[[permission]]
+identifier = "allow-policy-get"
+description = "Allows the frontend to read IT policy from the registry, to show settings as set by the organisation."
+commands.allow = ["policy_get"]
+
+[[permission]]
+identifier = "allow-identity-names"
+description = "Allows the main window to read the person's own account names, so blur suggestions can find them in screenshots. They stay on this PC."
+commands.allow = ["identity_names"]
+
+[[permission]]
+identifier = "allow-support-create-bundle"
+description = "Allows making a support file the user inspects before sending it themselves."
+commands.allow = ["support_create_bundle"]
+
+[[permission]]
+identifier = "allow-support-show-bundle"
+description = "Allows showing a support file this app made in its folder."
+commands.allow = ["support_show_bundle"]
+
+[[permission]]
+identifier = "allow-support-open-email"
+description = "Allows opening a new email with a fixed subject in the default mail app."
+commands.allow = ["support_open_email"]
+
+[[permission]]
+identifier = "allow-support-open-logs"
+description = "Allows opening the app's logs folder."
+commands.allow = ["support_open_logs"]
+
+[[permission]]
+identifier = "allow-brands-read-file"
+description = "Allows importing a .amlbrand file the user chose."
+commands.allow = ["brands_read_file"]
+
+[[permission]]
+identifier = "allow-brands-write-file"
+description = "Allows exporting a brand profile to a .amlbrand file the user chose."
+commands.allow = ["brands_write_file"]
+
+[[permission]]
+identifier = "allow-backup-read-file"
+description = "Allows restoring from a .amlbackup file the user chose."
+commands.allow = ["backup_read_file"]
+
+[[permission]]
+identifier = "allow-backup-write-file"
+description = "Allows backing up settings, brands and the list of libraries to a .amlbackup file the user chose."
+commands.allow = ["backup_write_file"]
+
+[[permission]]
+identifier = "allow-recorder-retake-draft-image"
+description = "Allows the main window to retake a step's screenshot in an unsaved recording."
+commands.allow = ["recorder_retake_draft_image"]
+
+[[permission]]
+identifier = "allow-brands-save-managed"
+description = "Allows the main window to save a brand the organisation deploys, at start-up."
+commands.allow = ["brands_save_managed"]
+
+[[permission]]
+identifier = "allow-recorder-move-bar"
+description = "Allows the recording bar to move itself along the top of its screen."
+commands.allow = ["recorder_move_bar"]

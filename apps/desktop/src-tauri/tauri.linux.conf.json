@@ -1,0 +1,15 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "targets": ["deb", "appimage"],
+    "linux": {
+      "deb": {
+        "section": "utils",
+        "recommends": ["tesseract-ocr", "tesseract-ocr-eng", "at-spi2-core", "xdg-utils"]
+      },
+      "appimage": {
+        "bundleMediaFramework": false
+      }
+    }
+  }
+}

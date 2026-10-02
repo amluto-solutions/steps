@@ -1,0 +1,26 @@
+# Fuzzing the .amlsteps importer (docs/engineering.md, "Property and fuzz"). Its own workspace, so
+# the app's checks never build it: `cargo +nightly fuzz run import -- -max_total_time=600` from
+# crates/library, with fuzz/seeds as the starting corpus (see fuzz/README.md).
+[package]
+name = "library-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+tempfile = "3"
+library = { path = ".." }
+
+[[bin]]
+name = "import"
+path = "fuzz_targets/import.rs"
+test = false
+doc = false
+bench = false
+
+[workspace]
+members = ["."]

@@ -1,0 +1,24 @@
+[[permission]]
+identifier = "allow-updates-channel"
+description = "Allows the main window to read where this copy gets its updates (docs/spec/10-distribution.md#updates-for-the-exe)."
+commands.allow = ["updates_channel"]
+
+[[permission]]
+identifier = "allow-updates-check"
+description = "Allows the main window to ask steps.amluto.com for a newer version, in the setup .exe's copy only."
+commands.allow = ["updates_check"]
+
+[[permission]]
+identifier = "allow-updates-install"
+description = "Allows the main window to install the downloaded version now (Restart now), its signature checked again, and not while recording."
+commands.allow = ["updates_install"]
+
+[[permission]]
+identifier = "allow-updates-download"
+description = "Allows the main window to download, in the background, the version the last check found (signature checked), to install at the next start."
+commands.allow = ["updates_download"]
+
+[[permission]]
+identifier = "allow-updates-pending"
+description = "Allows the main window to see which downloaded version waits for the next start."
+commands.allow = ["updates_pending"]

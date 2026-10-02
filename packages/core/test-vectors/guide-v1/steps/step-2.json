@@ -1,0 +1,44 @@
+{
+  "id": "step-2",
+  "sortKey": "a1",
+  "kind": "block",
+  "action": "manual",
+  "actionText": "",
+  "textParts": { "verb": "", "target": "", "kind": "" },
+  "showValue": true,
+  "textEdited": false,
+  "notes": null,
+  "altText": null,
+  "context": { "app": null, "windowTitle": "" },
+  "target": null,
+  "media": null,
+  "highlight": null,
+  "crop": null,
+  "redactions": [],
+  "annotations": [],
+  "block": {
+    "type": "tip",
+    "heading": "Payments over £10,000",
+    "body": {
+      "type": "doc",
+      "content": [
+        {
+          "type": "paragraph",
+          "content": [
+            { "type": "text", "text": "These need a second approver. Email " },
+            {
+              "type": "text",
+              "text": "finance",
+              "marks": [{ "type": "link", "attrs": { "href": "mailto:finance@example.com" } }]
+            },
+            { "type": "text", "text": "." }
+          ]
+        }
+      ]
+    }
+  },
+  "capturedAt": "2026-09-25T10:20:00.000Z",
+  "updatedAt": "2026-09-25T10:20:00.000Z",
+  "updatedBy": "Robin Hale",
+  "formatVersion": 1
+}

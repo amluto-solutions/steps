@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  IT policy as .msi install properties (docs/spec/07-settings-and-policy.md#registry-policy-desktop-windows):
+
+    msiexec /i "Steps.msi" LIBRARIES="Finance=S:\Guides;HR=%USERPROFILE%\HR" EXCLUDEDAPPS="keepass.exe"
+
+  Each property that is given writes the matching value under HKLM\SOFTWARE\Policies\Amluto\Steps,
+  the same key the ADMX templates write; one that isn't given writes nothing. Lists are one string
+  separated by semicolons (a command line can't carry a multi-string), which the app reads as a
+  list. The values go when the app is uninstalled.
+
+  A repair or an upgrade run without the properties keeps the values this installer wrote: each is
+  also kept under HKLM\SOFTWARE\Amluto\Steps\MsiPolicy and read back from there (the *_SAVED
+  searches) when the command line doesn't give it, so a policy such as ExcludedApps can't
+  silently disappear. Values Group Policy wrote are never read back or taken over. A property
+  that is given replaces the value (the components are transitive, so their conditions are looked
+  at again).
+-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <?if $(sys.BUILDARCH) = x86 ?>
+    <?define PolicyWin64 = "no" ?>
+  <?else?>
+    <?define PolicyWin64 = "yes" ?>
+  <?endif?>
+  <?define PolicyKey = "SOFTWARE\Policies\Amluto\Steps" ?>
+  <?define RememberKey = "SOFTWARE\Amluto\Steps\MsiPolicy" ?>
+  <Fragment>
+    <Property Id="LIBRARIES" Secure="yes" />
+    <Property Id="DEFAULTLIBRARY" Secure="yes" />
+    <Property Id="BRANDPROFILES" Secure="yes" />
+    <Property Id="DEFAULTPDFBRAND" Secure="yes" />
+    <!-- Not LANGUAGE, which Windows Installer reads itself. -->
+    <Property Id="STEPSLANGUAGE" Secure="yes" />
+    <Property Id="LANGUAGETONE" Secure="yes" />
+    <Property Id="APPCOLOURSBRAND" Secure="yes" />
+    <Property Id="EXCLUDEDAPPS" Secure="yes" />
+    <Property Id="BLURTERMS" Secure="yes" />
+    <Property Id="SENSITIVEFIELDPATTERNS" Secure="yes" />
+    <Property Id="AUTOSTART" Secure="yes" />
+    <Property Id="LOCKED" Secure="yes" />
+    <Property Id="DISABLEUPDATECHECK" Secure="yes" />
+    <Property Id="DISABLEKEYSTROKES" Secure="yes" />
+    <Property Id="RECORDTYPINGBYDEFAULT" Secure="yes" />
+    <Property Id="INCLUDEOUTPUTBYDEFAULT" Secure="yes" />
+    <Property Id="BLURSTRENGTH" Secure="yes" />
+    <Property Id="SHOWUNNAMEDTYPING" Secure="yes" />
+
+    <!-- The values already installed, read back for a repair or an upgrade. -->
+    <Property Id="LIBRARIES_SAVED" Secure="yes">
+      <RegistrySearch Id="SavedLibraries" Root="HKLM" Key="$(var.RememberKey)" Name="Libraries" Type="raw" Win64="$(var.PolicyWin64)" />
+    </Property>
+    <Property Id="DEFAULTLIBRARY_SAVED" Secure="yes">
+      <RegistrySearch Id="SavedDefaultLibrary" Root="HKLM" Key="$(var.RememberKey)" Name="DefaultLibrary" Type="raw" Win64="$(var.PolicyWin64)" />
+    </Property>
+    <Property Id="BRANDPROFILES_SAVED" Secure="yes">
+      <RegistrySearch Id="SavedBrandProfiles" Root="HKLM" Key="$(var.RememberKey)" Name="BrandProfiles" Type="raw" Win64="$(var.PolicyWin64)" />
+    </Property>
+    <Property Id="STEPSLANGUAGE_SAVED" Secure="yes">
+      <RegistrySearch Id="SavedLanguage" Root="HKLM" Key="$(var.RememberKey)" Name="Language" Type="raw" Win64="$(var.PolicyWin64)" />
+    </Property>
+    <Property Id="LANGUAGETONE_SAVED" Secure="yes">
+      <RegistrySearch Id="SavedLanguageTone" Root="HKLM" Key="$(var.RememberKey)" Name="LanguageTone" Type="raw" Win64="$(var.PolicyWin64)" />
+    </Property>
+    <Property Id="DEFAULTPDFBRAND_SAVED" Secure="yes">
+      <RegistrySearch Id="SavedDefaultPdfBrand" Root="HKLM" Key="$(var.RememberKey)" Name="DefaultPdfBrand" Type="raw" Win64="$(var.PolicyWin64)" />
+    </Property>
+    <Property Id="APPCOLOURSBRAND_SAVED" Secure="yes">
+      <RegistrySearch Id="SavedAppColoursBrand" Root="HKLM" Key="$(var.RememberKey)" Name="AppColoursBrand" Type="raw" Win64="$(var.PolicyWin64)" />
+    </Property>
+    <Property Id="EXCLUDEDAPPS_SAVED" Secure="yes">
+      <RegistrySearch Id="SavedExcludedApps" Root="HKLM" Key="$(var.RememberKey)" Name="ExcludedApps" Type="raw" Win64="$(var.PolicyWin64)" />
+    </Property>
+    <Property Id="BLURTERMS_SAVED" Secure="yes">
+      <RegistrySearch Id="SavedBlurTerms" Root="HKLM" Key="$(var.RememberKey)" Name="BlurTerms" Type="raw" Win64="$(var.PolicyWin64)" />
+    </Property>
+    <Property Id="SENSITIVEFIELDPATTERNS_SAVED" Secure="yes">
+      <RegistrySearch Id="SavedSensitiveFieldPatterns" Root="HKLM" Key="$(var.RememberKey)" Name="SensitiveFieldPatterns" Type="raw" Win64="$(var.PolicyWin64)" />
+    </Property>
+    <Property Id="AUTOSTART_SAVED" Secure="yes">
+      <RegistrySearch Id="SavedAutoStart" Root="HKLM" Key="$(var.RememberKey)" Name="AutoStart" Type="raw" Win64="$(var.PolicyWin64)" />
+    </Property>
+    <Property Id="DISABLEUPDATECHECK_SAVED" Secure="yes">
+      <RegistrySearch Id="SavedDisableUpdateCheck" Root="HKLM" Key="$(var.RememberKey)" Name="DisableUpdateCheck" Type="raw" Win64="$(var.PolicyWin64)" />
+    </Property>
+    <Property Id="DISABLEKEYSTROKES_SAVED" Secure="yes">
+      <RegistrySearch Id="SavedDisableKeystrokes" Root="HKLM" Key="$(var.RememberKey)" Name="DisableKeystrokeRecording" Type="raw" Win64="$(var.PolicyWin64)" />
+    </Property>
+    <Property Id="RECORDTYPINGBYDEFAULT_SAVED" Secure="yes">
+      <RegistrySearch Id="SavedRecordTypingByDefault" Root="HKLM" Key="$(var.RememberKey)" Name="RecordTypingByDefault" Type="raw" Win64="$(var.PolicyWin64)" />
+    </Property>
+    <Property Id="INCLUDEOUTPUTBYDEFAULT_SAVED" Secure="yes">
+      <RegistrySearch Id="SavedIncludeOutputByDefault" Root="HKLM" Key="$(var.RememberKey)" Name="IncludeCommandOutputByDefault" Type="raw" Win64="$(var.PolicyWin64)" />
+    </Property>
+    <Property Id="BLURSTRENGTH_SAVED" Secure="yes">
+      <RegistrySearch Id="SavedBlurStrength" Root="HKLM" Key="$(var.RememberKey)" Name="BlurStrength" Type="raw" Win64="$(var.PolicyWin64)" />
+    </Property>
+    <Property Id="SHOWUNNAMEDTYPING_SAVED" Secure="yes">
+      <RegistrySearch Id="SavedShowUnnamedTyping" Root="HKLM" Key="$(var.RememberKey)" Name="ShowUnnamedTyping" Type="raw" Win64="$(var.PolicyWin64)" />
+    </Property>
+    <Property Id="LOCKED_SAVED" Secure="yes">
+      <RegistrySearch Id="SavedLocked" Root="HKLM" Key="$(var.RememberKey)" Name="Locked" Type="raw" Win64="$(var.PolicyWin64)" />
+    </Property>
+
+    <!-- A property the command line didn't give keeps the installed value. -->
+    <SetProperty Id="LIBRARIES" Value="[LIBRARIES_SAVED]" After="AppSearch" Sequence="first"><![CDATA[LIBRARIES_SAVED AND NOT LIBRARIES]]></SetProperty>
+    <SetProperty Id="DEFAULTLIBRARY" Value="[DEFAULTLIBRARY_SAVED]" After="AppSearch" Sequence="first"><![CDATA[DEFAULTLIBRARY_SAVED AND NOT DEFAULTLIBRARY]]></SetProperty>
+    <SetProperty Id="BRANDPROFILES" Value="[BRANDPROFILES_SAVED]" After="AppSearch" Sequence="first"><![CDATA[BRANDPROFILES_SAVED AND NOT BRANDPROFILES]]></SetProperty>
+    <SetProperty Id="STEPSLANGUAGE" Value="[STEPSLANGUAGE_SAVED]" After="AppSearch" Sequence="first"><![CDATA[STEPSLANGUAGE_SAVED AND NOT STEPSLANGUAGE]]></SetProperty>
+    <SetProperty Id="LANGUAGETONE" Value="[LANGUAGETONE_SAVED]" After="AppSearch" Sequence="first"><![CDATA[LANGUAGETONE_SAVED AND NOT LANGUAGETONE]]></SetProperty>
+    <SetProperty Id="DEFAULTPDFBRAND" Value="[DEFAULTPDFBRAND_SAVED]" After="AppSearch" Sequence="first"><![CDATA[DEFAULTPDFBRAND_SAVED AND NOT DEFAULTPDFBRAND]]></SetProperty>
+    <SetProperty Id="APPCOLOURSBRAND" Value="[APPCOLOURSBRAND_SAVED]" After="AppSearch" Sequence="first"><![CDATA[APPCOLOURSBRAND_SAVED AND NOT APPCOLOURSBRAND]]></SetProperty>
+    <SetProperty Id="EXCLUDEDAPPS" Value="[EXCLUDEDAPPS_SAVED]" After="AppSearch" Sequence="first"><![CDATA[EXCLUDEDAPPS_SAVED AND NOT EXCLUDEDAPPS]]></SetProperty>
+    <SetProperty Id="BLURTERMS" Value="[BLURTERMS_SAVED]" After="AppSearch" Sequence="first"><![CDATA[BLURTERMS_SAVED AND NOT BLURTERMS]]></SetProperty>
+    <SetProperty Id="SENSITIVEFIELDPATTERNS" Value="[SENSITIVEFIELDPATTERNS_SAVED]" After="AppSearch" Sequence="first"><![CDATA[SENSITIVEFIELDPATTERNS_SAVED AND NOT SENSITIVEFIELDPATTERNS]]></SetProperty>
+    <SetProperty Id="LOCKED" Value="[LOCKED_SAVED]" After="AppSearch" Sequence="first"><![CDATA[LOCKED_SAVED AND NOT LOCKED]]></SetProperty>
+    <SetProperty Id="DISABLEUPDATECHECK" Value="[DISABLEUPDATECHECK_SAVED]" After="AppSearch" Sequence="first"><![CDATA[DISABLEUPDATECHECK_SAVED AND NOT DISABLEUPDATECHECK]]></SetProperty>
+    <SetProperty Id="DISABLEKEYSTROKES" Value="[DISABLEKEYSTROKES_SAVED]" After="AppSearch" Sequence="first"><![CDATA[DISABLEKEYSTROKES_SAVED AND NOT DISABLEKEYSTROKES]]></SetProperty>
+    <SetProperty Id="AUTOSTART" Value="[AUTOSTART_SAVED]" After="AppSearch" Sequence="first"><![CDATA[AUTOSTART_SAVED AND NOT AUTOSTART]]></SetProperty>
+    <SetProperty Id="RECORDTYPINGBYDEFAULT" Value="[RECORDTYPINGBYDEFAULT_SAVED]" After="AppSearch" Sequence="first"><![CDATA[RECORDTYPINGBYDEFAULT_SAVED AND NOT RECORDTYPINGBYDEFAULT]]></SetProperty>
+    <SetProperty Id="INCLUDEOUTPUTBYDEFAULT" Value="[INCLUDEOUTPUTBYDEFAULT_SAVED]" After="AppSearch" Sequence="first"><![CDATA[INCLUDEOUTPUTBYDEFAULT_SAVED AND NOT INCLUDEOUTPUTBYDEFAULT]]></SetProperty>
+    <SetProperty Id="BLURSTRENGTH" Value="[BLURSTRENGTH_SAVED]" After="AppSearch" Sequence="first"><![CDATA[BLURSTRENGTH_SAVED AND NOT BLURSTRENGTH]]></SetProperty>
+    <SetProperty Id="SHOWUNNAMEDTYPING" Value="[SHOWUNNAMEDTYPING_SAVED]" After="AppSearch" Sequence="first"><![CDATA[SHOWUNNAMEDTYPING_SAVED AND NOT SHOWUNNAMEDTYPING]]></SetProperty>
+
+    <ComponentGroup Id="PolicyProperties" Directory="TARGETDIR">
+      <Component Id="PolicyLibraries" Guid="EE55252C-1789-4BE7-AA57-BA73AEF5FCAB" Win64="$(var.PolicyWin64)" Transitive="yes">
+        <Condition><![CDATA[LIBRARIES]]></Condition>
+        <RegistryValue Root="HKLM" Key="$(var.PolicyKey)" Name="Libraries" Type="string" Value="[LIBRARIES]" KeyPath="yes" />
+        <RegistryValue Root="HKLM" Key="$(var.RememberKey)" Name="Libraries" Type="string" Value="[LIBRARIES]" />
+      </Component>
+      <Component Id="PolicyDefaultLibrary" Guid="7C1B85BE-0776-4C10-BBED-466E83A2681D" Win64="$(var.PolicyWin64)" Transitive="yes">
+        <Condition><![CDATA[DEFAULTLIBRARY]]></Condition>
+        <RegistryValue Root="HKLM" Key="$(var.PolicyKey)" Name="DefaultLibrary" Type="string" Value="[DEFAULTLIBRARY]" KeyPath="yes" />
+        <RegistryValue Root="HKLM" Key="$(var.RememberKey)" Name="DefaultLibrary" Type="string" Value="[DEFAULTLIBRARY]" />
+      </Component>
+      <Component Id="PolicyBrandProfiles" Guid="4E90BD4C-C0EC-4CBD-80B0-0BB302AFC1E8" Win64="$(var.PolicyWin64)" Transitive="yes">
+        <Condition><![CDATA[BRANDPROFILES]]></Condition>
+        <RegistryValue Root="HKLM" Key="$(var.PolicyKey)" Name="BrandProfiles" Type="string" Value="[BRANDPROFILES]" KeyPath="yes" />
+        <RegistryValue Root="HKLM" Key="$(var.RememberKey)" Name="BrandProfiles" Type="string" Value="[BRANDPROFILES]" />
+      </Component>
+      <Component Id="PolicyLanguage" Guid="2C907470-D403-4732-8617-70C2A5207B8A" Win64="$(var.PolicyWin64)" Transitive="yes">
+        <Condition><![CDATA[STEPSLANGUAGE]]></Condition>
+        <RegistryValue Root="HKLM" Key="$(var.PolicyKey)" Name="Language" Type="string" Value="[STEPSLANGUAGE]" KeyPath="yes" />
+        <RegistryValue Root="HKLM" Key="$(var.RememberKey)" Name="Language" Type="string" Value="[STEPSLANGUAGE]" />
+      </Component>
+      <Component Id="PolicyLanguageTone" Guid="99A9BFE4-10F0-4375-8FF8-F68EF35E458D" Win64="$(var.PolicyWin64)" Transitive="yes">
+        <Condition><![CDATA[LANGUAGETONE = "casual" OR LANGUAGETONE = "plain" OR LANGUAGETONE = "formal"]]></Condition>
+        <RegistryValue Root="HKLM" Key="$(var.PolicyKey)" Name="LanguageTone" Type="string" Value="[LANGUAGETONE]" KeyPath="yes" />
+        <RegistryValue Root="HKLM" Key="$(var.RememberKey)" Name="LanguageTone" Type="string" Value="[LANGUAGETONE]" />
+      </Component>
+      <Component Id="PolicyDefaultPdfBrand" Guid="BB961F1C-B4DC-4662-A26B-3F5D8900855C" Win64="$(var.PolicyWin64)" Transitive="yes">
+        <Condition><![CDATA[DEFAULTPDFBRAND]]></Condition>
+        <RegistryValue Root="HKLM" Key="$(var.PolicyKey)" Name="DefaultPdfBrand" Type="string" Value="[DEFAULTPDFBRAND]" KeyPath="yes" />
+        <RegistryValue Root="HKLM" Key="$(var.RememberKey)" Name="DefaultPdfBrand" Type="string" Value="[DEFAULTPDFBRAND]" />
+      </Component>
+      <Component Id="PolicyAppColoursBrand" Guid="2C02D1C7-09DA-4682-B831-A464FE51CD70" Win64="$(var.PolicyWin64)" Transitive="yes">
+        <Condition><![CDATA[APPCOLOURSBRAND]]></Condition>
+        <RegistryValue Root="HKLM" Key="$(var.PolicyKey)" Name="AppColoursBrand" Type="string" Value="[APPCOLOURSBRAND]" KeyPath="yes" />
+        <RegistryValue Root="HKLM" Key="$(var.RememberKey)" Name="AppColoursBrand" Type="string" Value="[APPCOLOURSBRAND]" />
+      </Component>
+      <Component Id="PolicyExcludedApps" Guid="3BDC634E-31FA-465E-89E4-6BB5A6B657CD" Win64="$(var.PolicyWin64)" Transitive="yes">
+        <Condition><![CDATA[EXCLUDEDAPPS]]></Condition>
+        <RegistryValue Root="HKLM" Key="$(var.PolicyKey)" Name="ExcludedApps" Type="string" Value="[EXCLUDEDAPPS]" KeyPath="yes" />
+        <RegistryValue Root="HKLM" Key="$(var.RememberKey)" Name="ExcludedApps" Type="string" Value="[EXCLUDEDAPPS]" />
+      </Component>
+      <Component Id="PolicyBlurTerms" Guid="5910352C-AD2D-4210-BF0E-23554CE2A49E" Win64="$(var.PolicyWin64)" Transitive="yes">
+        <Condition><![CDATA[BLURTERMS]]></Condition>
+        <RegistryValue Root="HKLM" Key="$(var.PolicyKey)" Name="BlurTerms" Type="string" Value="[BLURTERMS]" KeyPath="yes" />
+        <RegistryValue Root="HKLM" Key="$(var.RememberKey)" Name="BlurTerms" Type="string" Value="[BLURTERMS]" />
+      </Component>
+      <Component Id="PolicySensitiveFieldPatterns" Guid="7CBBD6B6-3D6A-4BC0-A879-0F65EBE22D00" Win64="$(var.PolicyWin64)" Transitive="yes">
+        <Condition><![CDATA[SENSITIVEFIELDPATTERNS]]></Condition>
+        <RegistryValue Root="HKLM" Key="$(var.PolicyKey)" Name="SensitiveFieldPatterns" Type="string" Value="[SENSITIVEFIELDPATTERNS]" KeyPath="yes" />
+        <RegistryValue Root="HKLM" Key="$(var.RememberKey)" Name="SensitiveFieldPatterns" Type="string" Value="[SENSITIVEFIELDPATTERNS]" />
+      </Component>
+      <Component Id="PolicyAutoStart" Guid="E71BFE4A-CBB9-435D-A320-C5FEA4C66E63" Win64="$(var.PolicyWin64)" Transitive="yes">
+        <Condition><![CDATA[AUTOSTART = "0" OR AUTOSTART = "1"]]></Condition>
+        <RegistryValue Root="HKLM" Key="$(var.PolicyKey)" Name="AutoStart" Type="integer" Value="[AUTOSTART]" KeyPath="yes" />
+        <RegistryValue Root="HKLM" Key="$(var.RememberKey)" Name="AutoStart" Type="string" Value="[AUTOSTART]" />
+      </Component>
+      <Component Id="PolicyLocked" Guid="11B37EC1-E1CB-446E-99C5-2C32C1401009" Win64="$(var.PolicyWin64)" Transitive="yes">
+        <Condition><![CDATA[LOCKED]]></Condition>
+        <RegistryValue Root="HKLM" Key="$(var.PolicyKey)" Name="Locked" Type="string" Value="[LOCKED]" KeyPath="yes" />
+        <RegistryValue Root="HKLM" Key="$(var.RememberKey)" Name="Locked" Type="string" Value="[LOCKED]" />
+      </Component>
+      <!-- Stops any copy installed from the setup .exe on this PC checking steps.amluto.com. The .msi's own copy never checks. -->
+      <Component Id="PolicyDisableUpdateCheck" Guid="456767A6-ED64-430E-856F-9A4854BA2079" Win64="$(var.PolicyWin64)" Transitive="yes">
+        <Condition><![CDATA[DISABLEUPDATECHECK = "1"]]></Condition>
+        <RegistryValue Root="HKLM" Key="$(var.PolicyKey)" Name="DisableUpdateCheck" Type="integer" Value="[DISABLEUPDATECHECK]" KeyPath="yes" />
+        <RegistryValue Root="HKLM" Key="$(var.RememberKey)" Name="DisableUpdateCheck" Type="string" Value="[DISABLEUPDATECHECK]" />
+      </Component>
+      <!-- "Record what's typed" can't be ticked on this PC. -->
+      <Component Id="PolicyDisableKeystrokes" Guid="3F0B6C2E-8D41-4B7A-9E25-6A1C0D9F4E73" Win64="$(var.PolicyWin64)" Transitive="yes">
+        <Condition><![CDATA[DISABLEKEYSTROKES = "1"]]></Condition>
+        <RegistryValue Root="HKLM" Key="$(var.PolicyKey)" Name="DisableKeystrokeRecording" Type="integer" Value="[DISABLEKEYSTROKES]" KeyPath="yes" />
+        <RegistryValue Root="HKLM" Key="$(var.RememberKey)" Name="DisableKeystrokeRecording" Type="string" Value="[DISABLEKEYSTROKES]" />
+      </Component>
+      <!-- Whether "Record what's typed" starts ticked when a recording starts; it can still be unticked. -->
+      <Component Id="PolicyRecordTypingByDefault" Guid="A2B2E714-3451-48DE-B18D-340CA4BD4850" Win64="$(var.PolicyWin64)" Transitive="yes">
+        <Condition><![CDATA[RECORDTYPINGBYDEFAULT = "0" OR RECORDTYPINGBYDEFAULT = "1"]]></Condition>
+        <RegistryValue Root="HKLM" Key="$(var.PolicyKey)" Name="RecordTypingByDefault" Type="integer" Value="[RECORDTYPINGBYDEFAULT]" KeyPath="yes" />
+        <RegistryValue Root="HKLM" Key="$(var.RememberKey)" Name="RecordTypingByDefault" Type="string" Value="[RECORDTYPINGBYDEFAULT]" />
+      </Component>
+      <!-- The same for "Include command output". -->
+      <Component Id="PolicyIncludeOutputByDefault" Guid="A40B7667-FD48-4190-BDEF-921BE4B460B8" Win64="$(var.PolicyWin64)" Transitive="yes">
+        <Condition><![CDATA[INCLUDEOUTPUTBYDEFAULT = "0" OR INCLUDEOUTPUTBYDEFAULT = "1"]]></Condition>
+        <RegistryValue Root="HKLM" Key="$(var.PolicyKey)" Name="IncludeCommandOutputByDefault" Type="integer" Value="[INCLUDEOUTPUTBYDEFAULT]" KeyPath="yes" />
+        <RegistryValue Root="HKLM" Key="$(var.RememberKey)" Name="IncludeCommandOutputByDefault" Type="string" Value="[INCLUDEOUTPUTBYDEFAULT]" />
+      </Component>
+      <!-- How much blur suggestions look for: light, standard or thorough. -->
+      <Component Id="PolicyBlurStrength" Guid="AAC5DD59-6424-4BE6-BE35-3A05F712FD11" Win64="$(var.PolicyWin64)" Transitive="yes">
+        <Condition><![CDATA[BLURSTRENGTH = "light" OR BLURSTRENGTH = "standard" OR BLURSTRENGTH = "thorough"]]></Condition>
+        <RegistryValue Root="HKLM" Key="$(var.PolicyKey)" Name="BlurStrength" Type="string" Value="[BLURSTRENGTH]" KeyPath="yes" />
+        <RegistryValue Root="HKLM" Key="$(var.RememberKey)" Name="BlurStrength" Type="string" Value="[BLURSTRENGTH]" />
+      </Component>
+      <!-- Whether typing into a box Steps can't name shows its text in the step. -->
+      <Component Id="PolicyShowUnnamedTyping" Guid="0167CCDA-9432-422D-B066-7A30A360D641" Win64="$(var.PolicyWin64)" Transitive="yes">
+        <Condition><![CDATA[SHOWUNNAMEDTYPING = "0" OR SHOWUNNAMEDTYPING = "1"]]></Condition>
+        <RegistryValue Root="HKLM" Key="$(var.PolicyKey)" Name="ShowUnnamedTyping" Type="integer" Value="[SHOWUNNAMEDTYPING]" KeyPath="yes" />
+        <RegistryValue Root="HKLM" Key="$(var.RememberKey)" Name="ShowUnnamedTyping" Type="string" Value="[SHOWUNNAMEDTYPING]" />
+      </Component>
+    </ComponentGroup>
+  </Fragment>
+</Wix>

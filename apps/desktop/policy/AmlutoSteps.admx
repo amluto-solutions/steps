@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Group Policy / Intune template for Steps (docs/spec/07-settings-and-policy.md).
+  Copy this file to C:\Windows\PolicyDefinitions (or the central store) and en-US\AmlutoSteps.adml
+  to the en-US folder beside it. Every policy writes to Software\Policies\Amluto\Steps, under
+  HKLM for Computer Configuration and HKCU for User Configuration; the machine's value wins.
+-->
+<policyDefinitions xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" revision="1.0" schemaVersion="1.0" xmlns="http://schemas.microsoft.com/GroupPolicy/2006/07/PolicyDefinitions">
+  <policyNamespaces>
+    <target prefix="amlutosteps" namespace="Amluto.Policies.Steps" />
+  </policyNamespaces>
+  <resources minRequiredRevision="1.0" />
+  <supportedOn>
+    <definitions>
+      <definition name="SUPPORTED_Windows11" displayName="$(string.SUPPORTED_Windows11)" />
+    </definitions>
+  </supportedOn>
+  <categories>
+    <category name="Amluto" displayName="$(string.Amluto)" />
+    <category name="AmlutoSteps" displayName="$(string.AmlutoSteps)">
+      <parentCategory ref="Amluto" />
+    </category>
+    <category name="Libraries" displayName="$(string.Cat_Libraries)">
+      <parentCategory ref="AmlutoSteps" />
+    </category>
+    <category name="Recording" displayName="$(string.Cat_Recording)">
+      <parentCategory ref="AmlutoSteps" />
+    </category>
+    <category name="Privacy" displayName="$(string.Cat_Privacy)">
+      <parentCategory ref="AmlutoSteps" />
+    </category>
+    <category name="Branding" displayName="$(string.Cat_Branding)">
+      <parentCategory ref="AmlutoSteps" />
+    </category>
+  </categories>
+  <policies>
+    <policy name="Libraries" class="Both" displayName="$(string.Libraries)" explainText="$(string.Libraries_Help)" presentation="$(presentation.Libraries)" key="Software\Policies\Amluto\Steps">
+      <parentCategory ref="Libraries" />
+      <supportedOn ref="SUPPORTED_Windows11" />
+      <elements>
+        <multiText id="Libraries" valueName="Libraries" maxLength="1024" />
+      </elements>
+    </policy>
+    <policy name="DefaultLibrary" class="Both" displayName="$(string.DefaultLibrary)" explainText="$(string.DefaultLibrary_Help)" presentation="$(presentation.DefaultLibrary)" key="Software\Policies\Amluto\Steps">
+      <parentCategory ref="Libraries" />
+      <supportedOn ref="SUPPORTED_Windows11" />
+      <elements>
+        <text id="DefaultLibrary" valueName="DefaultLibrary" maxLength="1024" required="true" />
+      </elements>
+    </policy>
+    <policy name="ExcludedApps" class="Both" displayName="$(string.ExcludedApps)" explainText="$(string.ExcludedApps_Help)" presentation="$(presentation.ExcludedApps)" key="Software\Policies\Amluto\Steps">
+      <parentCategory ref="Recording" />
+      <supportedOn ref="SUPPORTED_Windows11" />
+      <elements>
+        <multiText id="ExcludedApps" valueName="ExcludedApps" maxLength="128" />
+      </elements>
+    </policy>
+    <policy name="Locked" class="Both" displayName="$(string.Locked)" explainText="$(string.Locked_Help)" presentation="$(presentation.Locked)" key="Software\Policies\Amluto\Steps">
+      <parentCategory ref="AmlutoSteps" />
+      <supportedOn ref="SUPPORTED_Windows11" />
+      <elements>
+        <multiText id="Locked" valueName="Locked" maxLength="64" />
+      </elements>
+    </policy>
+    <policy name="AutoStart" class="Both" displayName="$(string.AutoStart)" explainText="$(string.AutoStart_Help)" key="Software\Policies\Amluto\Steps" valueName="AutoStart">
+      <parentCategory ref="AmlutoSteps" />
+      <supportedOn ref="SUPPORTED_Windows11" />
+      <enabledValue>
+        <decimal value="1" />
+      </enabledValue>
+      <disabledValue>
+        <decimal value="0" />
+      </disabledValue>
+    </policy>
+    <policy name="BlurTerms" class="Both" displayName="$(string.BlurTerms)" explainText="$(string.BlurTerms_Help)" presentation="$(presentation.BlurTerms)" key="Software\Policies\Amluto\Steps">
+      <parentCategory ref="Privacy" />
+      <supportedOn ref="SUPPORTED_Windows11" />
+      <elements>
+        <multiText id="BlurTerms" valueName="BlurTerms" maxLength="256" />
+      </elements>
+    </policy>
+    <policy name="SensitiveFieldPatterns" class="Both" displayName="$(string.SensitiveFieldPatterns)" explainText="$(string.SensitiveFieldPatterns_Help)" presentation="$(presentation.SensitiveFieldPatterns)" key="Software\Policies\Amluto\Steps">
+      <parentCategory ref="Privacy" />
+      <supportedOn ref="SUPPORTED_Windows11" />
+      <elements>
+        <multiText id="SensitiveFieldPatterns" valueName="SensitiveFieldPatterns" maxLength="128" />
+      </elements>
+    </policy>
+    <policy name="BrandProfiles" class="Both" displayName="$(string.BrandProfiles)" explainText="$(string.BrandProfiles_Help)" presentation="$(presentation.BrandProfiles)" key="Software\Policies\Amluto\Steps">
+      <parentCategory ref="Branding" />
+      <supportedOn ref="SUPPORTED_Windows11" />
+      <elements>
+        <multiText id="BrandProfiles" valueName="BrandProfiles" maxLength="1024" />
+      </elements>
+    </policy>
+    <policy name="AppColoursBrand" class="Both" displayName="$(string.AppColoursBrand)" explainText="$(string.AppColoursBrand_Help)" presentation="$(presentation.AppColoursBrand)" key="Software\Policies\Amluto\Steps">
+      <parentCategory ref="Branding" />
+      <supportedOn ref="SUPPORTED_Windows11" />
+      <elements>
+        <text id="AppColoursBrand" valueName="AppColoursBrand" maxLength="64" required="true" />
+      </elements>
+    </policy>
+    <policy name="DefaultPdfBrand" class="Both" displayName="$(string.DefaultPdfBrand)" explainText="$(string.DefaultPdfBrand_Help)" presentation="$(presentation.DefaultPdfBrand)" key="Software\Policies\Amluto\Steps">
+      <parentCategory ref="Branding" />
+      <supportedOn ref="SUPPORTED_Windows11" />
+      <elements>
+        <text id="DefaultPdfBrand" valueName="DefaultPdfBrand" maxLength="64" required="true" />
+      </elements>
+    </policy>
+    <policy name="DisableKeystrokeRecording" class="Both" displayName="$(string.DisableKeystrokeRecording)" explainText="$(string.DisableKeystrokeRecording_Help)" key="Software\Policies\Amluto\Steps" valueName="DisableKeystrokeRecording">
+      <parentCategory ref="Privacy" />
+      <supportedOn ref="SUPPORTED_Windows11" />
+      <enabledValue>
+        <decimal value="1" />
+      </enabledValue>
+      <disabledValue>
+        <decimal value="0" />
+      </disabledValue>
+    </policy>
+    <policy name="RecordTypingByDefault" class="Both" displayName="$(string.RecordTypingByDefault)" explainText="$(string.RecordTypingByDefault_Help)" key="Software\Policies\Amluto\Steps" valueName="RecordTypingByDefault">
+      <parentCategory ref="Privacy" />
+      <supportedOn ref="SUPPORTED_Windows11" />
+      <enabledValue>
+        <decimal value="1" />
+      </enabledValue>
+      <disabledValue>
+        <decimal value="0" />
+      </disabledValue>
+    </policy>
+    <policy name="IncludeCommandOutputByDefault" class="Both" displayName="$(string.IncludeCommandOutputByDefault)" explainText="$(string.IncludeCommandOutputByDefault_Help)" key="Software\Policies\Amluto\Steps" valueName="IncludeCommandOutputByDefault">
+      <parentCategory ref="Privacy" />
+      <supportedOn ref="SUPPORTED_Windows11" />
+      <enabledValue>
+        <decimal value="1" />
+      </enabledValue>
+      <disabledValue>
+        <decimal value="0" />
+      </disabledValue>
+    </policy>
+    <policy name="DisableUpdateCheck" class="Both" displayName="$(string.DisableUpdateCheck)" explainText="$(string.DisableUpdateCheck_Help)" key="Software\Policies\Amluto\Steps" valueName="DisableUpdateCheck">
+      <parentCategory ref="AmlutoSteps" />
+      <supportedOn ref="SUPPORTED_Windows11" />
+      <enabledValue>
+        <decimal value="1" />
+      </enabledValue>
+      <disabledValue>
+        <decimal value="0" />
+      </disabledValue>
+    </policy>
+    <policy name="Language" class="Both" displayName="$(string.Language)" explainText="$(string.Language_Help)" presentation="$(presentation.Language)" key="Software\Policies\Amluto\Steps">
+      <parentCategory ref="AmlutoSteps" />
+      <supportedOn ref="SUPPORTED_Windows11" />
+      <elements>
+        <enum id="Language" valueName="Language" required="true">
+          <item displayName="$(string.Lang_en)"><value><string>en</string></value></item>
+          <item displayName="$(string.Lang_de)"><value><string>de</string></value></item>
+          <item displayName="$(string.Lang_fr)"><value><string>fr</string></value></item>
+          <item displayName="$(string.Lang_es)"><value><string>es</string></value></item>
+          <item displayName="$(string.Lang_it)"><value><string>it</string></value></item>
+          <item displayName="$(string.Lang_pt_BR)"><value><string>pt-BR</string></value></item>
+          <item displayName="$(string.Lang_ja)"><value><string>ja</string></value></item>
+          <item displayName="$(string.Lang_zh_Hans)"><value><string>zh-Hans</string></value></item>
+          <item displayName="$(string.Lang_nl)"><value><string>nl</string></value></item>
+          <item displayName="$(string.Lang_pl)"><value><string>pl</string></value></item>
+          <item displayName="$(string.Lang_ko)"><value><string>ko</string></value></item>
+          <item displayName="$(string.Lang_ru)"><value><string>ru</string></value></item>
+          <item displayName="$(string.Lang_tr)"><value><string>tr</string></value></item>
+          <item displayName="$(string.Lang_zh_Hant)"><value><string>zh-Hant</string></value></item>
+          <item displayName="$(string.Lang_uk)"><value><string>uk</string></value></item>
+          <item displayName="$(string.Lang_sv)"><value><string>sv</string></value></item>
+          <item displayName="$(string.Lang_cs)"><value><string>cs</string></value></item>
+          <item displayName="$(string.Lang_id)"><value><string>id</string></value></item>
+          <item displayName="$(string.Lang_vi)"><value><string>vi</string></value></item>
+          <item displayName="$(string.Lang_da)"><value><string>da</string></value></item>
+          <item displayName="$(string.Lang_pt_PT)"><value><string>pt-PT</string></value></item>
+          <item displayName="$(string.Lang_ro)"><value><string>ro</string></value></item>
+          <item displayName="$(string.Lang_hu)"><value><string>hu</string></value></item>
+          <item displayName="$(string.Lang_el)"><value><string>el</string></value></item>
+          <item displayName="$(string.Lang_fi)"><value><string>fi</string></value></item>
+          <item displayName="$(string.Lang_nb)"><value><string>nb</string></value></item>
+          <item displayName="$(string.Lang_sk)"><value><string>sk</string></value></item>
+          <item displayName="$(string.Lang_bg)"><value><string>bg</string></value></item>
+          <item displayName="$(string.Lang_hr)"><value><string>hr</string></value></item>
+          <item displayName="$(string.Lang_sr_Latn)"><value><string>sr-Latn</string></value></item>
+          <item displayName="$(string.Lang_sr_Cyrl)"><value><string>sr-Cyrl</string></value></item>
+          <item displayName="$(string.Lang_ca)"><value><string>ca</string></value></item>
+          <item displayName="$(string.Lang_lt)"><value><string>lt</string></value></item>
+          <item displayName="$(string.Lang_sl)"><value><string>sl</string></value></item>
+          <item displayName="$(string.Lang_lv)"><value><string>lv</string></value></item>
+          <item displayName="$(string.Lang_et)"><value><string>et</string></value></item>
+          <item displayName="$(string.Lang_ga)"><value><string>ga</string></value></item>
+          <item displayName="$(string.Lang_mt)"><value><string>mt</string></value></item>
+        </enum>
+      </elements>
+    </policy>
+    <policy name="LanguageTone" class="Both" displayName="$(string.LanguageTone)" explainText="$(string.LanguageTone_Help)" presentation="$(presentation.LanguageTone)" key="Software\Policies\Amluto\Steps">
+      <parentCategory ref="Recording" />
+      <supportedOn ref="SUPPORTED_Windows11" />
+      <elements>
+        <enum id="LanguageTone" valueName="LanguageTone" required="true">
+          <item displayName="$(string.Tone_casual)"><value><string>casual</string></value></item>
+          <item displayName="$(string.Tone_plain)"><value><string>plain</string></value></item>
+          <item displayName="$(string.Tone_formal)"><value><string>formal</string></value></item>
+        </enum>
+      </elements>
+    </policy>
+    <policy name="ShowUnnamedTyping" class="Both" displayName="$(string.ShowUnnamedTyping)" explainText="$(string.ShowUnnamedTyping_Help)" key="Software\Policies\Amluto\Steps" valueName="ShowUnnamedTyping">
+      <parentCategory ref="Privacy" />
+      <supportedOn ref="SUPPORTED_Windows11" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+    </policy>
+    <policy name="BlurStrength" class="Both" displayName="$(string.BlurStrength)" explainText="$(string.BlurStrength_Help)" presentation="$(presentation.BlurStrength)" key="Software\Policies\Amluto\Steps">
+      <parentCategory ref="Privacy" />
+      <supportedOn ref="SUPPORTED_Windows11" />
+      <elements>
+        <enum id="BlurStrength" valueName="BlurStrength" required="true">
+          <item displayName="$(string.Blur_light)"><value><string>light</string></value></item>
+          <item displayName="$(string.Blur_standard)"><value><string>standard</string></value></item>
+          <item displayName="$(string.Blur_thorough)"><value><string>thorough</string></value></item>
+        </enum>
+      </elements>
+    </policy>
+  </policies>
+</policyDefinitions>

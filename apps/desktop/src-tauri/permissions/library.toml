@@ -1,0 +1,224 @@
+[[permission]]
+identifier = "allow-library-list-libraries"
+description = "Allows the frontend to list the registered libraries."
+commands.allow = ["library_list_libraries"]
+
+[[permission]]
+identifier = "allow-library-add-library"
+description = "Allows the user to register a local folder as a library."
+commands.allow = ["library_add_library"]
+
+[[permission]]
+identifier = "allow-library-rename-library"
+description = "Allows the user to rename a library in their list."
+commands.allow = ["library_rename_library"]
+
+[[permission]]
+identifier = "allow-library-remove-library"
+description = "Allows the user to take a library off their list; no files are deleted."
+commands.allow = ["library_remove_library"]
+
+[[permission]]
+identifier = "allow-library-set-default-library"
+description = "Allows the user to choose the library new recordings are saved to."
+commands.allow = ["library_set_default_library"]
+
+[[permission]]
+identifier = "allow-library-list-guides"
+description = "Allows the frontend to list the guides in a library."
+commands.allow = ["library_list_guides"]
+
+[[permission]]
+identifier = "allow-library-search-guides"
+description = "Allows the frontend to search the wording of a library's guides."
+commands.allow = ["library_search_guides"]
+
+[[permission]]
+identifier = "allow-library-retake-image"
+description = "Allows the frontend to retake a step's screenshot in a saved guide."
+commands.allow = ["library_retake_image"]
+
+[[permission]]
+identifier = "allow-library-load-guide"
+description = "Allows the frontend to open a guide and its steps."
+commands.allow = ["library_load_guide"]
+
+[[permission]]
+identifier = "allow-library-create-guide"
+description = "Allows the user to create a new, empty guide."
+commands.allow = ["library_create_guide"]
+
+[[permission]]
+identifier = "allow-library-open-for-editing"
+description = "Allows the editor to take a guide's edit lock, or learn who holds it."
+commands.allow = ["library_open_for_editing"]
+
+[[permission]]
+identifier = "allow-library-release-lock"
+description = "Allows the editor to let go of a guide's edit lock when it closes."
+commands.allow = ["library_release_lock"]
+
+[[permission]]
+identifier = "allow-library-list-conflicts"
+description = "Allows the editor to list a guide's conflict copies and restored steps."
+commands.allow = ["library_list_conflicts"]
+
+[[permission]]
+identifier = "allow-library-resolve-conflict"
+description = "Allows the user to settle a conflict in a guide they're editing."
+commands.allow = ["library_resolve_conflict"]
+
+[[permission]]
+identifier = "allow-library-fingerprint"
+description = "Allows the window to notice synced changes to a library (names, sizes and times of its files only)."
+commands.allow = ["library_fingerprint"]
+
+[[permission]]
+identifier = "allow-library-guide-fingerprint"
+description = "Allows a read-only guide to notice someone else's synced changes (names, sizes and times of its files only)."
+commands.allow = ["library_guide_fingerprint"]
+
+[[permission]]
+identifier = "allow-library-save-draft"
+description = "Allows an editor that lost a guide's lock to keep its unsaved work as a draft on the guide."
+commands.allow = ["library_save_draft"]
+
+[[permission]]
+identifier = "allow-library-list-drafts"
+description = "Allows the editor to list a guide's unsynced drafts."
+commands.allow = ["library_list_drafts"]
+
+[[permission]]
+identifier = "allow-library-discard-draft"
+description = "Allows the user to discard an unsynced draft."
+commands.allow = ["library_discard_draft"]
+
+[[permission]]
+identifier = "allow-library-draft-to-copy"
+description = "Allows the user to open an unsynced draft as a new guide."
+commands.allow = ["library_draft_to_copy"]
+
+[[permission]]
+identifier = "allow-library-save-guide"
+description = "Allows the editor to save guide.json."
+commands.allow = ["library_save_guide"]
+
+[[permission]]
+identifier = "allow-library-save-step"
+description = "Allows the editor to save one step file."
+commands.allow = ["library_save_step"]
+
+[[permission]]
+identifier = "allow-library-delete-step"
+description = "Allows the editor to delete one step file."
+commands.allow = ["library_delete_step"]
+
+[[permission]]
+identifier = "allow-library-import-image"
+description = "Allows the editor to store a pasted, dropped or chosen image."
+commands.allow = ["library_import_image"]
+
+[[permission]]
+identifier = "allow-library-load-image"
+description = "Allows the frontend to read a guide image or its thumbnail."
+commands.allow = ["library_load_image"]
+
+[[permission]]
+identifier = "allow-library-trash-guide"
+description = "Allows the user to move a guide to the bin."
+commands.allow = ["library_trash_guide"]
+
+[[permission]]
+identifier = "allow-library-list-trash"
+description = "Allows the frontend to list the bin, which empties entries older than 30 days."
+commands.allow = ["library_list_trash"]
+
+[[permission]]
+identifier = "allow-library-restore-guide"
+description = "Allows the user to restore a guide from the bin."
+commands.allow = ["library_restore_guide"]
+
+[[permission]]
+identifier = "allow-library-delete-trashed"
+description = "Allows the user to delete a guide in the bin for good."
+commands.allow = ["library_delete_trashed"]
+
+[[permission]]
+identifier = "allow-library-empty-trash"
+description = "Allows the user to empty the bin for good."
+commands.allow = ["library_empty_trash"]
+
+[[permission]]
+identifier = "allow-library-create-from-parts"
+description = "Allows the user to merge guides into a new one, copying their screenshots."
+commands.allow = ["library_create_from_parts"]
+
+[[permission]]
+identifier = "allow-library-duplicate-guide"
+description = "Allows the user to duplicate a guide."
+commands.allow = ["library_duplicate_guide"]
+
+[[permission]]
+identifier = "allow-library-copy-guide"
+description = "Allows the user to copy a guide to another library."
+commands.allow = ["library_copy_guide"]
+
+[[permission]]
+identifier = "allow-library-move-guide"
+description = "Allows the user to move a guide to another library."
+commands.allow = ["library_move_guide"]
+
+[[permission]]
+identifier = "allow-library-save-version"
+description = "Allows the user to save the guide as a named version."
+commands.allow = ["library_save_version"]
+
+[[permission]]
+identifier = "allow-library-list-versions"
+description = "Allows the frontend to list a guide's saved versions."
+commands.allow = ["library_list_versions"]
+
+[[permission]]
+identifier = "allow-library-load-version"
+description = "Allows the frontend to open a saved version for viewing."
+commands.allow = ["library_load_version"]
+
+[[permission]]
+identifier = "allow-library-restore-version"
+description = "Allows the user to restore a saved version (the current state is saved first)."
+commands.allow = ["library_restore_version"]
+
+[[permission]]
+identifier = "allow-library-export-amlsteps"
+description = "Allows the user to save a guide as an .amlsteps file at a location they chose."
+commands.allow = ["library_export_amlsteps"]
+
+[[permission]]
+identifier = "allow-library-import-amlsteps"
+description = "Allows the user to import an .amlsteps file they chose, under the hostile-file rules."
+commands.allow = ["library_import_amlsteps"]
+
+[[permission]]
+identifier = "allow-library-apply-redactions"
+description = "Allows the user, after confirming, to burn a guide's blur into its screenshots for good and delete the unblurred originals."
+commands.allow = ["library_apply_redactions"]
+
+[[permission]]
+identifier = "allow-library-list-comments"
+description = "Allows the editor to list a guide's review comments."
+commands.allow = ["library_list_comments"]
+
+[[permission]]
+identifier = "allow-library-add-comment"
+description = "Allows the editor to add a review comment or reply."
+commands.allow = ["library_add_comment"]
+
+[[permission]]
+identifier = "allow-library-resolve-comment"
+description = "Allows the editor to resolve or reopen a review comment thread."
+commands.allow = ["library_resolve_comment"]
+
+[[permission]]
+identifier = "allow-library-delete-comment"
+description = "Allows the editor to delete the person's own review comment."
+commands.allow = ["library_delete_comment"]

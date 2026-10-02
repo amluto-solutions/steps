@@ -1,0 +1,23 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "./packages/core"
+    },
+    {
+      "path": "./packages/export"
+    },
+    {
+      "path": "./packages/ui"
+    },
+    {
+      "path": "./apps/desktop"
+    },
+    {
+      "path": "./apps/website"
+    },
+    {
+      "path": "./apps/chrome"
+    }
+  ]
+}

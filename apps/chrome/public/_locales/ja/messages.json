@@ -1,0 +1,14 @@
+{
+  "extName": {
+    "message": "Steps by Amluto",
+    "description": "The extension's name in the browser and its store. A brand: the same in every language."
+  },
+  "extDescriptionChrome": {
+    "message": "Chrome での作業をクリックごとに記録して、ステップ バイ ステップの手順ガイドを作成します。",
+    "description": "The extension's description in Chrome and Edge (up to 132 characters)."
+  },
+  "extDescriptionFirefox": {
+    "message": "Firefox での作業をクリックごとに記録して、ステップ バイ ステップの手順ガイドを作成します。",
+    "description": "The extension's description in Firefox (up to 132 characters)."
+  }
+}

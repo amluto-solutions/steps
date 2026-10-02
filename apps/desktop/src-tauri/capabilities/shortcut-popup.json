@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "shortcut-popup",
+  "description": "The Add shortcut popup: it can add the one step and close itself, nothing else.",
+  "windows": ["shortcut-popup"],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "allow-recorder-append-step",
+    "allow-recorder-close-shortcut-popup"
+  ]
+}

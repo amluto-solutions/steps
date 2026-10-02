@@ -1,0 +1,90 @@
+{
+  "about": "Which fields are sensitive, and how typed values are masked (docs/spec/08-privacy-and-security.md#input-rules). Owner: Rust capture/sensitive.rs; the Chrome edition's packages/core/src/sensitive.ts must agree.",
+  "sensitiveFields": [
+    "Password",
+    "Confirm password",
+    "PIN",
+    "cardPin",
+    "user_pin",
+    "One-time code",
+    "otpCode",
+    "CVV",
+    "Security code",
+    "Memorable word",
+    "Sort code",
+    "Account number",
+    "Card number",
+    "cardNo",
+    "Network security key",
+    "Passphrase",
+    "Verification code",
+    "Recovery code",
+    "backupCode",
+    "AWS access key",
+    "API_KEY",
+    "apikey",
+    "API token",
+    "client-secret",
+    "OTPCode",
+    "PINField",
+    "APIToken",
+    "txtCVV",
+    "pw",
+    "$pw",
+    "Passwort",
+    "Mot de passe",
+    "Hasło",
+    "Пароль",
+    "パスワード",
+    "密码",
+    "Set Password",
+    "비밀번호 입력"
+  ],
+  "ordinaryFields": [
+    "Email",
+    "Spinner",
+    "Shipping address",
+    "Opinion",
+    "Pinned items",
+    "Tokenise",
+    "Search",
+    "PINsAndNeedles",
+    "SPINNER",
+    "HTMLPage",
+    "",
+    "Passage",
+    "Parolee status"
+  ],
+  "policyTerm": {
+    "field": "Project Falcon code",
+    "term": "falcon"
+  },
+  "masked": [
+    ["4111 1111 1111 1111", "••••1111"],
+    ["card 4111-1111-1111-1111 please", "card ••••1111 please"],
+    ["AB 12 34 56 C", "••••456C"],
+    ["GB82 WEST 1234 5698 7654 32", "••••5432"],
+    ["robin@example.com", "••••.com"],
+    ["Call 07700 900123 today", "Call ••••0123 today"],
+    ["+44 20 7946 0958", "••••0958"],
+    ["4111111111111111, thanks", "••••1111, thanks"],
+    ["Ring (020) 7946 0958.", "Ring ••••0958."],
+    ["NI: AB123456C;", "NI: ••••456C;"]
+  ],
+  "unmasked": [
+    "Acme Supplies Ltd",
+    "4111 1111 1111 1112",
+    "Invoice 12345",
+    "GB82 WEST 1234 5698 7654 33",
+    "@handle",
+    "2026-09-26",
+    ""
+  ],
+  "cardNumbersOnly": [
+    [
+      "Set-Card -Owner anna@contoso.co.uk -Number 4111111111111111 -Phone 07700900123",
+      "Set-Card -Owner anna@contoso.co.uk -Number ••••1111 -Phone 07700900123"
+    ],
+    ["IBAN GB82 WEST 1234 5698 7654 32", "IBAN ••••5432"]
+  ]
+}

@@ -1,0 +1,23 @@
+# Switched off by design (decision D4): builds and checks run locally with `npm run check`.
+# Manual trigger only, so it never runs, or bills, on push. Kept ready in case CI is ever wanted.
+name: check
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.98.1
+          components: rustfmt, clippy
+      - run: cargo install --locked cargo-deny cargo-audit
+      - run: npm ci
+      - run: npm run check

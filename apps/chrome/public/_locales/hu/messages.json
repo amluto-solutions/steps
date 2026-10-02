@@ -1,0 +1,14 @@
+{
+  "extName": {
+    "message": "Steps by Amluto",
+    "description": "The extension's name in the browser and its store. A brand: the same in every language."
+  },
+  "extDescriptionChrome": {
+    "message": "Rögzítsen egy feladatot a Chrome-ban kattintásról kattintásra, és készítsen belőle lépésenkénti útmutatót.",
+    "description": "The extension's description in Chrome and Edge (up to 132 characters)."
+  },
+  "extDescriptionFirefox": {
+    "message": "Rögzítsen egy feladatot a Firefoxban kattintásról kattintásra, és készítsen belőle lépésenkénti útmutatót.",
+    "description": "The extension's description in Firefox (up to 132 characters)."
+  }
+}

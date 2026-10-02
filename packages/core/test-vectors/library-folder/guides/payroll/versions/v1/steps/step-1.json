@@ -1,0 +1,150 @@
+{
+  "id": "step-1",
+  "sortKey": "a0",
+  "kind": "interaction",
+  "action": "input",
+  "actionText": "Type the supplier name in \"Supplier\"",
+  "textParts": {
+    "verb": "type",
+    "target": "Supplier",
+    "kind": "field",
+    "value": "Acme Ltd"
+  },
+  "showValue": false,
+  "textEdited": true,
+  "notes": {
+    "type": "doc",
+    "content": [
+      {
+        "type": "paragraph",
+        "content": [
+          {
+            "type": "text",
+            "text": "See the "
+          },
+          {
+            "type": "text",
+            "text": "supplier list",
+            "marks": [
+              {
+                "type": "italic"
+              },
+              {
+                "type": "link",
+                "attrs": {
+                  "href": "https://example.com/suppliers"
+                }
+              }
+            ]
+          },
+          {
+            "type": "hardBreak"
+          },
+          {
+            "type": "text",
+            "text": "Ask finance if unsure."
+          }
+        ]
+      },
+      {
+        "type": "orderedList",
+        "attrs": {
+          "start": 1
+        },
+        "content": [
+          {
+            "type": "listItem",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Check the total."
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "altText": null,
+  "context": {
+    "app": "chrome.exe",
+    "windowTitle": "Invoices - Finance portal"
+  },
+  "target": {
+    "controlType": "Edit",
+    "name": "Supplier",
+    "automationId": "supplier"
+  },
+  "media": {
+    "id": "media-1",
+    "width": 2560,
+    "height": 1440,
+    "scale": 1.5,
+    "captureRect": [
+      0,
+      0,
+      3840,
+      2160
+    ]
+  },
+  "highlight": {
+    "shape": "circle",
+    "x": 41.2,
+    "y": 63.0,
+    "w": 3.1,
+    "h": 5.5
+  },
+  "crop": {
+    "x": 10,
+    "y": 10,
+    "w": 60,
+    "h": 50,
+    "source": "auto"
+  },
+  "redactions": [
+    {
+      "x": 10,
+      "y": 5,
+      "w": 20,
+      "h": 4,
+      "source": "manual"
+    }
+  ],
+  "annotations": [
+    {
+      "type": "arrow",
+      "from": [
+        20,
+        30
+      ],
+      "to": [
+        40,
+        60
+      ]
+    },
+    {
+      "type": "label",
+      "x": 50,
+      "y": 20,
+      "text": "Pick your team here"
+    },
+    {
+      "type": "box",
+      "x": 5,
+      "y": 5,
+      "w": 10,
+      "h": 10
+    }
+  ],
+  "block": null,
+  "capturedAt": "2026-09-25T10:00:00.000Z",
+  "updatedAt": "2026-09-25T10:15:00.000Z",
+  "updatedBy": "Robin Hale",
+  "formatVersion": 1,
+  "reviewRequired": false
+}

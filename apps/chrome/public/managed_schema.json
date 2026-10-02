@@ -1,0 +1,111 @@
+{
+  "type": "object",
+  "properties": {
+    "ExcludedSites": {
+      "title": "Sites never recorded",
+      "description": "Host names, such as bank.example; the sites under each are covered too. Added to each person's own list.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "BlurTerms": {
+      "title": "Words always blurred",
+      "description": "Organisation-wide words suggested for blurring, such as internal project codes.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "SensitiveFieldPatterns": {
+      "title": "Extra sensitive field names",
+      "description": "Words in a field's name or label whose value is never read, added to the built-in list.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "Locked": {
+      "title": "Settings shown read-only",
+      "description": "ScreenshotQuality, IncludeOriginals or AskWhereToSave, locked at their defaults.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "DisableKeystrokeRecording": {
+      "title": "Turn off \"Record what's typed\"",
+      "description": "When true, recordings keep clicks and screenshots only: no field values are read.",
+      "type": "boolean"
+    },
+    "RecordTypingByDefault": {
+      "title": "Start recordings with \"Record what's typed\" ticked",
+      "description": "True: it starts ticked (each person can still untick it). False: it starts unticked and can't be changed in Settings. Not set: each person's choice.",
+      "type": "boolean"
+    },
+    "Language": {
+      "title": "Language of Steps",
+      "description": "The language Steps is in: its screens, the words new recordings are written in, and the fixed words in exports. Not set: the browser's language.",
+      "type": "string",
+      "enum": [
+        "en",
+        "de",
+        "fr",
+        "es",
+        "it",
+        "pt-BR",
+        "ja",
+        "zh-Hans",
+        "nl",
+        "pl",
+        "ko",
+        "ru",
+        "tr",
+        "zh-Hant",
+        "uk",
+        "sv",
+        "cs",
+        "id",
+        "vi",
+        "da",
+        "pt-PT",
+        "ro",
+        "hu",
+        "el",
+        "fi",
+        "nb",
+        "sk",
+        "bg",
+        "hr",
+        "sr-Latn",
+        "sr-Cyrl",
+        "ca",
+        "lt",
+        "sl",
+        "lv",
+        "et",
+        "ga",
+        "mt"
+      ]
+    },
+    "LanguageTone": {
+      "title": "Language tone of new recordings",
+      "description": "casual (Steps' own short style), plain (everyday words) or formal (full sentences). Not set: casual, each person's choice.",
+      "type": "string",
+      "enum": ["casual", "plain", "formal"]
+    },
+    "ShowUnnamedTyping": {
+      "title": "Show typing into unnamed boxes",
+      "description": "Whether a step shows what was typed into something the recording couldn't name. Not set: off, each person's choice.",
+      "type": "boolean"
+    },
+    "BlurStrength": {
+      "title": "Blur suggestions",
+      "description": "How much Steps looks for to suggest blurring: light (emails, phone, card and bank numbers, always-blur words), standard (also postcodes, details beside their labels and the person's own names) or thorough (also file names and paths). Not set: standard, each person's choice.",
+      "type": "string",
+      "enum": ["light", "standard", "thorough"]
+    },
+    "DefaultPdfBrand": {
+      "title": "Default brand for exports",
+      "description": "The id of a brand profile.",
+      "type": "string"
+    },
+    "AppColoursBrand": {
+      "title": "Brand for the app's colours",
+      "description": "The id of a brand profile.",
+      "type": "string"
+    }
+  }
+}

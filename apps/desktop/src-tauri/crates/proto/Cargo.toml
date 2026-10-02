@@ -1,0 +1,32 @@
+[package]
+name = "proto"
+description = "Phase 1 capture prototype and its test driver. Never shipped."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "proto"
+path = "src/main.rs"
+
+[[bin]]
+name = "drive"
+path = "src/bin/drive.rs"
+
+[dependencies]
+capture = { path = "../capture" }
+image = "0.25.10"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+
+# The prototype drives Windows itself; on other platforms its programs only say so.
+[target.'cfg(windows)'.dependencies]
+capture-win32 = { path = "../capture-win32", features = ["test-driver"] }
+uiautomation = { version = "0.25.1", features = ["pattern"] }
+xcap = "0.9.8"
+
+[lints]
+workspace = true

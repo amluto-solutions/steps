@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "outDir": "../../node_modules/.tsbuild/ui",
+    "types": ["vite/client"]
+  },
+  "include": ["src", "src/**/*.json", "test"],
+  "references": [
+    {
+      "path": "../core"
+    },
+    {
+      "path": "../export"
+    }
+  ]
+}

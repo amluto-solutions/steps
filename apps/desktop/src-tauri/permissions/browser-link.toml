@@ -1,0 +1,9 @@
+[[permission]]
+identifier = "allow-browser-link-get"
+description = "Allows the main window to read whether Steps for Chrome and Edge is connected (docs/spec/02-capture.md#steps-for-chrome-and-the-desktop-together)."
+commands.allow = ["browser_link_get"]
+
+[[permission]]
+identifier = "allow-browser-link-set"
+description = "Allows the main window to switch the link with Steps for Chrome and Edge on or off: this person's registration for Chrome and Edge, and the link's pipe."
+commands.allow = ["browser_link_set"]

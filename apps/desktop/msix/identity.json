@@ -1,0 +1,6 @@
+{
+  "comment": "From Partner Center > Steps by Amluto > Product identity (29/09/2026; Store ID 9P6K3W69FX1J, package family AmlutoSolutions.StepsbyAmluto_xr7g7cdqgk6fj). The package's DisplayName in AppxManifest.xml must stay the reserved name, Steps by Amluto.",
+  "identityName": "AmlutoSolutions.StepsbyAmluto",
+  "publisher": "CN=6E144032-D590-47BC-8AC5-D54A2D3B9404",
+  "publisherDisplayName": "Amluto Solutions"
+}

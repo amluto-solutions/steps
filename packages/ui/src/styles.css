@@ -1,0 +1,564 @@
+/* Classes come from this package alone, not from whatever else is in the folder being built
+   (old builds included): the same stylesheet from any checkout, as addons.mozilla.org rebuilds it. */
+@import "tailwindcss" source(none);
+
+/* Scan the shared UI package from whichever app imports this stylesheet. */
+@source "./";
+/* Not the tests: their words aren't class names, and the sources zip leaves them out. */
+@source not "./**/*.test.*";
+
+/*
+ * Amluto brand tokens (Brand-Guidelines-v1). Dark values follow the CRM
+ * (alwayse-crm/src/app/globals.css); brand profiles override these at runtime
+ * from Phase 6/7 (docs/spec/06-brands-and-theming.md). The layout follows the
+ * Phase 3 design canvas.
+ */
+:root {
+  --amluto-navy: #0e2542;
+  /* The brand navy itself, which stays navy in dark mode (the dark buttons and the sidebar). */
+  --amluto-brand-navy: #0e2542;
+  /* Behind dialogs: always Amluto's navy, never a client's app colour (F058: it turned pink). */
+  --amluto-scrim: #0e2542;
+  /* Marks drawn on screenshots keep the brand red in both themes, as exports will. */
+  --amluto-highlight: #b42318;
+  /* The recording bar is navy in both themes. */
+  --amluto-bar-muted: #b9c8da;
+  --amluto-bar-grip: #7f93ad;
+  --amluto-bar-live: #e0533d;
+  --amluto-bar-live-halo: rgb(224 83 61 / 0.28);
+  --amluto-bar-paused: #f0b44c;
+  --amluto-blue: #1e6ebc;
+  --amluto-cyan: #48cdeb;
+  --amluto-link: #1c67b1;
+  --amluto-background: #ffffff;
+  --amluto-page: #f4f6f9;
+  --amluto-body: #0e2542;
+  --amluto-secondary: #4f5f73;
+  --amluto-panel: #dfe5ec;
+  --amluto-line: #b7c3d1;
+  /* Edges that identify a control (a field's border, a switch's track): at least 3:1 against
+     the page and the panels (WCAG 1.4.11), where --amluto-line is only a divider. */
+  --amluto-control-line: #75879c;
+  /* The keyboard focus ring: at least 3:1 on every background (cyan is 1.9:1 on white). */
+  --amluto-focus: var(--amluto-blue);
+  --amluto-selected: #e8f1fb;
+  --amluto-subtle: #eef2f7;
+  --amluto-recording: #b42318;
+  --amluto-recording-soft: #fbe9e7;
+  --amluto-warning: #744800;
+  --amluto-warning-soft: #fff1d6;
+  --amluto-sidebar: #0e2542;
+  --amluto-sidebar-text: #d7e1ee;
+  --amluto-sidebar-muted: #a9b8cc;
+  --amluto-sidebar-active: rgb(255 255 255 / 0.12);
+  --amluto-shadow: rgb(14 37 66 / 0.18);
+  /* The coloured boxes of notes and blocks: the same kinds as exports draw. */
+  /*
+   * A sample of an exported page (the brand preview) is white paper in both themes, so its
+   * colours never change with the app's.
+   */
+  --amluto-paper-ink: #1b2533;
+  --amluto-paper-muted: #4f5f73;
+  --amluto-paper-line: #dfe5ec;
+  --amluto-paper-subtle: #eef2f7;
+  --amluto-callout-note: #1e6ebc;
+  --amluto-callout-note-soft: #e8f1fb;
+  --amluto-callout-tip: #1e8a4c;
+  --amluto-callout-tip-soft: #e7f5ec;
+  --amluto-callout-warning: #dc8a00;
+  --amluto-callout-warning-soft: #fff4de;
+  --amluto-callout-important: #d92d20;
+  --amluto-callout-important-soft: #fdecea;
+  /* Each box's label and icon: dark enough on its tint for small bold text. */
+  --amluto-callout-note-ink: #154c85;
+  --amluto-callout-tip-ink: #14613a;
+  --amluto-callout-warning-ink: #7a4b00;
+  --amluto-callout-important-ink: #a3160c;
+  --amluto-font-heading:
+    "Century Gothic", "CenturyGothic", "Jost", "Avenir Next", system-ui, sans-serif;
+  --amluto-font-body: "Aptos", "Segoe UI", "Calibri", system-ui, sans-serif;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --amluto-navy: #dbe4ef;
+    --amluto-link: #7fb2e5;
+    --amluto-background: #111c2e;
+    --amluto-page: #0a1220;
+    --amluto-body: #e2e8f0;
+    --amluto-secondary: #a3b1c2;
+    --amluto-panel: #24324a;
+    --amluto-line: #3b4b63;
+    --amluto-control-line: #5d6f88;
+    --amluto-focus: var(--amluto-cyan);
+    --amluto-selected: #16345a;
+    --amluto-subtle: #1a2638;
+    --amluto-recording: #f97066;
+    --amluto-recording-soft: #3a1714;
+    --amluto-warning: #f5c26b;
+    --amluto-warning-soft: #3a2a0d;
+    --amluto-sidebar: #070e1a;
+    --amluto-shadow: rgb(0 0 0 / 0.45);
+    --amluto-callout-note-soft: rgb(30 110 188 / 0.18);
+    --amluto-callout-tip-soft: rgb(30 138 76 / 0.18);
+    --amluto-callout-warning-soft: rgb(220 138 0 / 0.18);
+    --amluto-callout-important-soft: rgb(217 45 32 / 0.18);
+    --amluto-callout-note-ink: #8fc1f0;
+    --amluto-callout-tip-ink: #7fd3a3;
+    --amluto-callout-warning-ink: #f5c26b;
+    --amluto-callout-important-ink: #f99a92;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --amluto-navy: #dbe4ef;
+  --amluto-link: #7fb2e5;
+  --amluto-background: #111c2e;
+  --amluto-page: #0a1220;
+  --amluto-body: #e2e8f0;
+  --amluto-secondary: #a3b1c2;
+  --amluto-panel: #24324a;
+  --amluto-line: #3b4b63;
+  --amluto-control-line: #5d6f88;
+  --amluto-focus: var(--amluto-cyan);
+  --amluto-selected: #16345a;
+  --amluto-subtle: #1a2638;
+  --amluto-recording: #f97066;
+  --amluto-recording-soft: #3a1714;
+  --amluto-warning: #f5c26b;
+  --amluto-warning-soft: #3a2a0d;
+  --amluto-sidebar: #070e1a;
+  --amluto-shadow: rgb(0 0 0 / 0.45);
+  --amluto-callout-note-soft: rgb(30 110 188 / 0.18);
+  --amluto-callout-tip-soft: rgb(30 138 76 / 0.18);
+  --amluto-callout-warning-soft: rgb(220 138 0 / 0.18);
+  --amluto-callout-important-soft: rgb(217 45 32 / 0.18);
+  --amluto-callout-note-ink: #8fc1f0;
+  --amluto-callout-tip-ink: #7fd3a3;
+  --amluto-callout-warning-ink: #f5c26b;
+  --amluto-callout-important-ink: #f99a92;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-navy: var(--amluto-navy);
+  --color-brand-navy: var(--amluto-brand-navy);
+  --color-scrim: var(--amluto-scrim);
+  --color-highlight: var(--amluto-highlight);
+  --color-bar-muted: var(--amluto-bar-muted);
+  --color-bar-grip: var(--amluto-bar-grip);
+  --color-bar-live: var(--amluto-bar-live);
+  --color-bar-paused: var(--amluto-bar-paused);
+  --color-blue: var(--amluto-blue);
+  --color-cyan: var(--amluto-cyan);
+  --color-link: var(--amluto-link);
+  --color-background: var(--amluto-background);
+  --color-page: var(--amluto-page);
+  --color-body: var(--amluto-body);
+  --color-secondary: var(--amluto-secondary);
+  --color-panel: var(--amluto-panel);
+  --color-line: var(--amluto-line);
+  --color-control-line: var(--amluto-control-line);
+  --color-focus: var(--amluto-focus);
+  --color-selected: var(--amluto-selected);
+  --color-subtle: var(--amluto-subtle);
+  --color-recording: var(--amluto-recording);
+  --color-recording-soft: var(--amluto-recording-soft);
+  --color-warning: var(--amluto-warning);
+  --color-warning-soft: var(--amluto-warning-soft);
+  --color-sidebar: var(--amluto-sidebar);
+  --color-sidebar-text: var(--amluto-sidebar-text);
+  --color-sidebar-muted: var(--amluto-sidebar-muted);
+  --color-sidebar-active: var(--amluto-sidebar-active);
+  --color-paper-ink: var(--amluto-paper-ink);
+  --color-paper-muted: var(--amluto-paper-muted);
+  --color-paper-line: var(--amluto-paper-line);
+  --color-paper-subtle: var(--amluto-paper-subtle);
+  --color-callout-note: var(--amluto-callout-note);
+  --color-callout-note-soft: var(--amluto-callout-note-soft);
+  --color-callout-tip: var(--amluto-callout-tip);
+  --color-callout-tip-soft: var(--amluto-callout-tip-soft);
+  --color-callout-warning: var(--amluto-callout-warning);
+  --color-callout-warning-soft: var(--amluto-callout-warning-soft);
+  --color-callout-important: var(--amluto-callout-important);
+  --color-callout-important-soft: var(--amluto-callout-important-soft);
+  --color-callout-note-ink: var(--amluto-callout-note-ink);
+  --color-callout-tip-ink: var(--amluto-callout-tip-ink);
+  --color-callout-warning-ink: var(--amluto-callout-warning-ink);
+  --color-callout-important-ink: var(--amluto-callout-important-ink);
+  --font-heading: var(--amluto-font-heading);
+  --font-sans: var(--amluto-font-body);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--amluto-page);
+  color: var(--amluto-body);
+  font-family: var(--amluto-font-body);
+}
+
+h1,
+h2,
+h3 {
+  font-weight: 700;
+}
+
+/* The colour logo is for light surfaces; the white one for dark (brand rule). */
+.logo-white {
+  display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .logo-colour {
+    display: none;
+  }
+  :root:not([data-theme="light"]) .logo-white {
+    display: block;
+  }
+}
+
+:root[data-theme="dark"] .logo-colour {
+  display: none;
+}
+
+:root[data-theme="dark"] .logo-white {
+  display: block;
+}
+
+/*
+ * In the base layer, so a control that draws its own focus (the library's search box rings its
+ * whole frame) can turn this one off with `outline-none`; unlayered, it drew a second ring inside
+ * (30/09/2026).
+ */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--amluto-focus);
+    outline-offset: 2px;
+  }
+}
+
+/* The recording bar window is transparent around its pill. */
+.bar-window,
+.bar-window body {
+  background: transparent;
+}
+
+/* Shared controls, so every screen uses the same buttons and fields. */
+@layer components {
+  .btn {
+    @apply inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg border border-line bg-background px-3.5 text-sm font-semibold whitespace-nowrap text-navy hover:bg-subtle disabled:cursor-not-allowed disabled:opacity-55 aria-disabled:opacity-70;
+  }
+  .btn-primary {
+    @apply border-transparent bg-blue text-white hover:bg-blue/90;
+  }
+  .btn-dark {
+    @apply border-transparent bg-brand-navy text-white hover:bg-brand-navy/90;
+  }
+  .btn-danger {
+    @apply text-recording;
+  }
+  .btn-quiet {
+    @apply border-transparent bg-transparent;
+  }
+  .icon-btn {
+    @apply inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-secondary hover:bg-subtle hover:text-navy disabled:opacity-40;
+  }
+  .field {
+    @apply h-9 rounded-lg border border-control-line bg-background px-3 text-sm text-body placeholder:text-secondary;
+  }
+  .chip {
+    @apply inline-flex items-center rounded-full bg-subtle px-2 py-0.5 text-xs text-secondary;
+  }
+  .card {
+    @apply rounded-xl border border-panel bg-background shadow-[0_1px_2px_var(--amluto-shadow)];
+  }
+  .badge-file {
+    @apply inline-flex h-[26px] w-[38px] shrink-0 items-center justify-center rounded-[5px] bg-subtle text-[10px] font-extrabold tracking-wide text-secondary;
+  }
+  .badge-file-dark {
+    @apply bg-brand-navy text-white;
+  }
+  .sr-only-focusable:not(:focus) {
+    @apply sr-only;
+  }
+}
+
+/*
+ * The rich-text editor (TipTap/ProseMirror). Its own stylesheet is not injected because the
+ * app's content security policy refuses inline <style> elements, so the essentials live here.
+ */
+.ProseMirror {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  outline: none;
+  min-height: 2.5rem;
+}
+.ProseMirror p {
+  margin: 0.25rem 0;
+}
+.ProseMirror ul,
+.ProseMirror ol {
+  margin: 0.25rem 0;
+  padding-left: 1.4rem;
+}
+.ProseMirror ul {
+  list-style: disc;
+}
+.ProseMirror ol {
+  list-style: decimal;
+}
+.ProseMirror h2 {
+  font-size: 1.05rem;
+  margin: 0.5rem 0 0.25rem;
+}
+.ProseMirror h3 {
+  font-size: 0.95rem;
+  margin: 0.5rem 0 0.25rem;
+}
+.ProseMirror a {
+  color: var(--amluto-link);
+  text-decoration: underline;
+}
+/* A coloured box in notes; its kind is said in words above it, as exports do. */
+/*
+ * The icon is a mask filled with the label's colour. Its shapes are the ones exports draw
+ * (packages/export/src/words.ts, CALLOUT_LOOK), as data images, which the app's policy allows.
+ */
+.ProseMirror .callout {
+  --callout-ink: var(--amluto-callout-note-ink);
+  --callout-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill-rule='evenodd' d='M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20Z M11 10h2v7h-2Z M11 6.5h2v2h-2Z'/%3E%3C/svg%3E");
+  position: relative;
+  border-left: 4px solid var(--amluto-callout-note);
+  background: var(--amluto-callout-note-soft);
+  border-radius: 6px;
+  padding: 0.35rem 0.75rem;
+  margin: 0.5rem 0;
+}
+.ProseMirror .callout::before {
+  content: attr(data-label);
+  display: block;
+  padding-left: 1.4rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--callout-ink);
+}
+.ProseMirror .callout::after {
+  content: "";
+  position: absolute;
+  left: 0.75rem;
+  top: 0.55rem;
+  width: 1.05rem;
+  height: 1.05rem;
+  background: var(--callout-ink);
+  mask: var(--callout-icon) center / contain no-repeat;
+}
+.ProseMirror .callout-tip {
+  --callout-ink: var(--amluto-callout-tip-ink);
+  --callout-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill-rule='evenodd' d='M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20Z M10.6 16.2L6.4 12l1.4-1.4l2.8 2.8l5.6-5.6l1.4 1.4Z'/%3E%3C/svg%3E");
+  border-left-color: var(--amluto-callout-tip);
+  background: var(--amluto-callout-tip-soft);
+}
+.ProseMirror .callout-warning {
+  --callout-ink: var(--amluto-callout-warning-ink);
+  --callout-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill-rule='evenodd' d='M12 2L1 21h22L12 2Z M11 9h2v6h-2Z M11 16.5h2v2h-2Z'/%3E%3C/svg%3E");
+  border-left-color: var(--amluto-callout-warning);
+  background: var(--amluto-callout-warning-soft);
+}
+.ProseMirror .callout-important {
+  --callout-ink: var(--amluto-callout-important-ink);
+  --callout-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill-rule='evenodd' d='M7.86 2h8.28L22 7.86v8.28L16.14 22H7.86L2 16.14V7.86Z M11 6.5h2v7h-2Z M11 15.5h2v2h-2Z'/%3E%3C/svg%3E");
+  border-left-color: var(--amluto-callout-important);
+  background: var(--amluto-callout-important-soft);
+}
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--amluto-secondary);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+/* Blur areas preview the way exports will look. */
+.blur-preview {
+  backdrop-filter: blur(9px) saturate(0.6);
+  background: rgb(148 163 184 / 0.25);
+}
+
+/*
+ * A suggested blur's halo pulses outwards, so a small area on a large screenshot is found at a
+ * glance (30/09/2026). Without motion
+ * it stays as a still ring.
+ */
+@keyframes suggest-pulse {
+  0% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+}
+.suggest-halo {
+  animation: suggest-pulse 1.8s ease-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .suggest-halo {
+    animation: none;
+    opacity: 0.7;
+  }
+}
+
+/*
+ * Switching light and dark (ThemeSwitch): the new theme spreads out in a circle from the switch
+ * over the old one, blurred at first and sharpening as it grows. The View Transition API takes the
+ * two pictures; data-theme-reveal is on <html> only while one runs, so nothing else is affected.
+ * 150% of the reference radius reaches the far corner from anywhere on the screen.
+ */
+html[data-theme-reveal]::view-transition-old(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+html[data-theme-reveal]::view-transition-new(root) {
+  mix-blend-mode: normal;
+  animation: theme-reveal 700ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+@keyframes theme-reveal {
+  from {
+    clip-path: circle(0% at var(--theme-reveal-origin, 50% 50%));
+    filter: blur(8px);
+  }
+  to {
+    clip-path: circle(150% at var(--theme-reveal-origin, 50% 50%));
+    filter: blur(0);
+  }
+}
+
+/*
+ * The light/dark switch: a day sky with a sun and clouds that turns into a night sky with a moon
+ * and stars (the CRM's switch). It keeps its own colours in both themes on purpose: it's a picture
+ * of the two modes, not part of the brand.
+ */
+.sky-switch {
+  --sky-h: 1.625rem;
+  --sky-pad: 0.1875rem;
+  --sky-orb: calc(var(--sky-h) - 2 * var(--sky-pad));
+  position: relative;
+  flex-shrink: 0;
+  width: 3.5rem;
+  height: var(--sky-h);
+  border-radius: 999px;
+  background: linear-gradient(to bottom, #73bbff, #a2d1fd);
+  box-shadow: 0 0 0 1.5px #cde7ff;
+  transition: box-shadow 0.5s ease;
+}
+.sky-switch::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(to top, #2b3347, #181d27);
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+.sky-switch[data-dark] {
+  box-shadow: 0 0 0 1.5px #4b5264;
+}
+.sky-switch[data-dark]::before {
+  opacity: 1;
+}
+.sky-switch-sky {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+}
+.sky-switch-cloud {
+  position: absolute;
+  fill: #fff;
+  transition: transform 0.5s ease;
+}
+.sky-switch-cloud-back {
+  width: 70%;
+  right: -14%;
+  bottom: -18%;
+  opacity: 0.75;
+}
+.sky-switch-cloud-front {
+  width: 58%;
+  right: 12%;
+  bottom: -38%;
+  transition-duration: 0.7s;
+}
+.sky-switch[data-dark] .sky-switch-cloud {
+  transform: translate(110%, 20%);
+}
+.sky-switch-stars {
+  position: absolute;
+  top: 0;
+  left: 10%;
+  width: 50%;
+  height: 100%;
+  fill: #dee5f3;
+  transform: translateY(110%);
+  transition: transform 0.5s ease;
+}
+.sky-switch[data-dark] .sky-switch-stars {
+  transform: translateY(0);
+}
+.sky-switch-orb {
+  position: absolute;
+  top: var(--sky-pad);
+  left: var(--sky-pad);
+  width: var(--sky-orb);
+  height: var(--sky-orb);
+  border-radius: 50%;
+  background-color: #ffc187;
+  box-shadow:
+    0 0 5px #ffc187,
+    0 0 9px #ffc18768,
+    inset -1px -1px 3px #ffab5c;
+  transition: all 0.5s ease;
+}
+/* The moon's shadowed face: sun-coloured, so invisible, until it's night. */
+.sky-switch-orb::after {
+  content: "";
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 72%;
+  height: 72%;
+  border-radius: 50%;
+  background-color: #ffc187;
+  transition: background-color 0.5s ease;
+}
+.sky-switch[data-dark] .sky-switch-orb {
+  left: calc(100% - var(--sky-orb) - var(--sky-pad));
+  background-color: #dee5f3;
+  box-shadow: 0 0 12px #dee5f3;
+}
+.sky-switch[data-dark] .sky-switch-orb::after {
+  background-color: #565c6b;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+  /* The theme reveal is skipped in ThemeSwitch too; this covers anything that starts one. */
+  html[data-theme-reveal]::view-transition-new(root) {
+    animation: none;
+  }
+}

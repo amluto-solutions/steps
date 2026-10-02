@@ -1,0 +1,32 @@
+; Slovenian translation of English.nsh, the setup program's own messages.
+; Every string English.nsh has must be here (Tauri reads this file instead of its own).
+LangString addOrReinstall ${LANG_SLOVENIAN} "Dodaj ali znova namesti komponente"
+LangString alreadyInstalled ${LANG_SLOVENIAN} "Že nameščeno"
+LangString alreadyInstalledLong ${LANG_SLOVENIAN} "${PRODUCTNAME} ${VERSION} je že nameščen. Izberite želeno dejanje in kliknite Naprej, da nadaljujete."
+; Shown when Setup or the uninstaller stops because Steps is still open.
+LangString appRunning ${LANG_SLOVENIAN} "{{product_name}} je še vedno odprt. Zaprite ga in poskusite znova."
+; Asked before Setup or the uninstaller closes Steps. Guides save as they're edited, and a recording
+; is journaled step by step and offered back when Steps next opens (docs/spec/02-capture.md).
+LangString appRunningOkKill ${LANG_SLOVENIAN} "{{product_name}} je odprt in ga je treba najprej zapreti.$\n$\nVaši vodniki so že shranjeni. Če snemate, je dosedanje snemanje ohranjeno, Steps pa ga ponudi ob naslednjem zagonu.$\n$\nIzberite V redu, da {{product_name}} zaprete zdaj, ali Prekliči, da se ustavite."
+LangString chooseMaintenanceOption ${LANG_SLOVENIAN} "Izberite možnost vzdrževanja, ki jo želite izvesti."
+LangString choowHowToInstall ${LANG_SLOVENIAN} "Izberite, kako želite namestiti ${PRODUCTNAME}."
+LangString createDesktop ${LANG_SLOVENIAN} "Ustvari bližnjico na namizju"
+LangString dontUninstall ${LANG_SLOVENIAN} "Ne odstrani"
+LangString dontUninstallDowngrade ${LANG_SLOVENIAN} "Ne odstrani (vrnitev na starejšo različico brez odstranitve je za ta namestitveni program izklopljena)"
+LangString failedToKillApp ${LANG_SLOVENIAN} "Aplikacije {{product_name}} ni bilo mogoče zapreti. Zaprite jo sami in poskusite znova."
+LangString installingWebview2 ${LANG_SLOVENIAN} "Nameščanje WebView2 ..."
+LangString newerVersionInstalled ${LANG_SLOVENIAN} "Novejša različica programa ${PRODUCTNAME} je že nameščena! Namestitev starejše različice ni priporočljiva. Če res želite namestiti to starejšo različico, je bolje, da najprej odstranite trenutno različico. Izberite želeno dejanje in kliknite Naprej, da nadaljujete."
+LangString older ${LANG_SLOVENIAN} "starejša"
+LangString olderOrUnknownVersionInstalled ${LANG_SLOVENIAN} "V sistemu je nameščena $R4 različica programa ${PRODUCTNAME}. Pred namestitvijo priporočamo, da odstranite trenutno različico. Izberite želeno dejanje in kliknite Naprej, da nadaljujete."
+LangString silentDowngrades ${LANG_SLOVENIAN} "Vrnitev na starejšo različico je za ta namestitveni program izklopljena, zato tihe namestitve ni mogoče nadaljevati. Namesto tega uporabite namestitveni program z grafičnim vmesnikom.$\n"
+LangString unableToUninstall ${LANG_SLOVENIAN} "Odstranitev ni mogoča!"
+LangString uninstallApp ${LANG_SLOVENIAN} "Odstrani ${PRODUCTNAME}"
+LangString uninstallBeforeInstalling ${LANG_SLOVENIAN} "Odstrani pred namestitvijo"
+LangString unknown ${LANG_SLOVENIAN} "neznana"
+LangString webview2AbortError ${LANG_SLOVENIAN} "Namestitev WebView2 ni uspela! Aplikacija brez njega ne more delovati. Poskusite znova zagnati namestitveni program."
+LangString webview2DownloadError ${LANG_SLOVENIAN} "Napaka: prenos WebView2 ni uspel - $0"
+LangString webview2DownloadSuccess ${LANG_SLOVENIAN} "Zagonski program za WebView2 je uspešno prenesen"
+LangString webview2Downloading ${LANG_SLOVENIAN} "Prenašanje zagonskega programa za WebView2 ..."
+LangString webview2InstallError ${LANG_SLOVENIAN} "Napaka: namestitev WebView2 ni uspela s kodo izhoda $1"
+LangString webview2InstallSuccess ${LANG_SLOVENIAN} "WebView2 je uspešno nameščen"
+LangString deleteAppData ${LANG_SLOVENIAN} "Izbriši podatke aplikacije"

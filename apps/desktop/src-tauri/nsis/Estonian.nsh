@@ -1,0 +1,32 @@
+; The Estonian translation of English.nsh: the setup .exe's own messages, in place of Tauri's.
+; Every string English.nsh has must be here, with the same ids, in the same order.
+LangString addOrReinstall ${LANG_ESTONIAN} "Lisa komponendid või installi need uuesti"
+LangString alreadyInstalled ${LANG_ESTONIAN} "Juba installitud"
+LangString alreadyInstalledLong ${LANG_ESTONIAN} "${PRODUCTNAME} ${VERSION} on juba installitud. Valige soovitud toiming ja jätkamiseks klõpsake nuppu Edasi."
+; Shown when Setup or the uninstaller stops because Steps is still open.
+LangString appRunning ${LANG_ESTONIAN} "{{product_name}} on endiselt avatud. Sulgege see ja proovige uuesti."
+; Asked before Setup or the uninstaller closes Steps. Guides save as they're edited, and a recording
+; is journaled step by step and offered back when Steps next opens (docs/spec/02-capture.md).
+LangString appRunningOkKill ${LANG_ESTONIAN} "{{product_name}} on avatud ja tuleb esmalt sulgeda.$\n$\nTeie juhendid on juba salvestatud. Kui lindistate, säilitatakse seni lindistatu ja Steps pakub seda järgmisel avamisel tagasi.$\n$\nValige OK, et {{product_name}} praegu sulgeda, või Loobu, et peatada."
+LangString chooseMaintenanceOption ${LANG_ESTONIAN} "Valige tehtav hooldustoiming."
+LangString choowHowToInstall ${LANG_ESTONIAN} "Valige, kuidas soovite rakenduse ${PRODUCTNAME} installida."
+LangString createDesktop ${LANG_ESTONIAN} "Loo töölauale otsetee"
+LangString dontUninstall ${LANG_ESTONIAN} "Ära eemalda"
+LangString dontUninstallDowngrade ${LANG_ESTONIAN} "Ära eemalda (selle installeri puhul on vanemale versioonile üleminek ilma eemaldamata keelatud)"
+LangString failedToKillApp ${LANG_ESTONIAN} "Rakendust {{product_name}} ei õnnestunud sulgeda. Sulgege see ise ja proovige uuesti."
+LangString installingWebview2 ${LANG_ESTONIAN} "WebView2 installimine..."
+LangString newerVersionInstalled ${LANG_ESTONIAN} "Rakenduse ${PRODUCTNAME} uuem versioon on juba installitud! Vanema versiooni installimine pole soovitatav. Kui soovite tõesti selle vanema versiooni installida, on parem eemaldada esmalt praegune versioon. Valige soovitud toiming ja jätkamiseks klõpsake nuppu Edasi."
+LangString older ${LANG_ESTONIAN} "vanem"
+LangString olderOrUnknownVersionInstalled ${LANG_ESTONIAN} "Teie süsteemi on installitud rakenduse ${PRODUCTNAME} $R4 versioon. Enne installimist on soovitatav praegune versioon eemaldada. Valige soovitud toiming ja jätkamiseks klõpsake nuppu Edasi."
+LangString silentDowngrades ${LANG_ESTONIAN} "Selle installeri puhul on vanemale versioonile üleminek keelatud, vaikset installerit ei saa jätkata. Kasutage selle asemel graafilise liidesega installerit.$\n"
+LangString unableToUninstall ${LANG_ESTONIAN} "Eemaldamine ei õnnestunud!"
+LangString uninstallApp ${LANG_ESTONIAN} "Eemalda ${PRODUCTNAME}"
+LangString uninstallBeforeInstalling ${LANG_ESTONIAN} "Eemalda enne installimist"
+LangString unknown ${LANG_ESTONIAN} "tundmatu"
+LangString webview2AbortError ${LANG_ESTONIAN} "WebView2 installimine ebaõnnestus! Rakendus ei saa ilma selleta töötada. Proovige installer uuesti käivitada."
+LangString webview2DownloadError ${LANG_ESTONIAN} "Viga: WebView2 allalaadimine ebaõnnestus - $0"
+LangString webview2DownloadSuccess ${LANG_ESTONIAN} "WebView2 käivitaja laaditi edukalt alla"
+LangString webview2Downloading ${LANG_ESTONIAN} "WebView2 käivitaja allalaadimine..."
+LangString webview2InstallError ${LANG_ESTONIAN} "Viga: WebView2 installimine ebaõnnestus väljumiskoodiga $1"
+LangString webview2InstallSuccess ${LANG_ESTONIAN} "WebView2 installiti edukalt"
+LangString deleteAppData ${LANG_ESTONIAN} "Kustuta rakenduse andmed"

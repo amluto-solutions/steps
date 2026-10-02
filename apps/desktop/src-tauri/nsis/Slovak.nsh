@@ -1,0 +1,32 @@
+; Slovak translation of English.nsh (the setup .exe's own messages; see English.nsh for why this file exists).
+; Every string English.nsh has must be here, in the same order.
+LangString addOrReinstall ${LANG_SLOVAK} "Pridať alebo znova nainštalovať súčasti"
+LangString alreadyInstalled ${LANG_SLOVAK} "Už je nainštalované"
+LangString alreadyInstalledLong ${LANG_SLOVAK} "Aplikácia ${PRODUCTNAME} ${VERSION} je už nainštalovaná. Vyberte operáciu, ktorú chcete vykonať, a pokračujte kliknutím na tlačidlo Ďalej."
+; Shown when Setup or the uninstaller stops because Steps is still open.
+LangString appRunning ${LANG_SLOVAK} "Aplikácia {{product_name}} je stále otvorená. Zatvorte ju a skúste to znova."
+; Asked before Setup or the uninstaller closes Steps. Guides save as they're edited, and a recording
+; is journaled step by step and offered back when Steps next opens (docs/spec/02-capture.md).
+LangString appRunningOkKill ${LANG_SLOVAK} "Aplikácia {{product_name}} je otvorená a najprv sa musí zatvoriť.$\n$\nVaše návody sú už uložené. Ak nahrávate, doterajší záznam sa zachová a Steps vám ho ponúkne pri ďalšom otvorení.$\n$\nAplikáciu {{product_name}} zatvoríte teraz tlačidlom OK, alebo to zastavíte tlačidlom Zrušiť."
+LangString chooseMaintenanceOption ${LANG_SLOVAK} "Vyberte operáciu údržby, ktorú chcete vykonať."
+LangString choowHowToInstall ${LANG_SLOVAK} "Vyberte, ako chcete nainštalovať aplikáciu ${PRODUCTNAME}."
+LangString createDesktop ${LANG_SLOVAK} "Vytvoriť odkaz na ploche"
+LangString dontUninstall ${LANG_SLOVAK} "Neodinštalovať"
+LangString dontUninstallDowngrade ${LANG_SLOVAK} "Neodinštalovať (prechod na staršiu verziu bez odinštalovania je pre tento inštalátor vypnutý)"
+LangString failedToKillApp ${LANG_SLOVAK} "Aplikáciu {{product_name}} sa nepodarilo zatvoriť. Zatvorte ju sami a skúste to znova."
+LangString installingWebview2 ${LANG_SLOVAK} "Inštaluje sa WebView2..."
+LangString newerVersionInstalled ${LANG_SLOVAK} "Novšia verzia aplikácie ${PRODUCTNAME} je už nainštalovaná. Inštalácia staršej verzie sa neodporúča. Ak naozaj chcete nainštalovať túto staršiu verziu, je lepšie najprv odinštalovať aktuálnu verziu. Vyberte operáciu, ktorú chcete vykonať, a pokračujte kliknutím na tlačidlo Ďalej."
+LangString older ${LANG_SLOVAK} "staršia"
+LangString olderOrUnknownVersionInstalled ${LANG_SLOVAK} "V systéme je nainštalovaná $R4 verzia aplikácie ${PRODUCTNAME}. Pred inštaláciou sa odporúča odinštalovať aktuálnu verziu. Vyberte operáciu, ktorú chcete vykonať, a pokračujte kliknutím na tlačidlo Ďalej."
+LangString silentDowngrades ${LANG_SLOVAK} "Prechod na staršiu verziu je pre tento inštalátor vypnutý, v tichej inštalácii sa nedá pokračovať. Použite namiesto toho inštalátor s grafickým rozhraním.$\n"
+LangString unableToUninstall ${LANG_SLOVAK} "Odinštalovanie sa nepodarilo!"
+LangString uninstallApp ${LANG_SLOVAK} "Odinštalovať aplikáciu ${PRODUCTNAME}"
+LangString uninstallBeforeInstalling ${LANG_SLOVAK} "Odinštalovať pred inštaláciou"
+LangString unknown ${LANG_SLOVAK} "neznáma"
+LangString webview2AbortError ${LANG_SLOVAK} "Nepodarilo sa nainštalovať WebView2! Aplikácia bez neho nemôže fungovať. Skúste inštalátor reštartovať."
+LangString webview2DownloadError ${LANG_SLOVAK} "Chyba: Sťahovanie WebView2 zlyhalo - $0"
+LangString webview2DownloadSuccess ${LANG_SLOVAK} "Zavádzač WebView2 sa úspešne stiahol"
+LangString webview2Downloading ${LANG_SLOVAK} "Sťahuje sa zavádzač WebView2..."
+LangString webview2InstallError ${LANG_SLOVAK} "Chyba: Inštalácia WebView2 zlyhala s kódom ukončenia $1"
+LangString webview2InstallSuccess ${LANG_SLOVAK} "WebView2 sa úspešne nainštaloval"
+LangString deleteAppData ${LANG_SLOVAK} "Odstrániť údaje aplikácie"

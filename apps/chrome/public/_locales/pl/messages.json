@@ -1,0 +1,14 @@
+{
+  "extName": {
+    "message": "Steps by Amluto",
+    "description": "The extension's name in the browser and its store. A brand: the same in every language."
+  },
+  "extDescriptionChrome": {
+    "message": "Nagraj zadanie w przeglądarce Chrome kliknięcie po kliknięciu i zamień je w instrukcję krok po kroku.",
+    "description": "The extension's description in Chrome and Edge (up to 132 characters)."
+  },
+  "extDescriptionFirefox": {
+    "message": "Nagraj zadanie w przeglądarce Firefox kliknięcie po kliknięciu i zamień je w instrukcję krok po kroku.",
+    "description": "The extension's description in Firefox (up to 132 characters)."
+  }
+}

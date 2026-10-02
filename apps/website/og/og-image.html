@@ -1,0 +1,197 @@
+<!doctype html>
+<!--
+  The picture shown when steps.amluto.com is shared (Teams, Slack, LinkedIn, WhatsApp…): 1200 × 630,
+  drawn at twice that by scripts/og-image.mjs into public/og-image.jpg. Without one, Teams showed the
+  180-pixel app icon stretched (02/10/2026).
+-->
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      @font-face {
+        font-family: "Jost";
+        font-weight: 600;
+        src: url("../../../node_modules/@fontsource/jost/files/jost-latin-600-normal.woff2")
+          format("woff2");
+      }
+      @font-face {
+        font-family: "Inter";
+        font-weight: 400;
+        src: url("../../../node_modules/@fontsource/inter/files/inter-latin-400-normal.woff2")
+          format("woff2");
+      }
+      @font-face {
+        font-family: "Inter";
+        font-weight: 600;
+        src: url("../../../node_modules/@fontsource/inter/files/inter-latin-600-normal.woff2")
+          format("woff2");
+      }
+      html,
+      body {
+        margin: 0;
+        width: 1200px;
+        height: 630px;
+        overflow: hidden;
+      }
+      body {
+        position: relative;
+        font-family: "Inter", sans-serif;
+        color: #eaf1f8;
+        background: #071224;
+      }
+      .aurora {
+        position: absolute;
+        inset: -120px;
+        filter: blur(60px);
+        background:
+          radial-gradient(28% 45% at 50% 38%, rgb(72 205 235 / 0.3), transparent 70%),
+          radial-gradient(40% 50% at 80% 70%, rgb(30 110 188 / 0.45), transparent 70%),
+          linear-gradient(160deg, #10294b, #0b1d36 55%, #050c18);
+      }
+      .grid {
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(rgb(234 241 248 / 0.05) 1px, transparent 1px),
+          linear-gradient(90deg, rgb(234 241 248 / 0.05) 1px, transparent 1px);
+        background-size: 40px 40px;
+        mask-image: radial-gradient(70% 90% at 30% 40%, #000 15%, transparent 75%);
+      }
+      /* Everything that matters sits in the middle square (285 to 915 px): WhatsApp crops the
+         picture to that square, and cut "Do a task once" off at the left (02/10/2026). */
+      .text {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: 620px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 26px;
+        text-align: center;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+      }
+      .brand img.mark {
+        width: 72px;
+        height: 72px;
+        border-radius: 17px;
+        box-shadow: 0 0 44px rgb(72 205 235 / 0.4);
+      }
+      .brand .name {
+        font-family: "Jost", sans-serif;
+        font-size: 60px;
+        font-weight: 600;
+        line-height: 1;
+        letter-spacing: -0.02em;
+        text-align: left;
+      }
+      .brand .by {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 8px;
+        font-size: 18px;
+        color: #93a6bd;
+      }
+      .brand .by img {
+        height: 18px;
+      }
+      h1 {
+        margin: 4px 0 0;
+        font-family: "Jost", sans-serif;
+        font-size: 62px;
+        font-weight: 600;
+        line-height: 1.06;
+        letter-spacing: -0.015em;
+      }
+      h1 span {
+        color: #48cdeb;
+      }
+      .facts {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 10px;
+      }
+      .facts span {
+        padding: 8px 16px;
+        border-radius: 999px;
+        background: rgb(255 255 255 / 0.07);
+        border: 1px solid rgb(255 255 255 / 0.12);
+        font-size: 18px;
+        font-weight: 600;
+        color: #d6e2ef;
+      }
+      /* The app either side, outside the middle square, fading towards the words. */
+      .shot {
+        position: absolute;
+        top: 120px;
+        width: 560px;
+        perspective: 1400px;
+        opacity: 0.9;
+      }
+      .shot.left {
+        left: -300px;
+        mask-image:
+          linear-gradient(90deg, #000 55%, transparent 100%),
+          linear-gradient(180deg, #000 55%, transparent 95%);
+        mask-composite: intersect;
+      }
+      .shot.right {
+        left: 940px;
+        mask-image:
+          linear-gradient(270deg, #000 55%, transparent 100%),
+          linear-gradient(180deg, #000 55%, transparent 95%);
+        mask-composite: intersect;
+      }
+      .shot img {
+        display: block;
+        width: 560px;
+        border-radius: 14px;
+        border: 1px solid rgb(255 255 255 / 0.16);
+        box-shadow: 0 40px 80px -30px rgb(0 0 0 / 0.75);
+      }
+      .left img {
+        transform: rotateY(22deg) rotateX(4deg);
+        transform-origin: right center;
+      }
+      .right img {
+        transform: rotateY(-22deg) rotateX(4deg);
+        transform-origin: left center;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="aurora"></div>
+    <div class="grid"></div>
+    <div class="text">
+      <div class="brand">
+        <img class="mark" src="../src/assets/logo/steps-mark.svg" alt="" />
+        <div>
+          <div class="name">Steps</div>
+          <div class="by">
+            by <img src="../src/assets/logo/logo-horizontal-white.svg" alt="Amluto" />
+          </div>
+        </div>
+      </div>
+      <h1>Do a task once.<br /><span>Get the guide.</span></h1>
+      <div class="facts">
+        <span>Free</span>
+        <span>38 languages</span>
+        <span>Windows, Linux, browser</span>
+        <span>PDF, Word, web</span>
+      </div>
+    </div>
+    <div class="shot left">
+      <img src="../../../store/screenshots/dark/02-library.png" alt="" />
+    </div>
+    <div class="shot right">
+      <img src="../../../store/screenshots/dark/01-editor.png" alt="" />
+    </div>
+  </body>
+</html>

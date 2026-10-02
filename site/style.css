@@ -1,0 +1,212 @@
+/* The Amluto Steps website: plain pages, the app's brand colours and system fonts, no scripts,
+   and nothing fetched from anywhere else. */
+:root {
+  --navy: #0e2542;
+  --blue: #1e6ebc;
+  --cyan: #48cdeb;
+  --link: #1c67b1;
+  --background: #ffffff;
+  --page: #f4f6f9;
+  --body: #0e2542;
+  --secondary: #4f5f73;
+  --line: #b7c3d1;
+  --subtle: #eef2f7;
+  --heading: "Century Gothic", "CenturyGothic", "Jost", "Avenir Next", system-ui, sans-serif;
+  --text: "Aptos", "Segoe UI", "Calibri", system-ui, sans-serif;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --navy: #dbe4ef;
+    --link: #7fb2e5;
+    --background: #111c2e;
+    --page: #0a1220;
+    --body: #e2e8f0;
+    --secondary: #a3b1c2;
+    --line: #3b4b63;
+    --subtle: #1a2638;
+    color-scheme: dark;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--body);
+  font: 17px/1.6 var(--text);
+}
+
+a {
+  color: var(--link);
+  text-underline-offset: 2px;
+}
+
+a:focus-visible {
+  outline: 3px solid var(--cyan);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.skip {
+  position: absolute;
+  left: -9999px;
+}
+
+.skip:focus {
+  left: 16px;
+  top: 16px;
+  padding: 8px 12px;
+  background: var(--background);
+  z-index: 1;
+}
+
+header {
+  background: #0e2542;
+  border-bottom: 4px solid transparent;
+  border-image: linear-gradient(90deg, #0e2542, #1e6ebc, #48cdeb) 1;
+}
+
+header .inner,
+main,
+footer .inner {
+  max-width: 760px;
+  margin: 0 auto;
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+header .inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 18px;
+  padding-bottom: 18px;
+}
+
+header img {
+  display: block;
+  height: 34px;
+  width: auto;
+}
+
+header nav a {
+  color: #d7e1ee;
+  font-size: 15px;
+}
+
+main {
+  padding-top: 40px;
+  padding-bottom: 48px;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--heading);
+  color: var(--navy);
+  line-height: 1.25;
+}
+
+h1 {
+  font-size: 34px;
+  margin: 0 0 6px;
+}
+
+h2 {
+  font-size: 23px;
+  margin: 40px 0 10px;
+}
+
+.updated {
+  color: var(--secondary);
+  margin: 0 0 28px;
+}
+
+.summary {
+  background: var(--background);
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--blue);
+  border-radius: 8px;
+  padding: 18px 22px;
+}
+
+.summary p {
+  margin: 0;
+}
+
+.summary p + p {
+  margin-top: 10px;
+}
+
+.table {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--background);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 16px;
+}
+
+th,
+td {
+  text-align: left;
+  vertical-align: top;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+th {
+  background: var(--subtle);
+  font-weight: 600;
+}
+
+tr:last-child td {
+  border-bottom: 0;
+}
+
+ul {
+  padding-left: 22px;
+}
+
+li + li {
+  margin-top: 6px;
+}
+
+footer {
+  border-top: 1px solid var(--line);
+  color: var(--secondary);
+  font-size: 15px;
+}
+
+footer .inner {
+  padding-top: 20px;
+  padding-bottom: 28px;
+}
+
+.lead {
+  font-size: 20px;
+  color: var(--secondary);
+  margin: 0 0 24px;
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  padding: 0;
+  list-style: none;
+}
+
+.links li + li {
+  margin-top: 0;
+}

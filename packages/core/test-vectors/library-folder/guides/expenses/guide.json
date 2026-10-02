@@ -1,0 +1,66 @@
+{
+  "id": "expenses",
+  "title": "Claim expenses",
+  "description": "How the finance team pays an approved invoice.",
+  "intro": {
+    "type": "doc",
+    "content": [
+      {
+        "type": "heading",
+        "attrs": {
+          "level": 2
+        },
+        "content": [
+          {
+            "type": "text",
+            "text": "Before you start"
+          }
+        ]
+      },
+      {
+        "type": "bulletList",
+        "content": [
+          {
+            "type": "listItem",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Have the invoice "
+                  },
+                  {
+                    "type": "text",
+                    "text": "approved",
+                    "marks": [
+                      {
+                        "type": "bold"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "text": "."
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "outro": null,
+  "brandProfileId": null,
+  "tags": [
+    "finance"
+  ],
+  "owner": "Robin Hale",
+  "reviewBy": null,
+  "createdAt": "2026-09-25T09:00:00.000Z",
+  "createdBy": "Robin Hale",
+  "updatedAt": "2026-09-20T12:00:00.000Z",
+  "updatedBy": "Robin Hale",
+  "formatVersion": 1
+}

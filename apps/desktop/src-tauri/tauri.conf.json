@@ -1,0 +1,182 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Steps",
+  "mainBinaryName": "amluto-steps",
+  "version": "1.0.0",
+  "identifier": "com.amluto.steps",
+  "build": {
+    "beforeDevCommand": "npm run vite:dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run vite:build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Steps by Amluto",
+        "label": "main",
+        "create": false,
+        "width": 1040,
+        "height": 680,
+        "minWidth": 800,
+        "minHeight": 560,
+        "zoomHotkeysEnabled": true
+      },
+      {
+        "label": "recorder-bar",
+        "create": false,
+        "title": "Steps recorder",
+        "url": "index.html?recorder-bar",
+        "width": 440,
+        "height": 64,
+        "resizable": false,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "transparent": true,
+        "shadow": false
+      },
+      {
+        "label": "shortcut-popup",
+        "create": false,
+        "title": "Add a shortcut step",
+        "url": "index.html?shortcut-popup",
+        "width": 440,
+        "height": 250,
+        "minWidth": 430,
+        "minHeight": 250,
+        "maxHeight": 250,
+        "resizable": false,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+      "devCsp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost ws://localhost:1420; object-src 'none'; base-uri 'none'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["msi", "nsis"],
+    "publisher": "Amluto Solutions Ltd",
+    "copyright": "© 2026 Amluto Solutions Ltd",
+    "category": "Productivity",
+    "shortDescription": "Record a task click by click and turn it into a branded step-by-step guide.",
+    "longDescription": "Steps records clicks and screenshots while you work, then turns them into an editable step-by-step guide you can export as PDF, Word or an interactive walkthrough. Nothing leaves your PC.",
+    "homepage": "https://amluto.com",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico",
+      "icons/icon.png"
+    ],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "headerImage": "nsis/header.bmp",
+        "sidebarImage": "nsis/sidebar.bmp",
+        "languages": [
+          "English",
+          "German",
+          "French",
+          "Spanish",
+          "Italian",
+          "PortugueseBR",
+          "Japanese",
+          "SimpChinese",
+          "Dutch",
+          "Polish",
+          "Korean",
+          "Russian",
+          "Turkish",
+          "TradChinese",
+          "Ukrainian",
+          "Swedish",
+          "Czech",
+          "Indonesian",
+          "Vietnamese",
+          "Danish",
+          "Portuguese",
+          "Romanian",
+          "Hungarian",
+          "Greek",
+          "Finnish",
+          "Norwegian",
+          "Slovak",
+          "Bulgarian",
+          "Croatian",
+          "SerbianLatin",
+          "Serbian",
+          "Catalan",
+          "Lithuanian",
+          "Slovenian",
+          "Latvian",
+          "Estonian",
+          "Irish"
+        ],
+        "customLanguageFiles": {
+          "English": "nsis/English.nsh",
+          "German": "nsis/German.nsh",
+          "French": "nsis/French.nsh",
+          "Spanish": "nsis/Spanish.nsh",
+          "Italian": "nsis/Italian.nsh",
+          "PortugueseBR": "nsis/PortugueseBR.nsh",
+          "Japanese": "nsis/Japanese.nsh",
+          "SimpChinese": "nsis/SimpChinese.nsh",
+          "Dutch": "nsis/Dutch.nsh",
+          "Polish": "nsis/Polish.nsh",
+          "Korean": "nsis/Korean.nsh",
+          "Russian": "nsis/Russian.nsh",
+          "Turkish": "nsis/Turkish.nsh",
+          "TradChinese": "nsis/TradChinese.nsh",
+          "Ukrainian": "nsis/Ukrainian.nsh",
+          "Swedish": "nsis/Swedish.nsh",
+          "Czech": "nsis/Czech.nsh",
+          "Indonesian": "nsis/Indonesian.nsh",
+          "Vietnamese": "nsis/Vietnamese.nsh",
+          "Danish": "nsis/Danish.nsh",
+          "Portuguese": "nsis/Portuguese.nsh",
+          "Romanian": "nsis/Romanian.nsh",
+          "Hungarian": "nsis/Hungarian.nsh",
+          "Greek": "nsis/Greek.nsh",
+          "Finnish": "nsis/Finnish.nsh",
+          "Norwegian": "nsis/Norwegian.nsh",
+          "Slovak": "nsis/Slovak.nsh",
+          "Bulgarian": "nsis/Bulgarian.nsh",
+          "Croatian": "nsis/Croatian.nsh",
+          "SerbianLatin": "nsis/SerbianLatin.nsh",
+          "Serbian": "nsis/Serbian.nsh",
+          "Catalan": "nsis/Catalan.nsh",
+          "Lithuanian": "nsis/Lithuanian.nsh",
+          "Slovenian": "nsis/Slovenian.nsh",
+          "Latvian": "nsis/Latvian.nsh",
+          "Estonian": "nsis/Estonian.nsh",
+          "Irish": "nsis/Irish.nsh"
+        }
+      },
+      "wix": {
+        "upgradeCode": "a8772ea5-e41c-5d68-862d-0be9828a10a7",
+        "fragmentPaths": ["wix/policy.wxs"],
+        "componentGroupRefs": ["PolicyProperties"]
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDFGMDQ1RkRFNzE2NThDMApSV1RBV0Jibi9VWHdBV293M3p1Nmw5cXJyQlFyK2JvWW91WGt0VXlEay95TzJVL3hwU1FJb3FLUAo=",
+      "endpoints": ["https://steps.amluto.com/update/release.json"],
+      "requireSignedVersion": true,
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}

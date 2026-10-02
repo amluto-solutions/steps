@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Amluto Steps sensitive forms fixture</title>
+    <style>
+      body {
+        font-family: "Aptos", "Calibri", system-ui, sans-serif;
+        margin: 12px 20px;
+        color: #1a1a1a;
+        background: #eef2f7;
+        font-size: 13px;
+      }
+      h1 {
+        font-family: "Century Gothic", system-ui, sans-serif;
+        color: #0e2542;
+        font-size: 18px;
+        margin: 0 0 6px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(200px, 1fr));
+        gap: 8px 14px;
+      }
+      form {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 6px 8px;
+      }
+      form h2 {
+        font-size: 12px;
+        margin: 0 0 4px;
+        color: #1e6ebc;
+      }
+      label {
+        display: block;
+        margin: 2px 0;
+      }
+      input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 3px;
+      }
+      #amluto-plan {
+        width: 100%;
+        height: 30px;
+        font-size: 9px;
+        margin-top: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Amluto Steps sensitive forms fixture</h1>
+    <div class="grid">
+      <form onsubmit="return false;">
+        <h2>1. Work account sign-in</h2>
+        <label for="ms-email">Email, phone or Skype</label><input id="ms-email" type="email" />
+        <label for="ms-password">Password</label><input id="ms-password" type="password" />
+      </form>
+      <form onsubmit="return false;">
+        <h2>2. Personal account</h2>
+        <label for="g-user">Email or phone</label><input id="g-user" type="text" />
+        <label for="g-pass">Enter your password</label><input id="g-pass" type="password" />
+      </form>
+      <form onsubmit="return false;">
+        <h2>3. Card checkout</h2>
+        <label for="cc-name">Name on card</label><input id="cc-name" type="text" />
+        <label for="cc-number">Card number</label
+        ><input id="cc-number" type="text" inputmode="numeric" /> <label for="cc-cvc">CVC</label
+        ><input id="cc-cvc" type="text" />
+      </form>
+      <form onsubmit="return false;">
+        <h2>4. Bank transfer</h2>
+        <label for="bank-payee">Payee name</label><input id="bank-payee" type="text" />
+        <label for="bank-sort">Sort code</label><input id="bank-sort" type="text" />
+        <label for="bank-account">Account number</label><input id="bank-account" type="text" />
+      </form>
+      <form onsubmit="return false;">
+        <h2>5. Two-step verification</h2>
+        <label for="otp">Verification code</label
+        ><input id="otp" type="text" autocomplete="one-time-code" />
+      </form>
+      <form onsubmit="return false;">
+        <h2>6. Online banking</h2>
+        <label for="memorable">Characters 2, 5 and 7 of your memorable word</label>
+        <input id="memorable" type="text" />
+      </form>
+      <form onsubmit="return false;">
+        <h2>7. Wi-Fi</h2>
+        <label for="wifi-name">Network name</label><input id="wifi-name" type="text" />
+        <label for="wifi-key">Network security key</label><input id="wifi-key" type="text" />
+      </form>
+      <form onsubmit="return false;">
+        <h2>8. Developer settings</h2>
+        <label for="api-token">API token</label><input id="api-token" type="text" />
+        <label for="webhook">Webhook URL</label><input id="webhook" type="url" />
+      </form>
+      <form onsubmit="return false;">
+        <h2>9. Account recovery</h2>
+        <label for="recovery">Recovery code</label><input id="recovery" type="text" />
+      </form>
+      <form onsubmit="return false;">
+        <h2>10. Door entry settings</h2>
+        <input id="door-pin" type="text" placeholder="Enter PIN" />
+        <input id="door-sec" type="text" aria-label="Security code" />
+        <button id="done" type="button">Finish</button>
+      </form>
+    </div>
+
+    <label for="amluto-plan">Test plan (read by the driver)</label>
+    <textarea id="amluto-plan" readonly></textarea>
+
+    <script>
+      // `secret` fields must never have their typed value recorded anywhere.
+      const steps = [
+        { target: "ms-email", action: "type", text: "robin@contoso.com" },
+        { target: "ms-password", action: "type", text: "Winter2026!x", secret: true },
+        { target: "g-user", action: "type", text: "07700 900123" },
+        { target: "g-pass", action: "type", text: "Autumn#2026y", secret: true },
+        { target: "cc-name", action: "type", text: "T Cook" },
+        { target: "cc-number", action: "type", text: "4000 0566 5566 5556", secret: true },
+        { target: "cc-cvc", action: "type", text: "731", secret: true },
+        { target: "bank-payee", action: "type", text: "Acme Ltd" },
+        { target: "bank-sort", action: "type", text: "12-34-56", secret: true },
+        { target: "bank-account", action: "type", text: "31926819", secret: true },
+        { target: "otp", action: "type", text: "482913", secret: true },
+        { target: "memorable", action: "type", text: "q7z", secret: true },
+        { target: "wifi-name", action: "type", text: "Amluto-Office" },
+        { target: "wifi-key", action: "type", text: "correct horse battery", secret: true },
+        { target: "api-token", action: "type", text: "tok_live_9f8e7d6c5b4a", secret: true },
+        { target: "webhook", action: "type", text: "https://example.com/hook" },
+        { target: "recovery", action: "type", text: "ABCD-EFGH-IJKL", secret: true },
+        { target: "door-pin", action: "type", text: "5678", secret: true },
+        { target: "door-sec", action: "type", text: "999", secret: true },
+        { target: "done", action: "click" },
+      ];
+
+      const plan = {
+        page: window.location.href,
+        steps: steps.map((step) => {
+          const element = document.getElementById(step.target);
+          const name = (element.getAttribute("aria-label") || element.textContent || "")
+            .replace(/\s+/g, " ")
+            .trim();
+          return { ...step, name };
+        }),
+      };
+      document.getElementById("amluto-plan").value = JSON.stringify(plan);
+    </script>
+  </body>
+</html>

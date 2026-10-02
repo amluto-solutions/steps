@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Amluto Steps parity fixture</title>
+    <style>
+      body {
+        font-family: "Aptos", "Calibri", system-ui, sans-serif;
+        margin: 16px 24px;
+        color: #1a1a1a;
+        background: #eef2f7;
+      }
+      h1 {
+        font-family: "Century Gothic", system-ui, sans-serif;
+        color: #0e2542;
+        font-size: 20px;
+        margin: 0 0 8px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(220px, 1fr));
+        gap: 10px 20px;
+        align-items: start;
+      }
+      .cell {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 8px 10px;
+        min-height: 48px;
+      }
+      label {
+        display: block;
+        font-size: 13px;
+        margin-bottom: 4px;
+      }
+      input[type="text"],
+      input[type="password"],
+      input[type="email"],
+      textarea,
+      select {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 5px;
+      }
+      button,
+      input[type="submit"] {
+        padding: 6px 12px;
+      }
+      [role="switch"],
+      [role="menuitem"],
+      [role="tab"] {
+        display: inline-block;
+        border: 1px solid #1e6ebc;
+        border-radius: 6px;
+        padding: 5px 10px;
+        cursor: pointer;
+      }
+      #amluto-plan {
+        width: 100%;
+        height: 40px;
+        font-size: 10px;
+        margin-top: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Amluto Steps parity fixture</h1>
+    <div class="grid">
+      <div class="cell"><button id="btn-save" type="button">Save changes</button></div>
+      <div class="cell">
+        <button id="btn-settings" type="button" aria-label="Settings">
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+            <circle cx="8" cy="8" r="6" fill="#1e6ebc" />
+          </svg>
+        </button>
+      </div>
+      <div class="cell"><a id="link-pricing" href="#pricing">Pricing plans</a></div>
+
+      <div class="cell">
+        <label for="email">Email address</label><input id="email" type="email" />
+      </div>
+      <div class="cell"><input id="search" type="text" placeholder="Search guides" /></div>
+      <div class="cell"><input id="postcode" type="text" aria-label="Postcode" /></div>
+
+      <div class="cell">
+        <label for="password">Password</label><input id="password" type="password" />
+      </div>
+      <div class="cell"><label for="pin">PIN</label><input id="pin" type="text" /></div>
+      <div class="cell"><label for="card">Card number</label><input id="card" type="text" /></div>
+
+      <div class="cell">
+        <label><input id="remember" type="checkbox" /> Remember me</label>
+      </div>
+      <div class="cell">
+        <label><input id="plan-monthly" type="radio" name="plan" /> Monthly</label>
+      </div>
+      <div class="cell">
+        <label for="comments">Comments</label><textarea id="comments" rows="2"></textarea>
+      </div>
+
+      <div class="cell">
+        <img
+          id="logo"
+          alt="Amluto logo"
+          width="120"
+          height="30"
+          src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='30'%3E%3Crect width='120' height='30' rx='6' fill='%230e2542'/%3E%3C/svg%3E"
+        />
+      </div>
+      <div class="cell">
+        <span id="dark-switch" role="switch" aria-checked="false" tabindex="0">Dark mode</span>
+      </div>
+      <div class="cell"><p id="intro-text" style="margin: 0">Welcome to the guide builder</p></div>
+
+      <div class="cell">
+        <div class="card"><span id="card-title">Monthly report</span></div>
+      </div>
+      <div class="cell"><input id="submit" type="submit" value="Send" /></div>
+      <div class="cell">
+        <div role="menu"><span id="menu-export" role="menuitem">Export as PDF</span></div>
+      </div>
+
+      <div class="cell">
+        <div role="tablist"><span id="tab-settings" role="tab">Settings tab</span></div>
+      </div>
+      <div class="cell">
+        <label for="country">Country</label>
+        <select id="country">
+          <option>United Kingdom</option>
+          <option>Ireland</option>
+        </select>
+      </div>
+      <div class="cell"><button id="done" type="button">Finish</button></div>
+    </div>
+
+    <label for="amluto-plan">Test plan (read by the driver)</label>
+    <textarea id="amluto-plan" readonly></textarea>
+
+    <script>
+      // Steps the driver performs, in order. `type` steps click the field, then type into it;
+      // the next click moves focus away, which is when the old tool recorded the typed value.
+      const steps = [
+        { target: "btn-save", action: "click" },
+        { target: "btn-settings", action: "click" },
+        { target: "link-pricing", action: "click" },
+        { target: "email", action: "type", text: "robin@example.com" },
+        { target: "search", action: "type", text: "onboarding" },
+        { target: "postcode", action: "type", text: "CH7 1AB" },
+        { target: "password", action: "type", text: "Hunter2!secret", secret: true },
+        { target: "pin", action: "type", text: "4321", secret: true },
+        { target: "card", action: "type", text: "4242 4242 4242 4242", secret: true },
+        { target: "remember", action: "click" },
+        { target: "plan-monthly", action: "click" },
+        { target: "comments", action: "type", text: "Looks good" },
+        { target: "logo", action: "click" },
+        { target: "dark-switch", action: "click" },
+        { target: "intro-text", action: "click" },
+        { target: "card-title", action: "click" },
+        { target: "submit", action: "click" },
+        { target: "menu-export", action: "click" },
+        { target: "tab-settings", action: "click" },
+        { target: "country", action: "click" },
+        { target: "done", action: "click" },
+      ];
+
+      // The form never submits or navigates; the page must stay put for the whole run.
+      document.addEventListener("submit", (event) => event.preventDefault());
+      document.getElementById("link-pricing").addEventListener("click", (e) => e.preventDefault());
+
+      const plan = {
+        page: window.location.href,
+        steps: steps.map((step) => {
+          const element = document.getElementById(step.target);
+          const name = (element.getAttribute("aria-label") || element.textContent || "")
+            .replace(/\s+/g, " ")
+            .trim();
+          return { ...step, name };
+        }),
+      };
+      document.getElementById("amluto-plan").value = JSON.stringify(plan);
+    </script>
+  </body>
+</html>

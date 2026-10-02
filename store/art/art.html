@@ -1,0 +1,97 @@
+<!doctype html>
+<!--
+  The Store's box art and poster art, drawn in the brand's colours and fonts and screenshotted by
+  store/art/render.mjs at their exact sizes. ?shape=box (2160 × 2160), ?shape=poster
+  (1440 × 2160), or ?shape=tile (440 × 280, the Chrome Web Store's and Edge Add-ons' small promo
+  tile).
+-->
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      @font-face {
+        font-family: "Jost";
+        font-weight: 600;
+        src: url("../../node_modules/@fontsource/jost/files/jost-latin-600-normal.woff2")
+          format("woff2");
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+      }
+      body {
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        background:
+          radial-gradient(60% 50% at 50% 38%, rgb(72 205 235 / 0.22), transparent 70%),
+          linear-gradient(160deg, #0f1a2c, #08101d 70%);
+        color: #e6edf5;
+        font-family: "Jost", sans-serif;
+      }
+      .art {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.08em;
+        font-size: var(--size);
+      }
+      .steps {
+        display: flex;
+        align-items: flex-end;
+        gap: 0.16em;
+        height: 1.5em;
+        margin-bottom: 0.35em;
+      }
+      .steps span {
+        width: 0.62em;
+        border-radius: 0.14em;
+        background: #48cdeb;
+      }
+      .steps span:nth-child(1) {
+        height: 0.5em;
+        opacity: 0.55;
+      }
+      .steps span:nth-child(2) {
+        height: 1em;
+        opacity: 0.78;
+      }
+      .steps span:nth-child(3) {
+        height: 1.5em;
+      }
+      h1 {
+        margin: 0;
+        font-size: 2.2em;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        line-height: 1;
+      }
+      .by {
+        display: flex;
+        align-items: center;
+        gap: 0.28em;
+        margin-top: 0.3em;
+        font-size: 0.42em;
+        color: #a3b1c2;
+      }
+      .by img {
+        height: 0.95em;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="art">
+      <div class="steps" aria-hidden="true"><span></span><span></span><span></span></div>
+      <h1>Steps</h1>
+      <div class="by">
+        by <img src="../../packages/ui/src/assets/logo-horizontal-white.svg" alt="Amluto" />
+      </div>
+    </div>
+    <script>
+      const shape = new URLSearchParams(location.search).get("shape") ?? "box";
+      const size = { box: "260px", poster: "210px", tile: "44px" }[shape] ?? "260px";
+      document.body.style.setProperty("--size", size);
+    </script>
+  </body>
+</html>

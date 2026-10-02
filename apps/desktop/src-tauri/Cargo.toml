@@ -1,0 +1,95 @@
+[workspace]
+members = ["crates/*"]
+# vendor/ holds patched copies of upstream crates; see [patch.crates-io] below.
+exclude = ["vendor"]
+resolver = "3"
+
+[workspace.package]
+version = "1.0.0"
+edition = "2024"
+rust-version = "1.98"
+authors = ["Amluto Solutions Ltd"]
+license = "GPL-3.0-or-later"
+publish = false
+
+# Standards: docs/engineering.md#rust
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+undocumented_unsafe_blocks = "deny"
+missing_safety_doc = "deny"
+
+[package]
+name = "amluto-steps"
+description = "Amluto Steps: record a task click by click and turn it into a branded guide"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+name = "amluto_steps_lib"
+crate-type = ["rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+capture = { version = "1.0.0", path = "crates/capture" }
+library = { version = "1.0.0", path = "crates/library" }
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-log = "2"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-autostart = "2.5.0"
+tauri-plugin-dialog = "2.7"
+log = "0.4"
+base64 = "0.22"
+image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "webp"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+webp = { version = "0.3.1", default-features = false }
+zip = { version = "8.6.0", default-features = false, features = ["deflate-flate2"] }
+tauri-plugin-updater = "2"
+minisign-verify = "0.2"
+semver = "1"
+# Already in the build (Tauri's runtime, the updater's downloads): the browser link's pipe and
+# the relay's standard input and output (src/browser_link).
+tokio = { version = "1.53.1", default-features = false, features = ["net", "io-util", "io-std", "rt", "sync", "time"] }
+tauri-plugin-single-instance = "2"
+
+[target.'cfg(windows)'.dependencies]
+# Already in the build through embed-resource; reads IT policy (src/policy.rs).
+winreg = "0.55.0"
+
+[dev-dependencies]
+filetime = "0.2"
+tempfile = "3"
+# The relay test drives the pipe from a runtime of its own.
+tokio = { version = "1.53.1", default-features = false, features = ["net", "io-util", "rt", "rt-multi-thread", "time"] }
+
+[lints]
+workspace = true
+
+# Development builds keep line numbers for our own code and no debug information for libraries:
+# full debug information for every crate made the build folder grow past 70 GB (28/09/2026).
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
+[profile.release]
+# Symbols stripped, never packed or compressed (docs/spec/08-privacy-and-security.md#antivirus--edr-rules).
+strip = "symbols"
+lto = true
+codegen-units = 1
+
+[patch.crates-io]
+# tauri-winres 0.3.6 with InternalName and OriginalFilename filled in (vendor/tauri-winres/PATCHED.md).
+tauri-winres = { path = "vendor/tauri-winres" }

@@ -1,0 +1,9 @@
+[[permission]]
+identifier = "allow-startup-task-state"
+description = "Allows the main window to read the Store package's Start with Windows task."
+commands.allow = ["startup_task_state"]
+
+[[permission]]
+identifier = "allow-startup-task-set"
+description = "Allows the main window to switch the Store package's Start with Windows task."
+commands.allow = ["startup_task_set"]

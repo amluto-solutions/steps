@@ -1,0 +1,47 @@
+/**
+ * Where each of Steps' languages (packages/core/src/languages.ts) goes outside the app: the setup
+ * .exe's language (NSIS; Maltese has none, so its speakers get English), the extension's
+ * `_locales` folder (the browsers' codes; Serbian in Latin script, Irish and Maltese have none,
+ * so they get English) and the Microsoft Store package's languages (apps/desktop/msix: the
+ * listing languages Partner Center offers are the ones the package declares).
+ */
+export const OUTSIDE = {
+  en: { nsis: "English", extension: "en", store: "en-gb" },
+  de: { nsis: "German", extension: "de", store: "de" },
+  fr: { nsis: "French", extension: "fr", store: "fr" },
+  es: { nsis: "Spanish", extension: "es", store: "es" },
+  it: { nsis: "Italian", extension: "it", store: "it" },
+  "pt-BR": { nsis: "PortugueseBR", extension: "pt_BR", store: "pt-br" },
+  ja: { nsis: "Japanese", extension: "ja", store: "ja" },
+  "zh-Hans": { nsis: "SimpChinese", extension: "zh_CN", store: "zh-hans" },
+  nl: { nsis: "Dutch", extension: "nl", store: "nl" },
+  pl: { nsis: "Polish", extension: "pl", store: "pl" },
+  ko: { nsis: "Korean", extension: "ko", store: "ko" },
+  ru: { nsis: "Russian", extension: "ru", store: "ru" },
+  tr: { nsis: "Turkish", extension: "tr", store: "tr" },
+  "zh-Hant": { nsis: "TradChinese", extension: "zh_TW", store: "zh-hant" },
+  uk: { nsis: "Ukrainian", extension: "uk", store: "uk" },
+  sv: { nsis: "Swedish", extension: "sv", store: "sv" },
+  cs: { nsis: "Czech", extension: "cs", store: "cs" },
+  id: { nsis: "Indonesian", extension: "id", store: "id" },
+  vi: { nsis: "Vietnamese", extension: "vi", store: "vi" },
+  da: { nsis: "Danish", extension: "da", store: "da" },
+  "pt-PT": { nsis: "Portuguese", extension: "pt_PT", store: "pt-pt" },
+  ro: { nsis: "Romanian", extension: "ro", store: "ro" },
+  hu: { nsis: "Hungarian", extension: "hu", store: "hu" },
+  el: { nsis: "Greek", extension: "el", store: "el" },
+  fi: { nsis: "Finnish", extension: "fi", store: "fi" },
+  nb: { nsis: "Norwegian", extension: "no", store: "nb" },
+  sk: { nsis: "Slovak", extension: "sk", store: "sk" },
+  bg: { nsis: "Bulgarian", extension: "bg", store: "bg" },
+  hr: { nsis: "Croatian", extension: "hr", store: "hr" },
+  "sr-Latn": { nsis: "SerbianLatin", extension: null, store: "sr-latn-rs" },
+  "sr-Cyrl": { nsis: "Serbian", extension: "sr", store: "sr-cyrl-rs" },
+  ca: { nsis: "Catalan", extension: "ca", store: "ca" },
+  lt: { nsis: "Lithuanian", extension: "lt", store: "lt" },
+  sl: { nsis: "Slovenian", extension: "sl", store: "sl" },
+  lv: { nsis: "Latvian", extension: "lv", store: "lv" },
+  et: { nsis: "Estonian", extension: "et", store: "et" },
+  ga: { nsis: "Irish", extension: null, store: "ga" },
+  mt: { nsis: null, extension: null, store: "mt" },
+};

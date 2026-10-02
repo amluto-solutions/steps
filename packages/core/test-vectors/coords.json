@@ -1,0 +1,80 @@
+{
+  "about": "Screen (physical px) to image-percentage conversion. Owner: Rust capture/coords.rs. Rects are [left, top, right, bottom], right/bottom exclusive. Percentages are rounded to 3 decimals.",
+  "points": [
+    {
+      "name": "centre of a window on a 100% primary monitor",
+      "capture": [100, 100, 1100, 800],
+      "point": [600, 450],
+      "expect": [50.0, 50.0]
+    },
+    {
+      "name": "150% monitor to the right of a 1920-wide primary",
+      "capture": [1920, 0, 5760, 2160],
+      "point": [2880, 1080],
+      "expect": [25.0, 50.0]
+    },
+    {
+      "name": "monitor left of and above the primary (negative origin)",
+      "capture": [-2560, -200, 0, 1240],
+      "point": [-1280, 520],
+      "expect": [50.0, 50.0]
+    },
+    {
+      "name": "top-left pixel",
+      "capture": [0, 0, 1000, 500],
+      "point": [0, 0],
+      "expect": [0.0, 0.0]
+    },
+    {
+      "name": "one-third, rounded",
+      "capture": [0, 0, 3, 3],
+      "point": [1, 2],
+      "expect": [33.333, 66.667]
+    },
+    {
+      "name": "outside the capture",
+      "capture": [0, 0, 100, 100],
+      "point": [150, 50],
+      "expect": null
+    },
+    {
+      "name": "right edge is exclusive",
+      "capture": [0, 0, 100, 100],
+      "point": [100, 50],
+      "expect": null
+    },
+    { "name": "zero-size capture", "capture": [10, 10, 10, 10], "point": [10, 10], "expect": null }
+  ],
+  "rects": [
+    {
+      "name": "element fully inside",
+      "capture": [0, 0, 1000, 500],
+      "rect": [100, 50, 300, 100],
+      "expect": [10.0, 10.0, 20.0, 10.0]
+    },
+    {
+      "name": "element straddling the capture edge is clipped",
+      "capture": [0, 0, 1000, 500],
+      "rect": [900, 400, 1100, 600],
+      "expect": [90.0, 80.0, 10.0, 20.0]
+    },
+    {
+      "name": "window straddling two monitors, clipped to the clicked one",
+      "capture": [1920, 0, 3840, 1080],
+      "rect": [1800, 100, 2400, 700],
+      "expect": [0.0, 9.259, 25.0, 55.556]
+    },
+    {
+      "name": "no overlap",
+      "capture": [0, 0, 100, 100],
+      "rect": [200, 200, 300, 300],
+      "expect": null
+    },
+    {
+      "name": "negative-origin monitor",
+      "capture": [-1920, 0, 0, 1080],
+      "rect": [-960, 540, -480, 810],
+      "expect": [50.0, 50.0, 25.0, 25.0]
+    }
+  ]
+}

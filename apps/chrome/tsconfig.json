@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "outDir": "../../node_modules/.tsbuild/chrome",
+    "types": ["vite/client", "chrome"]
+  },
+  "include": ["src", "wxt.config.ts"],
+  "references": [{ "path": "../../packages/core" }, { "path": "../../packages/ui" }]
+}

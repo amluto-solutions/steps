@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "outDir": "../../node_modules/.tsbuild/export"
+  },
+  "include": ["src"],
+  "references": [{ "path": "../core" }]
+}

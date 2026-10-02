@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Phase 1 MSIX smoke test: the capture prototype as a full-trust packaged app, the way the Store
+  build will run (docs/spec/10-distribution.md#microsoft-store). Registered from a loose layout in
+  Developer Mode; never published.
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
+  xmlns:desktop4="http://schemas.microsoft.com/appx/manifest/desktop/windows10/4"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap uap5 desktop4 rescap">
+  <Identity Name="AmlutoSolutions.AmlutoStepsCaptureProto" Publisher="CN=Amluto Solutions Ltd"
+    Version="0.1.0.0" ProcessorArchitecture="x64" />
+  <Properties>
+    <DisplayName>Amluto Steps capture prototype</DisplayName>
+    <PublisherDisplayName>Amluto Solutions Ltd</PublisherDisplayName>
+    <Logo>StoreLogo.png</Logo>
+  </Properties>
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.22621.0" MaxVersionTested="10.0.26200.0" />
+  </Dependencies>
+  <Resources>
+    <Resource Language="en-gb" />
+  </Resources>
+  <Applications>
+    <Application Id="CaptureProto" Executable="proto.exe" EntryPoint="Windows.FullTrustApplication"
+      desktop4:Subsystem="console" desktop4:SupportsMultipleInstances="true">
+      <uap:VisualElements DisplayName="Amluto Steps capture prototype" Description="Phase 1 capture prototype"
+        BackgroundColor="transparent" Square150x150Logo="Square150x150Logo.png"
+        Square44x44Logo="Square44x44Logo.png" AppListEntry="none" />
+      <Extensions>
+        <uap5:Extension Category="windows.appExecutionAlias" Executable="proto.exe"
+          EntryPoint="Windows.FullTrustApplication">
+          <uap5:AppExecutionAlias desktop4:Subsystem="console">
+            <uap5:ExecutionAlias Alias="amluto-capture-proto.exe" />
+          </uap5:AppExecutionAlias>
+        </uap5:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

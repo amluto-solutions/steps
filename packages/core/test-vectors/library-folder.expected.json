@@ -1,0 +1,116 @@
+{
+  "guideCount": 2,
+  "guides": [
+    {
+      "id": "payroll",
+      "title": "Pay a supplier invoice",
+      "updatedAt": "2026-09-25T10:30:00.000Z",
+      "stepCount": 1,
+      "tags": ["finance", "invoices"],
+      "owner": "Robin Hale",
+      "reviewBy": "2027-03-31",
+      "thumbnailMediaId": "media-1",
+      "openComments": 1
+    },
+    {
+      "id": "expenses",
+      "title": "Claim expenses",
+      "updatedAt": "2026-09-25T10:20:00.000Z",
+      "stepCount": 0,
+      "tags": ["finance"],
+      "owner": "Robin Hale",
+      "reviewBy": null,
+      "thumbnailMediaId": null,
+      "openComments": 0
+    }
+  ],
+  "conflicts": [
+    {
+      "kind": "step",
+      "file": "step-1-SAMS-PC.json",
+      "id": "step-1",
+      "from": "SAMS-PC"
+    },
+    {
+      "kind": "guide",
+      "file": "guide-SAMS-PC.json",
+      "from": "SAMS-PC"
+    },
+    {
+      "kind": "restored",
+      "id": "step-2",
+      "deletedBy": "Robin Hale"
+    }
+  ],
+  "commentsForRobin": [
+    {
+      "id": "c1",
+      "text": "Is this the right field?",
+      "by": "Robin Hale",
+      "at": "2026-09-30T09:10:00.000Z",
+      "mine": true,
+      "stepId": "step-1",
+      "replies": [
+        {
+          "id": "c2",
+          "text": "Yes, since the upgrade.",
+          "by": "Sam Jones",
+          "at": "2026-09-30T09:12:00.000Z",
+          "mine": false
+        }
+      ],
+      "resolved": {
+        "by": "Robin Hale",
+        "at": "2026-09-30T09:13:00.000Z"
+      }
+    },
+    {
+      "id": "c4",
+      "text": "Add the approval step?",
+      "by": "Sam Jones",
+      "at": "2026-09-30T09:20:00.000Z",
+      "mine": false,
+      "stepId": null,
+      "replies": [],
+      "resolved": null
+    }
+  ],
+  "versions": [
+    {
+      "id": "v1",
+      "createdAt": "2026-09-29T17:00:00.000Z",
+      "note": "Before the upgrade",
+      "createdBy": "Robin Hale",
+      "stepCount": 1
+    }
+  ],
+  "drafts": [
+    {
+      "id": "robin-session",
+      "by": "Robin Hale",
+      "at": "2026-09-30T09:30:00.000Z",
+      "stepCount": 1
+    }
+  ],
+  "lock": {
+    "name": "Sam Jones",
+    "pc": "SAMS-PC",
+    "session": "sam-session",
+    "counter": 7,
+    "since": "2026-09-30T08:55:00.000Z"
+  },
+  "trash": [
+    {
+      "trashId": "holidays-4102444800000",
+      "guideId": "holidays",
+      "title": "Book holidays",
+      "deletedAt": "2099-12-31T00:00:00.000Z"
+    }
+  ],
+  "searchSupplier": [
+    {
+      "guideId": "payroll",
+      "foundIn": null
+    }
+  ]
+}

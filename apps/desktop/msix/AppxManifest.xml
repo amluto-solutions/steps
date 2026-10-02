@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Microsoft Store package (docs/spec/10-distribution.md#microsoft-store): the Tauri build as a
+  full-trust desktop app, not an AppContainer, because the recorder's input, UI Automation and
+  screenshots need full trust. `npm run msix` fills in the placeholders from
+  apps/desktop/msix/identity.json (the values Partner Center shows under Product identity) and the
+  app's version, then packs it with makeappx. The Store signs the package; it is never signed here.
+
+  Start with Windows is the StartupTask below (the Run key the backup installers use is ignored
+  for packaged apps). It starts switched off; Settings > General switches it on through
+  Windows' StartupTask API, and Windows' own Startup apps page can switch it off again.
+
+  AppData: a packaged app's new files under AppData are normally private to the package, so the
+  browser couldn't open the walkthrough preview, Explorer couldn't show the logs or the support
+  file, and uninstalling would delete unsaved recordings. The app's own two folders are excluded
+  from that (Windows 11's per-folder exclusion, which needs the unvirtualizedResources restricted
+  capability; the Store asks why when the package is submitted). Everything else stays private.
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  xmlns:virtualization="http://schemas.microsoft.com/appx/manifest/virtualization/windows10"
+  IgnorableNamespaces="uap desktop rescap virtualization">
+  <Identity Name="__IDENTITY_NAME__" Publisher="__PUBLISHER__" Version="__VERSION__"
+    ProcessorArchitecture="x64" />
+  <Properties>
+    <!-- Must be the name reserved in Partner Center. -->
+    <DisplayName>Steps by Amluto</DisplayName>
+    <PublisherDisplayName>__PUBLISHER_DISPLAY_NAME__</PublisherDisplayName>
+    <Logo>StoreLogo.png</Logo>
+    <virtualization:FileSystemWriteVirtualization>
+      <virtualization:ExcludedDirectories>
+        <!-- Recordings, brands, shortcuts and the OCR cache. -->
+        <virtualization:ExcludedDirectory>$(KnownFolder:RoamingAppData)\Amluto\Steps</virtualization:ExcludedDirectory>
+        <!-- Logs, the support file, the walkthrough preview and the web view's settings. -->
+        <virtualization:ExcludedDirectory>$(KnownFolder:LocalAppData)\com.amluto.steps</virtualization:ExcludedDirectory>
+        <virtualization:ExcludedDirectory>$(KnownFolder:RoamingAppData)\com.amluto.steps</virtualization:ExcludedDirectory>
+      </virtualization:ExcludedDirectories>
+    </virtualization:FileSystemWriteVirtualization>
+  </Properties>
+  <Dependencies>
+    <!-- Windows 11 only (decision D1). -->
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.22000.0" MaxVersionTested="10.0.26200.0" />
+  </Dependencies>
+  <!-- Steps' languages (scripts/i18n/languages.mjs), English first: Partner Center offers a
+       Store listing in each language the package declares. -->
+  <Resources>
+    <Resource Language="en-gb" />
+    <Resource Language="de" />
+    <Resource Language="fr" />
+    <Resource Language="es" />
+    <Resource Language="it" />
+    <Resource Language="pt-br" />
+    <Resource Language="ja" />
+    <Resource Language="zh-hans" />
+    <Resource Language="nl" />
+    <Resource Language="pl" />
+    <Resource Language="ko" />
+    <Resource Language="ru" />
+    <Resource Language="tr" />
+    <Resource Language="zh-hant" />
+    <Resource Language="uk" />
+    <Resource Language="sv" />
+    <Resource Language="cs" />
+    <Resource Language="id" />
+    <Resource Language="vi" />
+    <Resource Language="da" />
+    <Resource Language="pt-pt" />
+    <Resource Language="ro" />
+    <Resource Language="hu" />
+    <Resource Language="el" />
+    <Resource Language="fi" />
+    <Resource Language="nb" />
+    <Resource Language="sk" />
+    <Resource Language="bg" />
+    <Resource Language="hr" />
+    <Resource Language="sr-latn-rs" />
+    <Resource Language="sr-cyrl-rs" />
+    <Resource Language="ca" />
+    <Resource Language="lt" />
+    <Resource Language="sl" />
+    <Resource Language="lv" />
+    <Resource Language="et" />
+    <Resource Language="ga" />
+    <Resource Language="mt" />
+  </Resources>
+  <Applications>
+    <Application Id="AmlutoSteps" Executable="amluto-steps.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements DisplayName="Steps"
+        Description="Record a task click by click and turn it into a branded step-by-step guide."
+        BackgroundColor="transparent" Square150x150Logo="Square150x150Logo.png"
+        Square44x44Logo="Square44x44Logo.png" />
+      <Extensions>
+        <desktop:Extension Category="windows.startupTask" Executable="amluto-steps.exe"
+          EntryPoint="Windows.FullTrustApplication">
+          <desktop:StartupTask TaskId="AmlutoStepsStartup" Enabled="false" DisplayName="Steps" />
+        </desktop:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+    <rescap:Capability Name="unvirtualizedResources" />
+  </Capabilities>
+</Package>

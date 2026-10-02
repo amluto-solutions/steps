@@ -1,0 +1,21 @@
+{
+  "name": "@amluto-steps/export",
+  "version": "1.0.0",
+  "license": "GPL-3.0-or-later",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@fontsource/inter": "^5.3.0",
+    "@fontsource/jost": "^5.3.0",
+    "docx": "^9.7.2",
+    "pdfmake": "^0.3.11"
+  },
+  "devDependencies": {
+    "@types/pdfmake": "^0.3.3",
+    "jszip": "^3.10.2",
+    "pdfjs-dist": "^6.3.289"
+  }
+}

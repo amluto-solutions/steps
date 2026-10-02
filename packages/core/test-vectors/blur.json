@@ -1,0 +1,13 @@
+{
+  "about": "Burning blur into a screenshot (docs/spec/08-privacy-and-security.md). Owner: Rust library/media.rs burn_redactions; the Chrome edition's apps/chrome/src/library/blur.ts must give the same pixels. The image is made from the formula, pixel (x, y) = [(7x + 3y) % 256, (5x + 11y) % 256, (13x + 2y) % 256, 255], blurred with the rects in order; the expected value is the FNV-1a 32-bit hash of the RGBA bytes afterwards.",
+  "width": 200,
+  "height": 120,
+  "rects": [
+    { "x": 10, "y": 10, "w": 30, "h": 40 },
+    { "x": 25, "y": 30, "w": 50, "h": 30 },
+    { "x": 90, "y": 80, "w": -20, "h": 30 },
+    { "x": -5, "y": 95, "w": 20, "h": 10 },
+    { "x": 50, "y": 5, "w": 0, "h": 10 }
+  ],
+  "fnv1a32": "72b1b3af"
+}
