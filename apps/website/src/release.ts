@@ -7,6 +7,28 @@ import { createContext, useContext, useEffect, useState } from "react";
  */
 export const REPOSITORY_URL = "https://github.com/amluto-solutions/steps";
 
+/**
+ * The repository's stars, as of the site's last deploy: deploy.mjs asks GitHub and writes
+ * /github.json, so a visitor's browser never contacts GitHub (and the page may only fetch from its
+ * own site). Undefined until it loads, or where there's no file (the dev server).
+ */
+export function useGitHub(): { stars: number } | undefined {
+  const [github, setGitHub] = useState<{ stars: number }>();
+  useEffect(() => {
+    let live = true;
+    fetch("/github.json", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: { stars?: unknown } | null) => {
+        if (live && typeof data?.stars === "number") setGitHub({ stars: data.stars });
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
+  return github;
+}
+
 /** A version's release page, or the newest release's when the version isn't known yet. */
 export const releasePage = (version?: string) =>
   version ? `${REPOSITORY_URL}/releases/tag/v${version}` : `${REPOSITORY_URL}/releases/latest`;

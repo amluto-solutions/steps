@@ -130,6 +130,8 @@ Spotted a mistake in a translation? Open an issue or email steps@amluto.com. Sec
 
 Steps is made by [Amluto Solutions Ltd](https://amluto.com/), a UK software company that builds small, focused apps and AI-driven development for UK industry. Our client work pays the running costs; support for Steps pays for more time on it.
 
+If Steps saves you time, **[buy us a coffee](https://buymeacoffee.com/amluto)**, or star the repository so more people find it. To sponsor Steps as a company, email steps@amluto.com.
+
 ## Licence
 
 Steps is free software: you can share and change it under the [GNU General Public License](LICENSE), version 3 or (at your option) any later version. The names Amluto and Steps by Amluto, and their logos, aren't covered by the licence ([TRADEMARKS.md](TRADEMARKS.md)): if you share a changed version, give it your own name and icon.

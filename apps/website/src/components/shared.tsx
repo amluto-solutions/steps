@@ -1,4 +1,4 @@
-import { Check, Coffee, Copy, DownloadSimple } from "@phosphor-icons/react";
+import { Check, Coffee, Copy, DownloadSimple, GithubLogo } from "@phosphor-icons/react";
 import { motion, useReducedMotion } from "motion/react";
 import { useState, type PointerEvent, type ReactNode } from "react";
 
@@ -110,6 +110,20 @@ export function ShotCrop({
  * links, as the site loads nothing from another site (its widget script would).
  */
 export const SUPPORT_URL = "https://buymeacoffee.com/amluto";
+
+/** The repository, as an icon in the menu bar (03/10/2026). */
+export function GitHubButton() {
+  return (
+    <a
+      href="https://github.com/amluto-solutions/steps"
+      aria-label="Steps on GitHub"
+      title="Steps on GitHub"
+      className="inline-grid size-10 place-items-center rounded-full border border-line transition-transform duration-200 ease-out hover:-translate-y-0.5 hover:border-accent active:scale-[0.98]"
+    >
+      <GithubLogo size={19} weight="bold" aria-hidden="true" />
+    </a>
+  );
+}
 
 /** Beside Download in the menu, as Handy's "donate" is: the words from a small phone up. */
 export function SupportButton() {

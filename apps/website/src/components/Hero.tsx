@@ -15,7 +15,7 @@ import logoColour from "../assets/logo/logo-horizontal-colour.svg";
 import logoWhite from "../assets/logo/logo-horizontal-white.svg";
 import stepsMark from "../assets/logo/steps-mark.svg";
 import { SHOWCASE } from "../showcase";
-import { Aurora, DownloadButton, Shot, SupportButton } from "./shared";
+import { Aurora, DownloadButton, GitHubButton, Shot, SupportButton } from "./shared";
 
 /** The steps in the showcase guide. */
 const STEPS_IN_GUIDE = 4;
@@ -80,6 +80,7 @@ export function Nav() {
         </ul>
         <span className="flex-1" />
         <span className="flex items-center gap-2">
+          <GitHubButton />
           <SupportButton />
           <DownloadButton />
         </span>

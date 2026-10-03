@@ -6,7 +6,7 @@
 // folder first and copied in with the page itself last, so a visitor never gets a page whose
 // scripts aren't there yet. Hashed asset names mean older ones can stay without harm.
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -32,6 +32,21 @@ run("npm", ["run", "build", "-w", "@amluto-steps/website"], { shell: true });
 const page = readFileSync(join(dist, "index.html"), "utf8");
 if (!page.includes("Content-Security-Policy")) throw new Error("The built page has no CSP.");
 if (!existsSync(join(dist, "demo", "index.html"))) throw new Error("The demo wasn't built.");
+
+// The repository's stars for the page's GitHub tab, as of now: asked here so a visitor's browser
+// never contacts GitHub. Left out (the tab shows none) if GitHub doesn't answer.
+try {
+  const response = await fetch("https://api.github.com/repos/amluto-solutions/steps", {
+    headers: { accept: "application/vnd.github+json" },
+  });
+  if (response.ok) {
+    const { stargazers_count: stars } = await response.json();
+    if (typeof stars === "number")
+      writeFileSync(join(dist, "github.json"), JSON.stringify({ stars }));
+  }
+} catch {
+  console.log("GitHub didn't answer: no star count this time.");
+}
 
 // 2. Upload to a staging folder.
 const stage = `tmp/steps-site-${Date.now()}`;

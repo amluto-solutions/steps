@@ -5,7 +5,9 @@ import {
   DownloadSimple,
   Browsers,
   Browser,
+  GithubLogo,
   GoogleChromeLogo,
+  Star,
   Hourglass,
   Info,
   Lightning,
@@ -18,7 +20,13 @@ import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 
 import logoColour from "../assets/logo/logo-horizontal-colour.svg";
 import logoWhite from "../assets/logo/logo-horizontal-white.svg";
-import { releasePage, REPOSITORY_URL, useReleaseState, type ReleaseFile } from "../release";
+import {
+  releasePage,
+  REPOSITORY_URL,
+  useGitHub,
+  useReleaseState,
+  type ReleaseFile,
+} from "../release";
 import { Reveal, SUPPORT_URL } from "./shared";
 
 /**
@@ -130,6 +138,8 @@ const PLATFORMS = [
   { id: "windows", label: "Windows", icon: WindowsLogo },
   { id: "linux", label: "Linux", icon: LinuxLogo },
   { id: "browsers", label: "Browsers", icon: Browsers },
+  // The code itself, and building it (03/10/2026).
+  { id: "github", label: "GitHub", icon: GithubLogo },
 ] as const;
 type Platform = (typeof PLATFORMS)[number]["id"];
 
@@ -225,9 +235,9 @@ export function Download() {
         ? [release.linux.deb, release.linux.appImage]
         : []);
 
-  // Under the main download, beside the other ways to get Steps: what Windows may say, and each
-  // file's SHA-256 to check it by. They had a full-width strip below the panel, leaving the space
-  // under the button empty (02/10/2026). On a phone they come after the other ways.
+  // Under the main download, beside the other ways to get Steps: what the browser and Windows may
+  // say about an unsigned installer and how to keep it (03/10/2026: people were told to delete
+  // it), and each file's SHA-256 to check it by. On a phone they come after the other ways.
   const check = (
     <div className="flex flex-col gap-5 self-start lg:col-start-1 lg:row-start-2">
       <div className="flex gap-3 rounded-xl bg-accent-soft p-4 text-sm leading-relaxed">
@@ -238,20 +248,53 @@ export function Download() {
           aria-hidden="true"
         />
         {platform === "windows" ? (
-          <p>
-            Windows may say it doesn&rsquo;t recognise the app yet. Choose{" "}
-            <strong>More info</strong>, then <strong>Run anyway</strong>. To check a file first,
-            compare its hash with the one below: in PowerShell,{" "}
-            <code className="font-mono text-[13px]">Get-FileHash</code> followed by the file&rsquo;s
-            name. Every file, the source code and the open-source notices are on{" "}
-            <a
-              className="font-semibold text-accent hover:underline"
-              href={releasePage(release?.version)}
-            >
-              the release&rsquo;s GitHub page
-            </a>
-            .
-          </p>
+          <div className="flex min-w-0 flex-col gap-2">
+            <p className="font-semibold">Your browser or Windows may warn you</p>
+            <p>
+              Steps is new and its installers aren&rsquo;t signed yet, so Edge, Chrome and Windows
+              don&rsquo;t know them. The warning is about the file being new, not about anything
+              found in it
+              {release?.setup.sha256 ? (
+                <>
+                  {" "}
+                  (
+                  <a
+                    className="font-semibold text-accent hover:underline"
+                    href={`https://www.virustotal.com/gui/file/${release.setup.sha256}`}
+                  >
+                    see the setup&rsquo;s virus scan
+                  </a>
+                  )
+                </>
+              ) : null}
+              . To keep it:
+            </p>
+            <ul className="flex list-disc flex-col gap-1 pl-5">
+              <li>
+                <strong>Edge:</strong> next to the download, choose <strong>&hellip;</strong>, then{" "}
+                <strong>Keep</strong>, <strong>Show more</strong> and <strong>Keep anyway</strong>.
+              </li>
+              <li>
+                <strong>Chrome:</strong> choose <strong>Keep</strong>.
+              </li>
+              <li>
+                <strong>Windows</strong>, when you open it: <strong>More info</strong>, then{" "}
+                <strong>Run anyway</strong>.
+              </li>
+            </ul>
+            <p>
+              To check a file first, compare its hash with the one below: in PowerShell,{" "}
+              <code className="font-mono text-[13px]">Get-FileHash</code> followed by the
+              file&rsquo;s name. Every file, the source code and the open-source notices are on{" "}
+              <a
+                className="font-semibold text-accent hover:underline"
+                href={releasePage(release?.version)}
+              >
+                the release&rsquo;s GitHub page
+              </a>
+              .
+            </p>
+          </div>
         ) : (
           <p>
             To check a file first, compare its hash with the one below:{" "}
@@ -450,6 +493,8 @@ export function Download() {
               </p>
             ))}
 
+          {platform === "github" && <GitHubPanel />}
+
           {platform === "browsers" && (
             <>
               <div className="flex flex-col gap-3">
@@ -492,6 +537,73 @@ export function Download() {
         </div>
       </Reveal>
     </section>
+  );
+}
+
+/** The code on GitHub: the repository, its stars as of the last deploy, and how to build it. */
+function GitHubPanel() {
+  const github = useGitHub();
+  return (
+    <>
+      <div className="flex flex-col items-start gap-4">
+        <a
+          href={REPOSITORY_URL}
+          className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-accent px-6 py-3 text-center text-base font-semibold text-accent-ink transition-transform hover:-translate-y-0.5 active:scale-[0.98] sm:w-auto sm:whitespace-nowrap"
+        >
+          <GithubLogo size={20} weight="bold" aria-hidden="true" />
+          amluto-solutions/steps
+        </a>
+        <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
+          {/* Not while it's 0: "0 stars" puts people off more than no count. */}
+          {github && github.stars > 0 && (
+            <a
+              href={`${REPOSITORY_URL}/stargazers`}
+              className="inline-flex items-center gap-1.5 font-semibold text-ink hover:text-accent"
+            >
+              <Star size={16} weight="fill" className="text-accent" aria-hidden="true" />
+              {github.stars === 1 ? "1 star" : `${github.stars.toLocaleString("en-GB")} stars`}
+            </a>
+          )}
+          <span>Free software under the GNU GPL, version 3 or later.</span>
+        </p>
+        <p className="text-sm leading-relaxed text-muted">
+          Read the code, report a problem, suggest a change, or star the repository so more people
+          find Steps.
+        </p>
+        <span className="flex flex-wrap gap-2">
+          <a href={`${REPOSITORY_URL}/issues`} className={secondary}>
+            Report a problem
+          </a>
+          <a href={`${REPOSITORY_URL}/releases`} className={secondary}>
+            Every release
+          </a>
+        </span>
+      </div>
+      <div className="flex min-w-0 flex-col gap-4">
+        <h3 className="font-display text-lg font-semibold">Build it yourself</h3>
+        <p className="text-sm leading-relaxed text-muted">
+          On Windows 11 you need Node.js 24, Rust and Visual Studio&rsquo;s C++ build tools. Then,
+          in the repository:
+        </p>
+        <pre className="overflow-x-auto rounded-xl border border-line bg-page px-4 py-3 font-mono text-[13px] leading-relaxed">
+          <code>
+            {
+              "npm install\nnpm run dev              # the app, with hot reload\nnpm run tauri -- build   # the installers"
+            }
+          </code>
+        </pre>
+        <p className="text-sm leading-relaxed text-muted">
+          Linux and the browser extension build from the same code.{" "}
+          <a
+            className="font-semibold text-accent hover:underline"
+            href={`${REPOSITORY_URL}#building-it-yourself`}
+          >
+            The README has every step
+          </a>
+          .
+        </p>
+      </div>
+    </>
   );
 }
 
