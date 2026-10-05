@@ -135,6 +135,18 @@ Not configured: Steps follows Windows' display language, or English if Steps doe
       <string id="LanguageTone_Help">How the steps of new recordings are worded. Casual is Steps' own short style ("Click "Save""); Plain language uses everyday words ("Select the "Save" button"); Formal writes full sentences ("Click the "Save" button."). Staff can't change it in Settings while this is set; a guide can still be reworded with Language and tone.
 
 Not configured: casual, and each person can choose another in Settings > Recording.</string>
+      <string id="DisableGuideLocks">Turn off guide password locks</string>
+      <string id="DisableGuideLocks_Help">Enabled: Lock… is hidden, so nobody can lock a guide with a password. Guides already locked stay locked until someone with the password (or the recovery password) removes the lock.
+
+Not configured or Disabled: anyone who can edit a guide can lock it with a password. A locked guide can still be viewed, exported, duplicated, copied and merged into a new guide, but not changed, moved or deleted in Steps without the password. The lock works inside Steps only: it doesn't stop anyone changing the guide's files directly.</string>
+      <string id="GuideLockRecoveryPassword">Recovery password for locked guides</string>
+      <string id="GuideLockRecoveryPassword_Help">A password that unlocks any locked guide, entered wherever Steps asks for a guide's password. Enter its hash, never the password itself: make it with the PowerShell lines in the IT guide (steps.amluto.com/it, "Guide password locks"). It looks like pbkdf2-sha256$600000$...$...
+
+Using it is recorded in the guide's Properties. Not configured: a forgotten password can't be recovered, but the guide can always be duplicated.</string>
+      <string id="RecordPcAndLogin">Record the PC name and Windows login in guides</string>
+      <string id="RecordPcAndLogin_Help">Enabled: each guide records the PC's name and the Windows login of whoever last saved it, and of whoever locked it, shown in its Properties to anyone who can open the library. They are never put in exports. Disabled: only the person's display name is recorded. Staff can't change it in Settings while this is set.
+
+Not configured: on, and each person can turn it off in Settings > Privacy.</string>
       <string id="ShowUnnamedTyping">Show typing into unnamed boxes</string>
       <string id="ShowUnnamedTyping_Help">Whether a step shows what was typed into something the recording couldn't name, such as a document or a box with no label. Enabled: shown, as for named fields. Disabled: the step says only "Type", and the person can show the text step by step. Staff can't change it in Settings while this is set.
 
@@ -153,6 +165,11 @@ Not configured: standard, and each person can choose another in Settings > Priva
     <presentationTable>
       <presentation id="Libraries">
         <multiTextBox refId="Libraries">Libraries (one per line, Name=Path):</multiTextBox>
+      </presentation>
+      <presentation id="GuideLockRecoveryPassword">
+        <textBox refId="GuideLockRecoveryPassword">
+          <label>Recovery password hash (pbkdf2-sha256$...):</label>
+        </textBox>
       </presentation>
       <presentation id="DefaultLibrary">
         <textBox refId="DefaultLibrary">

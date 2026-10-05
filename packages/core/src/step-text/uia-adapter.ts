@@ -1,7 +1,14 @@
 // Fills a step's target facts from UI Automation, so desktop steps are worded by the same rules
 // as the Chrome edition's (docs/spec/02-capture.md#mapping-uia-to-step-facts).
 
-import { ENGLISH, phraseFor, renderPhrase, type StepWording } from "./phrase.ts";
+import {
+  ENGLISH,
+  asRightClick,
+  phraseFor,
+  renderPhrase,
+  type Phrase,
+  type StepWording,
+} from "./phrase.ts";
 import type { StepTarget, UiaElementFacts } from "./types.ts";
 
 /** Control types a text leaf is promoted to, mirroring how the DOM reports the element clicked. */
@@ -97,21 +104,20 @@ export function describeClick(
   facts: UiaElementFacts | null | undefined,
   windowTitle: string,
   wording: StepWording = ENGLISH,
+  rightButton = false,
 ): ClickWording {
   const named = facts && facts.controlType !== "Window";
-  const phrase = named
+  const found = named
     ? phraseFor("click", uiaToStepTarget(facts), null, null, promoteTextLeaf(facts).controlType)
     : undefined;
+  const phrase = found && rightButton ? asRightClick(found) : found;
   if (phrase) {
     return { text: renderPhrase(phrase, wording.language, wording.tone), unnamed: false };
   }
   const title = clean(windowTitle);
+  const where: Phrase = title ? { key: "clickIn", title } : { key: "clickBare" };
   return {
-    text: renderPhrase(
-      title ? { key: "clickIn", title } : { key: "clickBare" },
-      wording.language,
-      wording.tone,
-    ),
+    text: renderPhrase(rightButton ? asRightClick(where) : where, wording.language, wording.tone),
     unnamed: true,
   };
 }

@@ -204,6 +204,25 @@
         </enum>
       </elements>
     </policy>
+    <policy name="DisableGuideLocks" class="Both" displayName="$(string.DisableGuideLocks)" explainText="$(string.DisableGuideLocks_Help)" key="Software\Policies\Amluto\Steps" valueName="DisableGuideLocks">
+      <parentCategory ref="Libraries" />
+      <supportedOn ref="SUPPORTED_Windows11" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+    </policy>
+    <policy name="GuideLockRecoveryPassword" class="Both" displayName="$(string.GuideLockRecoveryPassword)" explainText="$(string.GuideLockRecoveryPassword_Help)" presentation="$(presentation.GuideLockRecoveryPassword)" key="Software\Policies\Amluto\Steps">
+      <parentCategory ref="Libraries" />
+      <supportedOn ref="SUPPORTED_Windows11" />
+      <elements>
+        <text id="GuideLockRecoveryPassword" valueName="GuideLockRecoveryPassword" maxLength="400" required="true" />
+      </elements>
+    </policy>
+    <policy name="RecordPcAndLogin" class="Both" displayName="$(string.RecordPcAndLogin)" explainText="$(string.RecordPcAndLogin_Help)" key="Software\Policies\Amluto\Steps" valueName="RecordPcAndLogin">
+      <parentCategory ref="Privacy" />
+      <supportedOn ref="SUPPORTED_Windows11" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+    </policy>
     <policy name="ShowUnnamedTyping" class="Both" displayName="$(string.ShowUnnamedTyping)" explainText="$(string.ShowUnnamedTyping_Help)" key="Software\Policies\Amluto\Steps" valueName="ShowUnnamedTyping">
       <parentCategory ref="Privacy" />
       <supportedOn ref="SUPPORTED_Windows11" />

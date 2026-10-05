@@ -17,7 +17,7 @@ import { AnyGuideEditor } from "./app/LibraryGuideEditor";
 import { useLibraryWatch } from "./app/useLibraryWatch";
 import type { GuideStore } from "./editor/useGuideEditor";
 import { errorMessage } from "./errors";
-import type { LibraryBridge, TrashEntry, VersionInfo } from "./library-bridge";
+import type { LibraryBridge, LibraryGuideSummary, TrashEntry, VersionInfo } from "./library-bridge";
 import { LibraryHome } from "./library/LibraryHome";
 import { TrashView } from "./library/TrashView";
 import { useBrands } from "./app/useBrands";
@@ -44,7 +44,18 @@ import { setPeopleNames } from "./editor/suggestions";
 import type { RecorderBridge } from "./recorder-bridge";
 import { SettingsView, type SettingsSection } from "./settings/SettingsView";
 import { isManaged, policy } from "./settings/policy";
-import { readStorageWarnGb } from "./settings/preferences";
+import { readRecordPcAndLogin, readStorageWarnGb } from "./settings/preferences";
+import { withGuideLocks } from "./library/guide-locks";
+import {
+  GuideLocksContext,
+  LockHost,
+  askCount,
+  askNewPassword,
+  askUnlock,
+  showLockedList,
+  showProperties,
+  type LockTarget,
+} from "./library/LockDialogs";
 import { Sidebar, type LibraryView } from "./shell/Sidebar";
 import { Welcome, type WelcomeChoices } from "./shell/Welcome";
 import { TourProvider } from "./tour/TourProvider";
@@ -79,7 +90,7 @@ export function App(props: AppProps) {
   );
 }
 
-function AppContent({ recorder, library }: AppProps) {
+function AppContent({ recorder, library: unlocked }: AppProps) {
   const { t } = useTranslation();
   const [recent, setRecent] = useState<string[]>(readRecent);
   const [route, setRoute] = useState<Route>({ screen: "library", view: { kind: "all" } });
@@ -118,6 +129,32 @@ function AppContent({ recorder, library }: AppProps) {
     theme,
     allBlurTerms,
   } = settings;
+
+  // Every library goes through the guide locks (docs/spec/03-data-and-sharing.md#password-locks).
+  // Made again only if the display name changes, which forgets this session's unlocks.
+  const locks = useMemo(
+    () =>
+      unlocked
+        ? withGuideLocks(unlocked, {
+            who: async () => {
+              const record = readRecordPcAndLogin();
+              const machine =
+                record && recorder?.machineIdentity
+                  ? await recorder.machineIdentity().catch(() => null)
+                  : null;
+              return {
+                by: author.trim() || t("locks.someone"),
+                login: machine?.login ?? "",
+                // The browser can't tell its PC; it says which Steps it was instead.
+                pc: machine?.pc ?? (record && isBrowserEdition(recorder) ? "Steps for Chrome" : ""),
+              };
+            },
+            recoveryPassword: () => policy().guideLockRecoveryPassword,
+          })
+        : null,
+    [unlocked, recorder, author, t],
+  );
+  const library = locks?.library;
 
   // The person's own names, so screenshots showing them get suggested for blurring (F006).
   useEffect(() => {
@@ -226,6 +263,7 @@ function AppContent({ recorder, library }: AppProps) {
     setBusy,
     author,
     openGuide: (id, guideId) => void run(() => openLibraryGuide({ libraryId: id, guideId })),
+    locks,
   });
   /** Merge guides: the guides chosen so far, while its dialog is open. */
   const [merging, setMerging] = useState<MergeChoice[] | null>(null);
@@ -248,6 +286,107 @@ function AppContent({ recorder, library }: AppProps) {
     blurTerms: allBlurTerms,
     saveDraft: (sessionId, flush, doc) => saveDraft(sessionId, flush, doc, true),
   });
+
+  // ----- Password locks (docs/spec/03-data-and-sharing.md#password-locks) -----
+
+  /**
+   * Before a change, move or delete: a locked guide asks for its password, unlocking it for this
+   * one action (or the editing session it's open in). Answers whether to go ahead, and whether it
+   * was unlocked here, to lock again after.
+   */
+  const ensureOpen = async (ref: GuideRef, title: string, action: string) => {
+    if (!locks || locks.isOpen(ref.libraryId, ref.guideId)) return { go: true, unlocked: false };
+    const lock = await locks.lockOf(ref.libraryId, ref.guideId).catch(() => null);
+    if (!lock) return { go: true, unlocked: false };
+    const go = await askUnlock({ ...ref, title, locked: lock.locked }, action);
+    return { go, unlocked: go };
+  };
+
+  /** Runs `action` on a guide that may be locked, asking for its password first. */
+  const withPassword = async (
+    ref: GuideRef,
+    title: string,
+    label: string,
+    action: () => Promise<void>,
+  ) => {
+    const { go, unlocked } = await ensureOpen(ref, title, label);
+    if (!go) return;
+    try {
+      await action();
+    } finally {
+      if (unlocked) locks?.relock(ref.libraryId, ref.guideId);
+    }
+  };
+
+  const lockGuides = async (items: { ref: GuideRef; title: string }[]) => {
+    if (!locks || items.length === 0) return;
+    const first = items[0];
+    const password = await askNewPassword(
+      items.length === 1 && first
+        ? t("locks.lockTitle", { title: first.title })
+        : t("locks.lockManyTitle", { count: items.length }),
+      t("locks.lockBody", { name: author || t("locks.someone") }),
+      t("locks.lockButton"),
+    );
+    if (!password) return;
+    await run(async () => {
+      let done = 0;
+      for (const { ref } of items) {
+        const already = await locks.lockOf(ref.libraryId, ref.guideId).catch(() => null);
+        if (already) continue;
+        await locks.lock(ref.libraryId, ref.guideId, password);
+        done += 1;
+      }
+      await refreshGuides(libraryId);
+      notify({
+        text:
+          items.length === 1 && first
+            ? t("locks.locked", { title: first.title })
+            : [
+                t("locks.lockedMany", { count: done }),
+                ...(items.length > done
+                  ? [t("locks.alreadyLocked", { count: items.length - done })]
+                  : []),
+              ].join(" "),
+      });
+    });
+  };
+
+  const removeLock = (ref: GuideRef, title: string) =>
+    withPassword(ref, title, t("locks.removeButton"), () =>
+      run(
+        async () => {
+          await locks?.removeLock(ref.libraryId, ref.guideId);
+          await refreshGuides(ref.libraryId);
+        },
+        t("locks.removed", { title }),
+      ),
+    );
+
+  const changePassword = async (ref: GuideRef, title: string) => {
+    const { go, unlocked } = await ensureOpen(ref, title, t("locks.next"));
+    if (!go) return;
+    try {
+      const password = await askNewPassword(
+        t("locks.newPasswordTitle", { title }),
+        null,
+        t("locks.changeButton"),
+      );
+      if (!password) return;
+      await run(
+        () => locks?.changePassword(ref.libraryId, ref.guideId, password) ?? Promise.resolve(),
+        t("locks.changed", { title }),
+      );
+    } finally {
+      if (unlocked) locks?.relock(ref.libraryId, ref.guideId);
+    }
+  };
+
+  /** Remove lock on several: one list, where each password is tried on them all. */
+  const removeLocks = (items: LockTarget[]) =>
+    showLockedList(items, t("locks.listBodyRemove"), async (target) => {
+      await locks?.removeLock(target.libraryId, target.guideId);
+    }).then(() => refreshGuides(libraryId));
 
   const trashGuide = async ({ libraryId: id, guideId }: GuideRef, title: string) => {
     if (!library) return;
@@ -374,8 +513,25 @@ function AppContent({ recorder, library }: AppProps) {
     });
   };
 
-  const emptyTrash = () => {
+  const emptyTrash = async () => {
     if (!library || !libraryId || trash.length === 0) return;
+    if (trash.length > 1) {
+      const sure = await askCount(
+        t("locks.emptyTitle", { count: trash.length }),
+        trash.length,
+        t("library.emptyTrash"),
+      );
+      if (sure)
+        await run(async () => {
+          try {
+            const count = await library.emptyTrash(libraryId);
+            notify({ text: t("library.trashEmptied", { count }) });
+          } finally {
+            await refreshGuides(libraryId);
+          }
+        });
+      return;
+    }
     setConfirming({
       title: t("library.emptyTrashTitle"),
       body: t("library.emptyTrashBody", { count: trash.length }),
@@ -399,26 +555,56 @@ function AppContent({ recorder, library }: AppProps) {
   const renameGuide = (ref: GuideRef, title: string) => {
     if (!library) return;
     setRenaming(null);
-    void run(async () => {
-      const editing = await library.openForEditing(ref.libraryId, ref.guideId, false);
-      if (editing.kind === "readOnly") {
-        notify({ kind: "error", text: t("library.renameLocked", { name: editing.lock.name }) });
-        return;
-      }
-      try {
-        const { guide } = toDoc(await library.loadGuide(ref.libraryId, ref.guideId));
-        await library.saveGuide(ref.libraryId, ref.guideId, {
-          ...guide,
-          title,
-          updatedAt: new Date().toISOString(),
-          updatedBy: author,
-        });
-      } finally {
-        await library.releaseLock(ref.libraryId, ref.guideId).catch(() => undefined);
-      }
-      await refreshGuides(ref.libraryId);
-      notify({ text: t("library.renamed", { title }) });
-    });
+    void withPassword(ref, title, t("library.rename"), () =>
+      run(async () => {
+        const editing = await library.openForEditing(ref.libraryId, ref.guideId, false);
+        if (editing.kind === "readOnly") {
+          notify({ kind: "error", text: t("library.renameLocked", { name: editing.lock.name }) });
+          return;
+        }
+        try {
+          const { guide } = toDoc(await library.loadGuide(ref.libraryId, ref.guideId));
+          await library.saveGuide(ref.libraryId, ref.guideId, {
+            ...guide,
+            title,
+            updatedAt: new Date().toISOString(),
+            updatedBy: author,
+          });
+        } finally {
+          await library.releaseLock(ref.libraryId, ref.guideId).catch(() => undefined);
+        }
+        await refreshGuides(ref.libraryId);
+        notify({ text: t("library.renamed", { title }) });
+      }),
+    );
+  };
+
+  /** Lock…, or Remove lock… and Change password…, by whether the guide is locked. */
+  const lockEntries = (ref: GuideRef, title: string): MenuEntry[] => {
+    if (!locks) return [];
+    const summary = guides.find((guide) => guide.id === ref.guideId);
+    if (summary?.locked)
+      return [
+        {
+          label: t("locks.removeLock"),
+          icon: "lock",
+          onSelect: () => void removeLock(ref, title),
+        },
+        {
+          label: t("locks.changePassword"),
+          icon: "lock",
+          onSelect: () => void changePassword(ref, title),
+        },
+      ];
+    return policy().disableGuideLocks
+      ? []
+      : [
+          {
+            label: t("locks.lock"),
+            icon: "lock",
+            onSelect: () => void lockGuides([{ ref, title }]),
+          },
+        ];
   };
 
   const guideMenu = (ref: GuideRef, title: string, flush?: () => Promise<void>): MenuEntry[] => {
@@ -465,22 +651,31 @@ function AppContent({ recorder, library }: AppProps) {
           label: t("library.moveTo", { name: other.name }),
           icon: "folder" as const,
           onSelect: () =>
-            void run(async () => {
-              const moved = await moveGuide(library, id, guideId, other.id);
-              await refreshGuides(id);
-              // As a move of several guides can be undone, so can a move of one (F053).
-              notify({
-                text: t("library.moved", { name: other.name }),
-                action: {
-                  label: t("common.undo"),
-                  run: () =>
-                    void run(async () => {
-                      await moveGuide(library, other.id, moved.id, id);
-                      await refreshGuides(id);
-                    }),
-                },
-              });
-            }),
+            void withPassword(ref, title, t("locks.move"), () =>
+              run(async () => {
+                const moved = await moveGuide(library, id, guideId, other.id);
+                await refreshGuides(id);
+                // As a move of several guides can be undone, so can a move of one (F053).
+                notify({
+                  text: t("library.moved", { name: other.name }),
+                  action: {
+                    label: t("common.undo"),
+                    run: () =>
+                      void run(async () => {
+                        await withPassword(
+                          { libraryId: other.id, guideId: moved.id },
+                          title,
+                          t("locks.move"),
+                          async () => {
+                            await moveGuide(library, other.id, moved.id, id);
+                          },
+                        );
+                        await refreshGuides(id);
+                      }),
+                  },
+                });
+              }),
+            ),
         },
       ]),
       {
@@ -506,14 +701,24 @@ function AppContent({ recorder, library }: AppProps) {
       {
         label: t("library.applyBlur"),
         icon: "blur",
-        onSelect: () => void applyBlurPermanently(ref, title, flush),
+        onSelect: () =>
+          void withPassword(ref, title, t("library.applyBlur"), () =>
+            applyBlurPermanently(ref, title, flush),
+          ),
+      },
+      ...lockEntries(ref, title),
+      {
+        label: t("locks.properties"),
+        icon: "info",
+        onSelect: () => void showProperties(id, guideId),
       },
       "divider",
       {
         label: t("library.toTrash"),
         icon: "trash",
         danger: true,
-        onSelect: () => void trashGuide(ref, title),
+        onSelect: () =>
+          void withPassword(ref, title, t("locks.toBin"), () => trashGuide(ref, title)),
       },
     ];
   };
@@ -624,9 +829,11 @@ function AppContent({ recorder, library }: AppProps) {
         ? t("nav.recent")
         : view?.kind === "review"
           ? t("nav.needsReview")
-          : libraries.length > 1
-            ? libraryName
-            : t("nav.allGuides");
+          : view?.kind === "locked"
+            ? t("locks.filter")
+            : libraries.length > 1
+              ? libraryName
+              : t("nav.allGuides");
 
   // Stable across renders: the editor re-reads a screenshot's text, and every library card its
   // thumbnail, whenever these change, and App re-renders on every toast and recorder fact.
@@ -705,442 +912,493 @@ function AppContent({ recorder, library }: AppProps) {
   }
 
   return (
-    <TourProvider
-      enabled
-      place={tourPlace}
-      onGo={showGuides}
-      firstName={author.trim().split(/\s+/)[0] || null}
-    >
-      <div className="flex h-screen overflow-hidden bg-page text-body">
-        {route.screen !== "editor" && route.screen !== "settings" && (
-          <Sidebar
-            libraries={libraries}
-            libraryId={libraryId}
-            onLibrary={showLibrary}
-            view={view}
-            onView={(next) => setRoute({ screen: "library", view: next })}
-            tags={tags}
-            guideCount={guides.length}
-            reviewCount={guides.filter(needsReview).length}
-            canRecord={Boolean(recorder) && !recording && !hasPending && !busy && !fatal}
-            recordHint={recordHint}
-            recordingControls={
-              recorder && (snapshot.state === "recording" || snapshot.state === "paused")
-                ? {
-                    paused: snapshot.state === "paused",
-                    onPause: () =>
-                      void (snapshot.state === "paused" ? recorder.resume() : recorder.pause())
-                        .then(setSnapshot)
-                        .catch(() => undefined),
-                    onStop: () =>
-                      void recorder
-                        .stop()
-                        .then(setSnapshot)
-                        .catch(() => undefined),
-                  }
-                : null
-            }
-            onRecord={requestRecording}
-            onSettings={() => setRoute({ screen: "settings", section: "general" })}
-            settingsActive={false}
-          />
-        )}
-        {/* The one main landmark, around whichever screen is showing. */}
-        <main className="min-w-0 flex-1">
-          {fatal && (
-            <div role="alert" className="card m-6 flex items-start gap-3 p-4">
-              <Icon name="warning" className="mt-0.5 text-warning" />
-              <div>
-                <h2 className="font-heading text-base text-navy">{t("recorder.errorTitle")}</h2>
-                <p className="mt-1 text-secondary">{fatal}</p>
-              </div>
-            </div>
-          )}
-
-          {route.screen === "library" && route.view.kind === "trash" && (
-            <TrashView
-              trash={trash}
-              busy={busy}
-              onDeleteForGood={deleteForGood}
-              onEmpty={emptyTrash}
-              onRestore={(entry) =>
-                libraryId &&
-                void run(
-                  async () => {
-                    await library?.restoreGuide(libraryId, entry.trashId);
-                    await refreshGuides(libraryId);
-                  },
-                  t("library.restored", { title: entry.title }),
-                )
-              }
-            />
-          )}
-
-          {route.screen === "library" && route.view.kind !== "trash" && (
-            <LibraryHome
-              heading={heading}
-              guides={visibleGuides}
-              loading={guidesLoading}
-              pending={pending}
-              busy={busy}
-              onOpen={(guide) =>
-                libraryId && void run(() => openLibraryGuide({ libraryId, guideId: guide.id }))
-              }
-              onReviewPending={(item) => void reviewPending(item)}
-              onDiscardPending={setDiscardTarget}
-              guideMenu={(guide) =>
-                libraryId ? guideMenu({ libraryId, guideId: guide.id }, guide.title) : []
-              }
-              exportMenu={(guide) =>
-                libraryId
-                  ? exportMenu({ kind: "guide", libraryId, guideId: guide.id, title: guide.title })
-                  : []
-              }
-              loadThumbnail={loadThumbnail}
-              bulk={
-                library && libraryId
-                  ? {
-                      targets: libraries
-                        .filter((item) => item.id !== libraryId && !item.needsAccess)
-                        .map(({ id, name }) => ({ id, name })),
-                      onMove: (chosen, to) => void bulk.move(chosen, to),
-                      onCopy: (chosen, to) => void bulk.copy(chosen, to),
-                      onTrash: (chosen) => void bulk.trash(chosen),
-                      onMerge: (chosen) =>
-                        setMerging(chosen.map((guide) => ({ libraryId, guide }))),
-                      exportMenu: (chosen) =>
-                        exportManyMenu(
-                          chosen.map((guide) => ({
-                            kind: "guide" as const,
-                            libraryId,
-                            guideId: guide.id,
-                            title: guide.title,
-                          })),
-                        ),
-                    }
-                  : undefined
-              }
-              onNewRecording={requestRecording}
-              onImport={() => void importAmlsteps()}
-              searchGuides={
-                library && libraryId ? (query) => library.searchGuides(libraryId, query) : undefined
-              }
-              storage={(() => {
-                const warning = storageWarning(storage, readStorageWarnGb() * 1024 ** 3);
-                return warning && storage ? { warning, use: storage } : null;
-              })()}
-              onExportAndRemove={
-                library?.exportAndRemove ? () => setExportRemove({ progress: null }) : undefined
-              }
-              access={(() => {
-                const shown = libraries.find((item) => item.id === libraryId);
-                const allow = library?.allowAccess;
-                if (!shown?.needsAccess || !allow) return null;
-                return {
-                  folder: shown.path,
-                  // Straight from the click: the browser only asks from one.
-                  onAllow: () =>
-                    void run(async () => {
-                      if (await allow.call(library, shown.id)) await refreshLibraries(shown.id);
-                    }),
-                };
-              })()}
-            />
-          )}
-
-          {editorTarget && editorStore && (
-            <AnyGuideEditor
-              key={editorTarget.key}
-              library={editorTarget.kind === "guide" ? library : undefined}
-              libraryId={editorTarget.kind === "guide" ? editorTarget.libraryId : undefined}
-              onOpenGuide={(summary) =>
-                editorTarget.kind === "guide" &&
-                void openLibraryGuide({ libraryId: editorTarget.libraryId, guideId: summary.id })
-              }
-              initial={editorTarget.doc}
-              store={editorStore}
-              author={author}
-              mode={editorTarget.kind === "draft" ? "draft" : "saved"}
-              readText={readText}
-              sharedLibrary={
-                editorTarget.kind === "guide" &&
-                libraries.some(
-                  (item) => item.id === editorTarget.libraryId && (item.synced || item.managed),
-                )
-              }
-              blurTerms={allBlurTerms}
-              busy={busy}
-              notify={notify}
-              onBack={() => {
-                setRoute({ screen: "library", view: { kind: "all" } });
-                void refreshGuides(libraryId);
-                void refreshRecoveries();
-              }}
-              onSave={
-                editorTarget.kind === "draft"
-                  ? (flush, doc) => void saveDraft(editorTarget.sessionId, flush, doc)
-                  : undefined
-              }
-              saveTargets={editorTarget.kind === "draft" ? libraries : undefined}
-              saveVersion={
-                editorTarget.kind === "guide" && library
-                  ? async (note) => {
-                      await library.saveVersion(
-                        editorTarget.libraryId,
-                        editorTarget.doc.guide.id,
-                        note,
-                      );
-                    }
-                  : undefined
-              }
-              onSaveTo={
-                editorTarget.kind === "draft"
-                  ? (flush, doc, id) => {
-                      const chosen = libraries.find((item) => item.id === id);
-                      void saveDraft(
-                        editorTarget.sessionId,
-                        flush,
-                        doc,
-                        false,
-                        chosen && !chosen.isDefault ? { id, name: chosen.name } : undefined,
-                      );
-                    }
-                  : undefined
-              }
-              onDiscard={
-                editorTarget.kind === "draft"
-                  ? () =>
-                      setDiscardTarget({
-                        sessionId: editorTarget.sessionId,
-                        title: editorTarget.doc.guide.title,
-                        stepCount: editorTarget.doc.steps.length,
-                        savedGuideId: null,
-                      })
-                  : undefined
-              }
-              exportMenu={(doc, flush, editor) =>
-                exportMenu(
-                  editorTarget.kind === "guide"
-                    ? {
-                        kind: "guide",
-                        libraryId: editorTarget.libraryId,
-                        guideId: doc.guide.id,
-                        title: doc.guide.title,
-                      }
-                    : { kind: "draft", sessionId: editorTarget.sessionId, title: doc.guide.title },
-                  doc,
-                  flush,
-                  editor,
-                )
-              }
-              guideMenu={
-                editorTarget.kind === "guide"
-                  ? (doc, flush) => [
-                      {
-                        label: t("versions.save"),
-                        icon: "history",
-                        onSelect: async () => {
-                          const note = await askText(
-                            t("versions.saveTitle"),
-                            t("versions.notePrompt"),
-                            "",
-                            t("versions.saveYes"),
-                          );
-                          if (note === null) return;
-                          // A version is only saved from files that are all on disk.
-                          void run(async () => {
-                            await flush();
-                            await library?.saveVersion(editorTarget.libraryId, doc.guide.id, note);
-                          }, t("versions.saved"));
-                        },
-                      },
-                      {
-                        label: t("versions.list"),
-                        icon: "clock",
-                        onSelect: () =>
-                          void openVersions(
-                            { libraryId: editorTarget.libraryId, guideId: doc.guide.id },
-                            flush,
-                          ),
-                      },
-                      "divider",
-                      ...guideMenu(
-                        { libraryId: editorTarget.libraryId, guideId: doc.guide.id },
-                        doc.guide.title,
-                        flush,
-                      ).filter(
-                        (entry) =>
-                          typeof entry !== "object" ||
-                          !("label" in entry) ||
-                          entry.label !== t("library.open"),
-                      ),
-                    ]
-                  : undefined
-              }
-            />
-          )}
-
-          {route.screen === "settings" && (
-            <SettingsView
-              recorder={recorder}
-              library={library}
-              section={route.section}
-              onSection={(section) => setRoute({ screen: "settings", section })}
-              onBack={() => setRoute({ screen: "library", view: { kind: "all" } })}
-              locked={recording || hasPending}
-              displayName={author}
-              onDisplayName={settings.saveName}
-              autoStart={autoStart}
-              onAutoStart={settings.changeAutoStart}
-              choices={choices}
-              onChoices={updateChoices}
-              monitors={monitors}
-              inputSource={snapshot.inputSource}
-              onInputSource={(source) =>
-                void recorder
-                  ?.setInputSource(source)
-                  .then(setSnapshot)
-                  .catch((problem: unknown) =>
-                    notify({
-                      kind: "error",
-                      text: errorMessage(problem, t("recorder.errorTitle")),
-                    }),
-                  )
-              }
+    <GuideLocksContext.Provider value={locks}>
+      <TourProvider
+        enabled
+        place={tourPlace}
+        onGo={showGuides}
+        firstName={author.trim().split(/\s+/)[0] || null}
+      >
+        <div className="flex h-screen overflow-hidden bg-page text-body">
+          {route.screen !== "editor" && route.screen !== "settings" && (
+            <Sidebar
               libraries={libraries}
-              storage={storage}
-              onLibrariesChanged={async () => {
-                await refreshLibraries(libraryId);
-                if (recorder) setPreferences(await recorder.getPreferences());
-              }}
-              theme={theme}
-              onTheme={settings.setTheme}
-              managedBrandIds={managedBrandIds}
-              appColours={appColours}
-              onAppColours={chooseAppColours}
-              managed={isManaged()}
-              onImportSettings={() => void importSettings()}
-              onExportSettings={() => void exportSettings()}
-              onBackUpAll={() => void backUpAll()}
-              onRestore={() => void restoreBackup()}
-              notify={notify}
-              version={APP_VERSION}
-              updates={updates}
-              link={link}
-              brands={brands}
-              onBrandsChanged={refreshBrands}
-              blurTerms={settings.blurTerms}
-              onBlurTerms={settings.updateBlurTerms}
+              libraryId={libraryId}
+              onLibrary={showLibrary}
+              view={view}
+              onView={(next) => setRoute({ screen: "library", view: next })}
+              tags={tags}
+              guideCount={guides.length}
+              reviewCount={guides.filter(needsReview).length}
+              lockedCount={guides.filter((guide) => guide.locked).length}
+              canRecord={Boolean(recorder) && !recording && !hasPending && !busy && !fatal}
+              recordHint={recordHint}
+              recordingControls={
+                recorder && (snapshot.state === "recording" || snapshot.state === "paused")
+                  ? {
+                      paused: snapshot.state === "paused",
+                      onPause: () =>
+                        void (snapshot.state === "paused" ? recorder.resume() : recorder.pause())
+                          .then(setSnapshot)
+                          .catch(() => undefined),
+                      onStop: () =>
+                        void recorder
+                          .stop()
+                          .then(setSnapshot)
+                          .catch(() => undefined),
+                    }
+                  : null
+              }
+              onRecord={requestRecording}
+              onSettings={() => setRoute({ screen: "settings", section: "general" })}
+              settingsActive={false}
             />
           )}
-        </main>
+          {/* The one main landmark, around whichever screen is showing. */}
+          <main className="min-w-0 flex-1">
+            {fatal && (
+              <div role="alert" className="card m-6 flex items-start gap-3 p-4">
+                <Icon name="warning" className="mt-0.5 text-warning" />
+                <div>
+                  <h2 className="font-heading text-base text-navy">{t("recorder.errorTitle")}</h2>
+                  <p className="mt-1 text-secondary">{fatal}</p>
+                </div>
+              </div>
+            )}
 
-        {startOpen && (
-          <StartRecordingDialog
-            defaults={{
-              keys: settings.choices.typedByDefault,
-              output: settings.choices.outputByDefault,
-            }}
-            onCancel={closeStart}
-            onStart={(choices) => void startRecording(choices)}
-          />
-        )}
+            {route.screen === "library" && route.view.kind === "trash" && (
+              <TrashView
+                trash={trash}
+                busy={busy}
+                onDeleteForGood={deleteForGood}
+                onEmpty={emptyTrash}
+                onRestore={(entry) =>
+                  libraryId &&
+                  void run(
+                    async () => {
+                      await library?.restoreGuide(libraryId, entry.trashId);
+                      await refreshGuides(libraryId);
+                    },
+                    t("library.restored", { title: entry.title }),
+                  )
+                }
+              />
+            )}
 
-        {exportRemove && (
-          <ExportAndRemoveDialog
-            guides={guides}
-            progress={exportRemove.progress}
-            onCancel={() => setExportRemove(null)}
-            onExport={(ids) => void exportAndRemove(ids)}
-          />
-        )}
+            {route.screen === "library" && route.view.kind !== "trash" && (
+              <LibraryHome
+                heading={heading}
+                guides={visibleGuides}
+                loading={guidesLoading}
+                pending={pending}
+                busy={busy}
+                onOpen={(guide) =>
+                  libraryId && void run(() => openLibraryGuide({ libraryId, guideId: guide.id }))
+                }
+                onReviewPending={(item) => void reviewPending(item)}
+                onDiscardPending={setDiscardTarget}
+                guideMenu={(guide) =>
+                  libraryId ? guideMenu({ libraryId, guideId: guide.id }, guide.title) : []
+                }
+                exportMenu={(guide) =>
+                  libraryId
+                    ? exportMenu({
+                        kind: "guide",
+                        libraryId,
+                        guideId: guide.id,
+                        title: guide.title,
+                      })
+                    : []
+                }
+                loadThumbnail={loadThumbnail}
+                bulk={
+                  library && libraryId
+                    ? {
+                        targets: libraries
+                          .filter((item) => item.id !== libraryId && !item.needsAccess)
+                          .map(({ id, name }) => ({ id, name })),
+                        onMove: (chosen, to) => void bulk.move(chosen, to),
+                        onCopy: (chosen, to) => void bulk.copy(chosen, to),
+                        onTrash: (chosen) => void bulk.trash(chosen),
+                        ...(locks
+                          ? {
+                              ...(policy().disableGuideLocks
+                                ? {}
+                                : {
+                                    onLock: (chosen: LibraryGuideSummary[]) =>
+                                      void lockGuides(
+                                        chosen
+                                          .filter((guide) => !guide.locked)
+                                          .map((guide) => ({
+                                            ref: { libraryId, guideId: guide.id },
+                                            title: guide.title,
+                                          })),
+                                      ),
+                                  }),
+                              onRemoveLock: (chosen: LibraryGuideSummary[]) =>
+                                void removeLocks(
+                                  chosen.flatMap((guide) =>
+                                    guide.locked
+                                      ? [
+                                          {
+                                            libraryId,
+                                            guideId: guide.id,
+                                            title: guide.title,
+                                            locked: guide.locked,
+                                          },
+                                        ]
+                                      : [],
+                                  ),
+                                ),
+                            }
+                          : {}),
+                        onMerge: (chosen) =>
+                          setMerging(chosen.map((guide) => ({ libraryId, guide }))),
+                        exportMenu: (chosen) =>
+                          exportManyMenu(
+                            chosen.map((guide) => ({
+                              kind: "guide" as const,
+                              libraryId,
+                              guideId: guide.id,
+                              title: guide.title,
+                            })),
+                          ),
+                      }
+                    : undefined
+                }
+                onNewRecording={requestRecording}
+                onImport={() => void importAmlsteps()}
+                searchGuides={
+                  library && libraryId
+                    ? (query) => library.searchGuides(libraryId, query)
+                    : undefined
+                }
+                storage={(() => {
+                  const warning = storageWarning(storage, readStorageWarnGb() * 1024 ** 3);
+                  return warning && storage ? { warning, use: storage } : null;
+                })()}
+                onExportAndRemove={
+                  library?.exportAndRemove ? () => setExportRemove({ progress: null }) : undefined
+                }
+                access={(() => {
+                  const shown = libraries.find((item) => item.id === libraryId);
+                  const allow = library?.allowAccess;
+                  if (!shown?.needsAccess || !allow) return null;
+                  return {
+                    folder: shown.path,
+                    // Straight from the click: the browser only asks from one.
+                    onAllow: () =>
+                      void run(async () => {
+                        if (await allow.call(library, shown.id)) await refreshLibraries(shown.id);
+                      }),
+                  };
+                })()}
+              />
+            )}
 
-        {merging && libraryId && (
-          <MergeDialog
-            libraries={libraries}
-            libraryId={libraryId}
-            initial={merging}
-            listGuides={listGuidesIn}
-            busy={busy}
-            onCancel={() => setMerging(null)}
-            onMerge={(request) => {
-              setMerging(null);
-              void bulk.merge(request);
-            }}
-          />
-        )}
+            {editorTarget && editorStore && (
+              <AnyGuideEditor
+                key={editorTarget.key}
+                library={editorTarget.kind === "guide" ? library : undefined}
+                libraryId={editorTarget.kind === "guide" ? editorTarget.libraryId : undefined}
+                onOpenGuide={(summary) =>
+                  editorTarget.kind === "guide" &&
+                  void openLibraryGuide({ libraryId: editorTarget.libraryId, guideId: summary.id })
+                }
+                initial={editorTarget.doc}
+                store={editorStore}
+                author={author}
+                mode={editorTarget.kind === "draft" ? "draft" : "saved"}
+                readText={readText}
+                sharedLibrary={
+                  editorTarget.kind === "guide" &&
+                  libraries.some(
+                    (item) => item.id === editorTarget.libraryId && (item.synced || item.managed),
+                  )
+                }
+                blurTerms={allBlurTerms}
+                busy={busy}
+                notify={notify}
+                onBack={() => {
+                  setRoute({ screen: "library", view: { kind: "all" } });
+                  void refreshGuides(libraryId);
+                  void refreshRecoveries();
+                }}
+                onSave={
+                  editorTarget.kind === "draft"
+                    ? (flush, doc) => void saveDraft(editorTarget.sessionId, flush, doc)
+                    : undefined
+                }
+                saveTargets={editorTarget.kind === "draft" ? libraries : undefined}
+                saveVersion={
+                  editorTarget.kind === "guide" && library
+                    ? async (note) => {
+                        await library.saveVersion(
+                          editorTarget.libraryId,
+                          editorTarget.doc.guide.id,
+                          note,
+                        );
+                      }
+                    : undefined
+                }
+                onSaveTo={
+                  editorTarget.kind === "draft"
+                    ? (flush, doc, id) => {
+                        const chosen = libraries.find((item) => item.id === id);
+                        void saveDraft(
+                          editorTarget.sessionId,
+                          flush,
+                          doc,
+                          false,
+                          chosen && !chosen.isDefault ? { id, name: chosen.name } : undefined,
+                        );
+                      }
+                    : undefined
+                }
+                onDiscard={
+                  editorTarget.kind === "draft"
+                    ? () =>
+                        setDiscardTarget({
+                          sessionId: editorTarget.sessionId,
+                          title: editorTarget.doc.guide.title,
+                          stepCount: editorTarget.doc.steps.length,
+                          savedGuideId: null,
+                        })
+                    : undefined
+                }
+                exportMenu={(doc, flush, editor) =>
+                  exportMenu(
+                    editorTarget.kind === "guide"
+                      ? {
+                          kind: "guide",
+                          libraryId: editorTarget.libraryId,
+                          guideId: doc.guide.id,
+                          title: doc.guide.title,
+                        }
+                      : {
+                          kind: "draft",
+                          sessionId: editorTarget.sessionId,
+                          title: doc.guide.title,
+                        },
+                    doc,
+                    flush,
+                    editor,
+                  )
+                }
+                guideMenu={
+                  editorTarget.kind === "guide"
+                    ? (doc, flush) => [
+                        {
+                          label: t("versions.save"),
+                          icon: "history",
+                          onSelect: async () => {
+                            const note = await askText(
+                              t("versions.saveTitle"),
+                              t("versions.notePrompt"),
+                              "",
+                              t("versions.saveYes"),
+                            );
+                            if (note === null) return;
+                            // A version is only saved from files that are all on disk.
+                            void run(async () => {
+                              await flush();
+                              await library?.saveVersion(
+                                editorTarget.libraryId,
+                                doc.guide.id,
+                                note,
+                              );
+                            }, t("versions.saved"));
+                          },
+                        },
+                        {
+                          label: t("versions.list"),
+                          icon: "clock",
+                          onSelect: () =>
+                            void openVersions(
+                              { libraryId: editorTarget.libraryId, guideId: doc.guide.id },
+                              flush,
+                            ),
+                        },
+                        "divider",
+                        ...guideMenu(
+                          { libraryId: editorTarget.libraryId, guideId: doc.guide.id },
+                          doc.guide.title,
+                          flush,
+                        ).filter(
+                          (entry) =>
+                            typeof entry !== "object" ||
+                            !("label" in entry) ||
+                            entry.label !== t("library.open"),
+                        ),
+                      ]
+                    : undefined
+                }
+              />
+            )}
 
-        <AskHost />
+            {route.screen === "settings" && (
+              <SettingsView
+                recorder={recorder}
+                library={library}
+                section={route.section}
+                onSection={(section) => setRoute({ screen: "settings", section })}
+                onBack={() => setRoute({ screen: "library", view: { kind: "all" } })}
+                locked={recording || hasPending}
+                displayName={author}
+                onDisplayName={settings.saveName}
+                autoStart={autoStart}
+                onAutoStart={settings.changeAutoStart}
+                choices={choices}
+                onChoices={updateChoices}
+                monitors={monitors}
+                inputSource={snapshot.inputSource}
+                onInputSource={(source) =>
+                  void recorder
+                    ?.setInputSource(source)
+                    .then(setSnapshot)
+                    .catch((problem: unknown) =>
+                      notify({
+                        kind: "error",
+                        text: errorMessage(problem, t("recorder.errorTitle")),
+                      }),
+                    )
+                }
+                libraries={libraries}
+                storage={storage}
+                onLibrariesChanged={async () => {
+                  await refreshLibraries(libraryId);
+                  if (recorder) setPreferences(await recorder.getPreferences());
+                }}
+                theme={theme}
+                onTheme={settings.setTheme}
+                managedBrandIds={managedBrandIds}
+                appColours={appColours}
+                onAppColours={chooseAppColours}
+                managed={isManaged()}
+                onImportSettings={() => void importSettings()}
+                onExportSettings={() => void exportSettings()}
+                onBackUpAll={() => void backUpAll()}
+                onRestore={() => void restoreBackup()}
+                notify={notify}
+                version={APP_VERSION}
+                updates={updates}
+                link={link}
+                brands={brands}
+                onBrandsChanged={refreshBrands}
+                blurTerms={settings.blurTerms}
+                onBlurTerms={settings.updateBlurTerms}
+              />
+            )}
+          </main>
 
-        {alreadyOpen && (
-          <NoticeDialog
-            title={t("app.alreadyOpenTitle")}
-            body={t("app.alreadyOpenBody")}
-            onClose={() => setAlreadyOpen(false)}
-          />
-        )}
+          {startOpen && (
+            <StartRecordingDialog
+              defaults={{
+                keys: settings.choices.typedByDefault,
+                output: settings.choices.outputByDefault,
+              }}
+              onCancel={closeStart}
+              onStart={(choices) => void startRecording(choices)}
+            />
+          )}
 
-        {confirming && (
-          <ConfirmDialog
-            title={confirming.title}
-            body={confirming.body}
-            confirmLabel={confirming.confirmLabel}
-            onCancel={() => setConfirming(null)}
-            onConfirm={() => {
-              const { run: confirmed } = confirming;
-              setConfirming(null);
-              void confirmed();
-            }}
-          />
-        )}
+          {exportRemove && (
+            <ExportAndRemoveDialog
+              guides={guides}
+              progress={exportRemove.progress}
+              onCancel={() => setExportRemove(null)}
+              onExport={(ids) => void exportAndRemove(ids)}
+            />
+          )}
 
-        {renaming && (
-          <RenameGuideDialog
-            title={renaming.title}
-            onRename={(title) => renameGuide(renaming.ref, title)}
-            onCancel={() => setRenaming(null)}
-          />
-        )}
+          {merging && libraryId && (
+            <MergeDialog
+              libraries={libraries}
+              libraryId={libraryId}
+              initial={merging}
+              listGuides={listGuidesIn}
+              busy={busy}
+              onCancel={() => setMerging(null)}
+              onMerge={(request) => {
+                setMerging(null);
+                void bulk.merge(request);
+              }}
+            />
+          )}
 
-        {discardTarget && (
-          <DiscardDialog
-            onKeep={() => setDiscardTarget(null)}
-            onDiscard={() => void discard(discardTarget)}
-          />
-        )}
+          <AskHost />
+          <LockHost locks={locks} library={library} libraries={libraries} />
 
-        {versionsFor && (
-          <VersionsDialog
-            versions={versionsFor.versions}
-            onClose={() => setVersionsFor(null)}
-            onRestore={(version) =>
-              void run(async () => {
-                if (!library) return;
-                const restored = toDoc(
-                  await library.restoreVersion(
-                    versionsFor.libraryId,
-                    versionsFor.guideId,
-                    version.id,
-                  ),
-                );
-                setVersionsFor(null);
-                setRoute({
-                  screen: "editor",
-                  target: {
-                    kind: "guide",
-                    libraryId: versionsFor.libraryId,
-                    doc: restored,
-                    key: `${versionsFor.guideId}:${Date.now()}`,
-                  },
-                });
-              }, t("versions.restored"))
-            }
-          />
-        )}
+          {alreadyOpen && (
+            <NoticeDialog
+              title={t("app.alreadyOpenTitle")}
+              body={t("app.alreadyOpenBody")}
+              onClose={() => setAlreadyOpen(false)}
+            />
+          )}
 
-        {exportDialog}
-        <Toast toast={toast} onClose={closeToast} />
-      </div>
-    </TourProvider>
+          {confirming && (
+            <ConfirmDialog
+              title={confirming.title}
+              body={confirming.body}
+              confirmLabel={confirming.confirmLabel}
+              onCancel={() => setConfirming(null)}
+              onConfirm={() => {
+                const { run: confirmed } = confirming;
+                setConfirming(null);
+                void confirmed();
+              }}
+            />
+          )}
+
+          {renaming && (
+            <RenameGuideDialog
+              title={renaming.title}
+              onRename={(title) => renameGuide(renaming.ref, title)}
+              onCancel={() => setRenaming(null)}
+            />
+          )}
+
+          {discardTarget && (
+            <DiscardDialog
+              onKeep={() => setDiscardTarget(null)}
+              onDiscard={() => void discard(discardTarget)}
+            />
+          )}
+
+          {versionsFor && (
+            <VersionsDialog
+              versions={versionsFor.versions}
+              onClose={() => setVersionsFor(null)}
+              onRestore={(version) =>
+                void run(async () => {
+                  if (!library) return;
+                  const restored = toDoc(
+                    await library.restoreVersion(
+                      versionsFor.libraryId,
+                      versionsFor.guideId,
+                      version.id,
+                    ),
+                  );
+                  setVersionsFor(null);
+                  setRoute({
+                    screen: "editor",
+                    target: {
+                      kind: "guide",
+                      libraryId: versionsFor.libraryId,
+                      doc: restored,
+                      key: `${versionsFor.guideId}:${Date.now()}`,
+                    },
+                  });
+                }, t("versions.restored"))
+              }
+            />
+          )}
+
+          {exportDialog}
+          <Toast toast={toast} onClose={closeToast} />
+        </div>
+      </TourProvider>
+    </GuideLocksContext.Provider>
   );
 }

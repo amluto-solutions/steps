@@ -8,6 +8,7 @@ export type LibraryView =
   | { kind: "all" }
   | { kind: "recent" }
   | { kind: "review" }
+  | { kind: "locked" }
   | { kind: "tag"; tag: string }
   | { kind: "trash" };
 
@@ -21,6 +22,8 @@ interface SidebarProps {
   guideCount: number;
   /** Guides past their review-by date. */
   reviewCount: number;
+  /** Guides locked with a password (04/10/2026). */
+  lockedCount?: number;
   canRecord: boolean;
   recordHint: string | null;
   /**
@@ -157,6 +160,15 @@ export function Sidebar(props: SidebarProps) {
               count={props.reviewCount}
               active={isView("review")}
               onClick={() => props.onView({ kind: "review" })}
+            />
+          )}
+          {(props.lockedCount ?? 0) > 0 && (
+            <NavButton
+              icon="lock"
+              label={t("locks.filter")}
+              count={props.lockedCount ?? 0}
+              active={isView("locked")}
+              onClick={() => props.onView({ kind: "locked" })}
             />
           )}
         </div>

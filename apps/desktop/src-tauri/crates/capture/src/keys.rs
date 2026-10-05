@@ -39,23 +39,15 @@ pub struct Combo {
 }
 
 impl Combo {
-    /// Copy, paste, cut, undo, redo, select all, Alt+Tab and Win+Tab never become steps
-    /// (docs/spec/02-capture.md#keys): they are how people work, not steps to follow.
+    /// Undo, redo, Alt+Tab and Win+Tab never become steps (docs/spec/02-capture.md#keys): undo
+    /// and redo are corrections, and the app a switch lands in is a step of its own. Select all,
+    /// copy, cut and paste do: a guide says to press them (04/10/2026: they were left out).
     #[must_use]
     pub fn is_noise(&self) -> bool {
         let only_ctrl = self.ctrl && !self.alt && !self.win;
         let letter = |ch: u8| self.vkey == u16::from(ch);
-        (only_ctrl
-            && !self.shift
-            && (letter(b'C')
-                || letter(b'V')
-                || letter(b'X')
-                || letter(b'Z')
-                || letter(b'Y')
-                || letter(b'A')))
-            || (only_ctrl && self.shift && letter(b'Z'))
-            || (only_ctrl && (self.vkey == VK_INSERT))
-            || (self.shift && !self.ctrl && !self.alt && !self.win && self.vkey == VK_INSERT)
+        // Ctrl+Z, Ctrl+Shift+Z and Ctrl+Y.
+        (only_ctrl && (letter(b'Z') || (!self.shift && letter(b'Y'))))
             || (self.alt && !self.ctrl && !self.win && self.vkey == VK_TAB)
             || (self.win && !self.ctrl && !self.alt && self.vkey == VK_TAB)
     }
@@ -71,7 +63,6 @@ const VK_CAPITAL: u16 = 0x14;
 const VK_ESCAPE: u16 = 0x1B;
 const VK_PRIOR: u16 = 0x21;
 const VK_DOWN: u16 = 0x28;
-const VK_INSERT: u16 = 0x2D;
 const VK_DELETE: u16 = 0x2E;
 const VK_LWIN: u16 = 0x5B;
 const VK_RWIN: u16 = 0x5C;
@@ -351,19 +342,19 @@ mod tests {
             vkey: u16::from(vkey),
         };
         for noise in [
-            combo(true, false, false, false, b'C'),
-            combo(true, false, false, false, b'V'),
-            combo(true, false, false, false, b'X'),
             combo(true, false, false, false, b'Z'),
             combo(true, false, false, false, b'Y'),
             combo(true, false, true, false, b'Z'),
-            combo(true, false, false, false, b'A'),
             combo(false, true, false, false, 0x09),
             combo(false, false, false, true, 0x09),
         ] {
             assert!(noise.is_noise(), "{noise:?}");
         }
         for step in [
+            combo(true, false, false, false, b'A'),
+            combo(true, false, false, false, b'C'),
+            combo(true, false, false, false, b'X'),
+            combo(true, false, false, false, b'V'),
             combo(true, false, true, false, b'N'),
             combo(true, false, false, false, b'S'),
             combo(false, true, false, false, 0x73),

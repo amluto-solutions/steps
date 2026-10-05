@@ -143,13 +143,14 @@ try {
     steps.flatMap((step, index) => (step.includes(`Open "${app}"`) ? [index] : []));
   const [plainChrome, a11yChrome] = opened("Google Chrome");
   const [firefox] = opened("Firefox");
-  const goTo = (index) => Boolean(steps[index]?.includes("Go to") && steps[index].includes(site));
+  // The test opens each page itself, not through the address bar, so no page is a Go to step
+  // (04/10/2026: only an address typed or picked in the address bar is one).
+  const noGoTo = !steps.some((step) => step.includes("Go to"));
   const named = (index) => Boolean(steps[index]?.includes('Click "Approve invoice"'));
-  check("Chrome, accessibility off: the site is a Go to step", goTo(plainChrome + 1));
-  check("Chrome, accessibility off: the click names the button", named(plainChrome + 2));
+  check("a page not typed in the address bar makes no Go to step", noGoTo);
+  check("Chrome, accessibility off: the click names the button", named(plainChrome + 1));
   check("Firefox: the click names the button", named(firefox + 1));
-  check("Chrome, accessibility on: the site is a Go to step", goTo(a11yChrome + 1));
-  check("Chrome, accessibility on: the click names the button", named(a11yChrome + 2));
+  check("Chrome, accessibility on: the click names the button", named(a11yChrome + 1));
   server.close();
   await test.finish();
 } catch (error) {

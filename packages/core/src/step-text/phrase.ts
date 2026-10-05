@@ -57,6 +57,10 @@ export type Phrase =
   | { key: "clickIn"; title: string }
   | { key: "clickBare" }
   | { key: "clickTaskbar"; name: string }
+  | { key: "rightClick"; name: string }
+  | { key: "rightClickIn"; title: string }
+  | { key: "rightClickBare" }
+  | { key: "selectRange"; range: string }
   | { key: "typeValueInField"; value: string; field: string }
   | { key: "typeInField"; field: string }
   | { key: "chooseValueIn"; value: string; field: string }
@@ -90,6 +94,12 @@ export interface Phrasebook {
   clickIn: string;
   clickBare: string;
   clickTaskbar: string;
+  /** A right-click (04/10/2026): on something named, in a window, or neither. */
+  rightClick: string;
+  rightClickIn: string;
+  rightClickBare: string;
+  /** Cells selected by dragging: `{range}` is "D38:F42" (04/10/2026). */
+  selectRange: string;
   typeValueInField: string;
   typeInField: string;
   /** A choice made in a drop-down list by typing: `{value}`, `{field}` (F010). */
@@ -177,6 +187,14 @@ export function renderPhrase(phrase: Phrase, language: string, tone: Tone): stri
       return book.clickBare;
     case "clickTaskbar":
       return fill(book.clickTaskbar, { name: phrase.name });
+    case "rightClick":
+      return fill(book.rightClick, { name: shorten(phrase.name) });
+    case "rightClickIn":
+      return fill(book.rightClickIn, { title: phrase.title });
+    case "rightClickBare":
+      return book.rightClickBare;
+    case "selectRange":
+      return fill(book.selectRange, { range: phrase.range });
     case "typeValueInField":
       return fill(book.typeValueInField, {
         value: shorten(phrase.value),
@@ -370,13 +388,37 @@ export function phraseFor(
 
 /**
  * What a taskbar button stands for. Windows names a running app's button after its window
- * ("New tab - Work - Microsoft Edge - 1 running window"), which ends with the app's name.
+ * ("New tab - Work - Microsoft Edge - 1 running window"), which ends with the app's name, and adds
+ * "pinned" for a pinned app ("Google Chrome - 1 running window pinned", or "Google Chrome pinned"
+ * with none running; 04/10/2026: the step read Click "1 running window pinned").
  */
 export function taskbarAppName(buttonName: string): string {
   // Edge puts a zero-width space in "Microsoft Edge".
   const visible = buttonName.replace(/[\u{200B}-\u{200D}\u{FEFF}]/gu, "");
-  const withoutCount = visible.replace(/\s+-\s+\d+ running windows?$/i, "").trim();
+  const withoutCount = visible
+    .replace(/\s+pinned$/i, "")
+    .replace(/\s+-\s+\d+ running windows?$/i, "")
+    .trim();
   return withoutCount.split(" - ").at(-1)?.trim() || withoutCount;
+}
+
+/**
+ * The same click made with the right button (04/10/2026: right-clicks read as plain clicks, so a
+ * context menu's choice seemed to come from nowhere). A stored step says so with the verb
+ * `rightClick`.
+ */
+export function asRightClick(phrase: Phrase): Phrase {
+  switch (phrase.key) {
+    case "click":
+    case "clickTaskbar":
+      return { key: "rightClick", name: phrase.name };
+    case "clickIn":
+      return { key: "rightClickIn", title: phrase.title };
+    case "clickBare":
+      return { key: "rightClickBare" };
+    default:
+      return phrase;
+  }
 }
 
 /** What a stored step needs for its phrase to be worked out again. */
@@ -411,12 +453,14 @@ export function phraseOfStep(step: PhraseFacts): Phrase | null {
   const title = step.context.windowTitle.replace(/\s+/g, " ").trim();
   switch (step.action) {
     case "click": {
+      if (parts.verb === "selectRange") return { key: "selectRange", range: parts.target };
+      const right = parts.verb === "rightClick" ? asRightClick : (phrase: Phrase) => phrase;
       if (parts.kind === "taskbar" || step.actionText.endsWith(" on the taskbar"))
-        return { key: "clickTaskbar", name: taskbarAppName(parts.target) };
+        return right({ key: "clickTaskbar", name: taskbarAppName(parts.target) });
       // A click that only reached the window is named by the window, not as if it were a control.
       const named =
         parts.kind === "window" ? undefined : phraseFor("click", target, null, null, parts.kind);
-      return named ?? (title ? { key: "clickIn", title } : { key: "clickBare" });
+      return right(named ?? (title ? { key: "clickIn", title } : { key: "clickBare" }));
     }
     case "input": {
       const value = step.showValue ? parts.value : undefined;

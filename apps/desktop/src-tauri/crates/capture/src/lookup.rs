@@ -49,6 +49,31 @@ pub struct FocusOptions {
     /// The recording's state machine: fields are only read while it records, and never in an
     /// app it excludes. `None` (the prototype) reads everywhere but our own windows.
     pub machine: Option<Arc<Mutex<RecorderStateMachine>>>,
+    /// Where the focus worker leaves word of an editable field gaining focus, for the pipeline to
+    /// take its screenshot then, before anything is typed (04/10/2026).
+    pub entered: FieldSlot,
+}
+
+/// An editable field gained focus: when, and in which window.
+#[derive(Debug, Clone)]
+pub struct FieldEntered {
+    pub tick_ms: u32,
+    pub window: WindowInfo,
+}
+
+/// The latest field to gain focus, until the pipeline takes it.
+pub type FieldSlot = Arc<Mutex<Option<FieldEntered>>>;
+
+/// Leaves word that `focused` gained focus, if it's a field whose value may be recorded.
+pub(crate) fn note_entered(slot: &FieldSlot, tick_ms: u32, window: Option<&WindowInfo>) {
+    if let Some(window) = window {
+        *slot
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(FieldEntered {
+            tick_ms,
+            window: window.clone(),
+        });
+    }
 }
 
 /// One lookup's answer, from the worker thread.

@@ -17,6 +17,8 @@ import {
   mediaIdOf,
   dropReplacedValues,
   dropTrailingOpens,
+  applyDrags,
+  borrowScreenshots,
   orderRecordedSteps,
 } from "./recorded-step";
 
@@ -197,6 +199,63 @@ describe("steps fit the step format however long the recorded text", () => {
     expect(step.textParts.target.length).toBeLessThanOrEqual(2_000);
     expect(() => parseStep(step)).not.toThrow();
   });
+
+  it("shows a field's own screenshot, from when focus arrived, with the field boxed (04/10/2026)", () => {
+    const element = {
+      controlType: "Edit",
+      localizedControlType: "edit",
+      name: "Verification Code",
+      automationId: "",
+      helpText: "",
+      ariaRole: "",
+      ariaProperties: "",
+      className: "",
+      frameworkId: "",
+      isPassword: false,
+      labeledBy: null,
+      bounds: null,
+      parent: null,
+      sensitive: false,
+    };
+    const step = factToStep(
+      {
+        sessionId: "s",
+        recordedAt: 1_790_246_400_000,
+        sequence: 5,
+        record: {
+          kind: "input",
+          tickMs: 1,
+          element,
+          value: null,
+          withheld: "setting-off",
+          id: 1,
+          window: {
+            title: "SiteGround Login - Google Chrome",
+            exe: "chrome.exe",
+            pid: 7,
+            frame: { left: 0, top: 0, right: 1920, bottom: 1032 },
+            elevation: "notElevated",
+            remoteSession: false,
+          },
+          capture: {
+            mode: "window",
+            rect: { left: 0, top: 0, right: 1920, bottom: 1032 },
+            monitor: { left: 0, top: 0, right: 1920, bottom: 1080 },
+            scale: 1,
+            width: 1920,
+            height: 1032,
+            image: "field-1.webp",
+          },
+          elementPct: { x: 40, y: 50, w: 20, h: 4 },
+        },
+      } as RecordingFact,
+      wording,
+    ) as RecordedStep;
+    expect(step.media?.width).toBe(1920);
+    expect(step.highlight).toEqual({ shape: "box", x: 39.6, y: 49.6, w: 20.8, h: 4.8 });
+    expect(step.context.windowTitle).toBe("SiteGround Login - Google Chrome");
+    expect(() => parseStep(step)).not.toThrow();
+  });
 });
 
 describe("steps written after the click they belong before", () => {
@@ -264,14 +323,46 @@ describe("steps written after the click they belong before", () => {
       facts,
     ).map((step) => step.actionText);
 
-  it("goes before the quick first clicks it trails, after the Open step", () => {
-    // Found live: finding the address bar the first time took longer than the first click.
+  it("replaces the click a drag began with by the cells it selected (04/10/2026)", () => {
+    const excel = edge("Book1 - Excel");
+    const drag = fact(3, {
+      kind: "drag",
+      id: 1 << 20,
+      of: 2,
+      tickMs: 2_400,
+      from: "D38",
+      to: "F42",
+      window: excel,
+      capture: null,
+      selectionPct: { x: 10, y: 20, w: 30, h: 10 },
+    });
+    const facts = [click(1, 1_000, excel), click(2, 2_000, excel), drag];
+    const steps = applyDrags(
+      facts.map((each) => factToStep(each, wording)).filter((step) => step !== null),
+      facts,
+    );
+    expect(steps.map((step) => step.actionText)).toEqual([
+      'Click in "Book1 - Excel"',
+      'Select "D38:F42"',
+    ]);
+    const selected = steps[1];
+    expect(selected?.highlight).toEqual({ shape: "box", x: 9.6, y: 19.6, w: 30.8, h: 10.8 });
+    expect(selected?.sortKey).toBe(
+      steps.find((step) => step.id === "capture-2")?.sortKey ??
+        factToStep(click(2, 2_000, excel), wording)?.sortKey,
+    );
+    expect(() => parseStep(selected)).not.toThrow();
+  });
+
+  it("follows the click into the address bar (04/10/2026)", () => {
+    // Only a typed or picked address is a step now, so it comes after that click; it had been
+    // moved before it, as a browser's first address once was.
     const facts = [open(1, 1_000), click(2, 2_000), click(3, 2_500), goTo(4, 3_200)];
     expect(order(facts)).toEqual([
       'Open "Supplier form - Microsoft Edge"',
+      'Click in "Supplier form - Microsoft Edge"',
+      'Click in "Supplier form - Microsoft Edge"',
       'Go to "127.0.0.1:8123"',
-      'Click in "Supplier form - Microsoft Edge"',
-      'Click in "Supplier form - Microsoft Edge"',
     ]);
   });
 
@@ -301,11 +392,6 @@ describe("steps written after the click they belong before", () => {
     expect(order(later)[0]).toMatch(/^Click/);
     const elsewhere = [click(1, 2_000, edge("Another window - Microsoft Edge")), open(2, 2_040)];
     expect(order(elsewhere)[0]).toMatch(/^Click/);
-  });
-
-  it("measures the gap across the tick counter wrapping", () => {
-    const facts = [click(1, 4_294_966_000), goTo(2, 500)];
-    expect(order(facts)[0]).toMatch(/^Go to/);
   });
 
   it("gives a sort key that stays valid in a step file", () => {
@@ -593,5 +679,28 @@ describe("every recorded step words itself again from its facts", () => {
         id: step.id,
         words: step.actionText,
       });
+  });
+});
+
+describe("typing steps' screenshots", () => {
+  const step = (id: string, action: string, title: string, media: string | null): RecordedStep =>
+    ({
+      id,
+      action,
+      context: { app: null, windowTitle: title },
+      media: media ? { id: media, width: 100, height: 50, scale: 1, captureRect: null } : null,
+      highlight: media ? { shape: "circle", x: 10, y: 10, w: 5, h: 5 } : null,
+    }) as unknown as RecordedStep;
+
+  it("take the click's before them in the same window, and keep their own when they have one", () => {
+    const steps = borrowScreenshots([
+      step("a", "click", "Sign in", "m1"),
+      step("b", "input", "Sign in", null),
+      step("c", "click", "Sign in", "m2"),
+      step("d", "input", "Another window", null),
+      step("e", "input", "Sign in", "m3"),
+    ]);
+    expect(steps.map((item) => item.media?.id ?? null)).toEqual(["m1", "m1", "m2", null, "m3"]);
+    expect(steps[1]?.highlight).toEqual(steps[0]?.highlight);
   });
 });

@@ -4,6 +4,7 @@ export {
   ENGLISH,
   QUOTE_LIMIT,
   TONES,
+  asRightClick,
   isTone,
   phraseFor,
   phraseOfStep,

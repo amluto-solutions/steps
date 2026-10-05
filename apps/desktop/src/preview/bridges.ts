@@ -49,7 +49,7 @@ const SAMPLES: Array<{
     steps: [
       { text: 'Click "Contacts" Menu' },
       { text: 'Click "New supplier" Button' },
-      { text: 'Type in "Supplier name" field' },
+      { text: 'Type in "Supplier name" field', action: "input" },
       { text: 'Click "Save invoice details" Button', note: "Ask the finance team first." },
     ],
   },
@@ -221,10 +221,22 @@ const comments = new Map<string, CommentThread[]>([
   ],
 ]);
 let commentCount = 1;
+/** Each guide's password lock and history (password locks, 04/10/2026), kept while the page is open. */
+const guideMeta = new Map<string, { lock: unknown; history: unknown }>();
+const metaOf = (guideId: string) => {
+  const found = guideMeta.get(guideId) ?? { lock: null, history: null };
+  guideMeta.set(guideId, found);
+  return found;
+};
+const lockedOf = (guideId: string) => {
+  const locked = (metaOf(guideId).lock as { locked?: { by: string; at: string } } | null)?.locked;
+  return locked ? { locked: { by: locked.by, at: locked.at } } : {};
+};
 
 const summary = (document: RawGuideDocument): LibraryGuideSummary => {
   const guide = document.guide as Record<string, unknown>;
   return {
+    ...lockedOf(String(guide.id)),
     id: String(guide.id),
     title: String(guide.title),
     updatedAt: String(guide.updatedAt),
@@ -300,7 +312,7 @@ export const previewRecorder = withFallback<RecorderBridge>("recorder", {
   getHotkeys: () => Promise.resolve([]),
   suspendHotkeys: () => Promise.resolve([]),
   // Two made-up personal details on every screenshot, so the suggested blurs can be seen: a small
-  // email and a postcode.
+  // email and a postcode. `?many-suggestions` adds fourteen more emails, for a long list.
   readText: () =>
     Promise.resolve([
       { words: [{ text: "sam@example.com", x: 60, y: 30, w: 12, h: 2.5 }] },
@@ -310,6 +322,13 @@ export const previewRecorder = withFallback<RecorderBridge>("recorder", {
           { text: "1AA", x: 74, y: 62, w: 3, h: 2.5 },
         ],
       },
+      ...(new URLSearchParams(window.location.search).has("many-suggestions")
+        ? Array.from({ length: 14 }, (_, index) => ({
+            words: [
+              { text: `person${index}@example.com`, x: 30, y: 10 + index * 5, w: 14, h: 2.5 },
+            ],
+          }))
+        : []),
     ]),
 });
 
@@ -352,6 +371,17 @@ export const previewLibrary = withFallback<LibraryBridge>("library", {
     needsAccess = false;
     return Promise.resolve(true);
   },
+  openFolder: () => Promise.resolve(),
+  guideMeta: (_libraryId: string, guideId: string) => Promise.resolve({ ...metaOf(guideId) }),
+  writeGuideLock: (_libraryId: string, guideId: string, lock: unknown) => {
+    metaOf(guideId).lock = lock;
+    return Promise.resolve();
+  },
+  writeGuideHistory: (_libraryId: string, guideId: string, history: unknown) => {
+    metaOf(guideId).history = history;
+    return Promise.resolve();
+  },
+  guideStats: () => Promise.resolve({ pictures: 4, bytes: 812_000 }),
   listLibraries: () =>
     Promise.resolve([
       {

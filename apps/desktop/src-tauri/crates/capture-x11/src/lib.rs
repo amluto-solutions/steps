@@ -18,7 +18,6 @@
 #![forbid(unsafe_code)]
 #![cfg(target_os = "linux")]
 
-pub mod clipboard;
 pub mod cloud;
 mod connection;
 pub mod display;

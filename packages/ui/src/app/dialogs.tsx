@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Icon } from "../components/icons";
+import { policy } from "../settings/policy";
 import { ModalDialog } from "../ModalDialog";
 import type { VersionInfo } from "../library-bridge";
 import { formatDate } from "../library/dates";
@@ -61,8 +62,11 @@ export function StartRecordingDialog(props: {
               checked={keys}
               aria-describedby="keys-choice-help"
               onChange={(event) => {
-                setKeys(event.currentTarget.checked);
-                if (!event.currentTarget.checked) setOutput(false);
+                const on = event.currentTarget.checked;
+                setKeys(on);
+                // Ticking it ticks the output too, unless IT has it start unticked (04/10/2026);
+                // it can still be unticked.
+                setOutput(on && policy().includeOutputByDefault !== false);
               }}
             />
             <div className="flex flex-col gap-1">

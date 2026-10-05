@@ -91,6 +91,16 @@
       "description": "Whether a step shows what was typed into something the recording couldn't name. Not set: off, each person's choice.",
       "type": "boolean"
     },
+    "DisableGuideLocks": {
+      "title": "Turn off guide password locks",
+      "description": "true: Lock… is hidden, so nobody can lock a guide with a password. Guides already locked stay locked. Not set: anyone who can edit a guide can lock it.",
+      "type": "boolean"
+    },
+    "GuideLockRecoveryPassword": {
+      "title": "Recovery password for locked guides",
+      "description": "A hash of a password that unlocks any locked guide, made with the PowerShell lines in the IT guide (pbkdf2-sha256$600000$…). Never the password itself. Not set: a forgotten password can't be recovered; the guide can still be duplicated.",
+      "type": "string"
+    },
     "BlurStrength": {
       "title": "Blur suggestions",
       "description": "How much Steps looks for to suggest blurring: light (emails, phone, card and bank numbers, always-blur words), standard (also postcodes, details beside their labels and the person's own names) or thorough (also file names and paths). Not set: standard, each person's choice.",

@@ -30,6 +30,7 @@ import {
   type RenderedImage,
 } from "@amluto-steps/export";
 
+import { Spinner } from "../components/Spinner";
 import { Icon } from "../components/icons";
 import type { Edit, EditorDoc } from "../editor/document";
 import { errorMessage } from "../errors";
@@ -1161,7 +1162,11 @@ export function ExportDialog(props: ExportDialogProps) {
                   disabled={!ready || busy}
                   onClick={() => void run()}
                 >
-                  <Icon name={props.format === "copy" ? "copy" : "download"} size={16} />
+                  {!ready || busy ? (
+                    <Spinner />
+                  ) : (
+                    <Icon name={props.format === "copy" ? "copy" : "download"} size={16} />
+                  )}
                   {busy
                     ? t("common.working")
                     : props.format === "copy"

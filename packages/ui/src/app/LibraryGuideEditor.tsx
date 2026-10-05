@@ -21,13 +21,19 @@ import { CommentsPanel } from "./CommentsPanel";
 import { TakeOverDialog } from "./dialogs";
 import { toDoc } from "./documents";
 import { useFingerprintWatch } from "./useLibraryWatch";
+import { askUnlock, useGuideLocks, useLockedBy } from "../library/LockDialogs";
 
 /** How often a read-only guide asks whether the other person is done. */
 const CHECK_EVERY_MS = 30_000;
 /** A refused edit says why at most this often, not on every key. */
 const REFUSED_NOTICE_MS = 4_000;
 
-type LockState = { kind: "checking" } | { kind: "editing" } | { kind: "readOnly"; lock: EditLock };
+type LockState =
+  | { kind: "checking" }
+  | { kind: "editing" }
+  | { kind: "readOnly"; lock: EditLock }
+  /** Locked with a password (04/10/2026): read-only until unlocked, without the edit lock. */
+  | { kind: "locked"; locked: { by: string; at: string } };
 
 /** A step's wording and who last changed it, from a step file as saved. */
 const stepOf = (value: unknown) => {
@@ -69,6 +75,8 @@ export function LibraryGuideEditor(props: LibraryGuideEditorProps) {
   const { t } = useTranslation();
   const { library, libraryId, notify } = props;
   const guideId = props.initial.guide.id;
+  const locks = useGuideLocks();
+  const lockedBy = useLockedBy();
   const [doc, setDoc] = useState(props.initial);
   /** Remounts the editor on a fresh copy from disk (taking over, the other person's changes). */
   const [generation, setGeneration] = useState(0);
@@ -111,12 +119,24 @@ export function LibraryGuideEditor(props: LibraryGuideEditorProps) {
     [library, libraryId, guideId],
   );
 
-  // Open: take the lock or learn who has it; let go of it when the editor closes.
+  /** Locked with a password and not unlocked here: who locked it, else null. */
+  const passwordLock = useCallback(async () => {
+    if (!locks || locks.isOpen(libraryId, guideId)) return null;
+    return (await locks.lockOf(libraryId, guideId).catch(() => null))?.locked ?? null;
+  }, [locks, libraryId, guideId]);
+
+  // Open: take the lock or learn who has it; let go of it when the editor closes. A guide locked
+  // with a password is shown read-only, without taking the edit lock, until it's unlocked.
   useEffect(() => {
     let live = true;
-    library
-      .openForEditing(libraryId, guideId, false)
+    passwordLock()
+      .then((locked) => {
+        if (!locked) return library.openForEditing(libraryId, guideId, false);
+        if (live) setLock({ kind: "locked", locked });
+        return null;
+      })
       .then(async (editing) => {
+        if (!editing) return;
         holding.current = editing.kind === "editing";
         if (!live) return;
         setLock(editing);
@@ -168,9 +188,50 @@ export function LibraryGuideEditor(props: LibraryGuideEditorProps) {
       void refreshConflicts();
       void refreshDrafts();
       void refreshComments();
-      if (lock.kind === "readOnly") void reload().catch(() => undefined);
+      if (lock.kind === "readOnly" || lock.kind === "locked") void reload().catch(() => undefined);
+      // Locked meanwhile, here or elsewhere: read-only from now on, and the edit lock let go.
+      void passwordLock().then((locked) => {
+        if (!locked) {
+          if (lock.kind === "locked") void open(false).catch(() => undefined);
+          return;
+        }
+        if (lock.kind === "locked") return;
+        if (holding.current) void library.releaseLock(libraryId, guideId).catch(() => undefined);
+        holding.current = false;
+        setLock({ kind: "locked", locked });
+        void reload().catch(() => undefined);
+      });
     },
   );
+
+  /** Unlock to edit: the password, then the edit lock as usual. */
+  const unlockToEdit = async (locked: { by: string; at: string }) => {
+    const opened = await askUnlock(
+      { libraryId, guideId, title: doc.guide.title, locked },
+      t("locks.unlockButton"),
+    );
+    if (!opened) return;
+    try {
+      const editing = await open(false);
+      if (editing.kind === "editing") await reload();
+    } catch (problem) {
+      notify({ kind: "error", text: errorMessage(problem, t("library.actionFailed")) });
+    }
+  };
+
+  /** Duplicate to edit: an unlocked copy, opened in its place. */
+  const duplicateToEdit = async () => {
+    try {
+      const copy = await library.duplicateGuide(
+        libraryId,
+        guideId,
+        t("library.copyTitle", { title: doc.guide.title }),
+      );
+      props.onOpenGuide(copy);
+    } catch (problem) {
+      notify({ kind: "error", text: errorMessage(problem, t("library.actionFailed")) });
+    }
+  };
 
   // Someone took over while this app was editing.
   useEffect(() => {
@@ -364,9 +425,26 @@ export function LibraryGuideEditor(props: LibraryGuideEditorProps) {
     </button>
   );
 
-  const readOnly = lock.kind === "readOnly";
+  const readOnly = lock.kind === "readOnly" || lock.kind === "locked";
   const banner = (
     <>
+      {lock.kind === "locked" && (
+        <div
+          role="status"
+          className="flex flex-wrap items-center gap-3 border-b border-panel bg-callout-note-soft px-5 py-2.5 text-sm text-callout-note-ink"
+        >
+          <Icon name="lock" size={16} />
+          <span className="flex-1">
+            {t("locks.editorBanner", { lockedBy: lockedBy(lock.locked) })}
+          </span>
+          <button type="button" className="btn" onClick={() => void unlockToEdit(lock.locked)}>
+            {t("locks.unlockToEdit")}
+          </button>
+          <button type="button" className="btn" onClick={() => void duplicateToEdit()}>
+            {t("locks.duplicateToEdit")}
+          </button>
+        </div>
+      )}
       {lock.kind === "readOnly" && (
         <div
           role="status"
@@ -437,10 +515,15 @@ export function LibraryGuideEditor(props: LibraryGuideEditorProps) {
             : undefined
         }
         onRefused={() => {
-          if (lock.kind !== "readOnly" || Date.now() - lastRefused.current < REFUSED_NOTICE_MS)
-            return;
+          if (lock.kind === "checking" || lock.kind === "editing") return;
+          if (Date.now() - lastRefused.current < REFUSED_NOTICE_MS) return;
           lastRefused.current = Date.now();
-          notify({ text: t("editor.lock.refused", { name: lock.lock.name }) });
+          notify({
+            text:
+              lock.kind === "locked"
+                ? t("locks.refused", { name: lock.locked.by })
+                : t("editor.lock.refused", { name: lock.lock.name }),
+          });
         }}
         onLockLost={keepAsDraft}
       />

@@ -421,7 +421,7 @@ impl Worker {
     }
 
     fn on_key(&mut self, event: &KeyEvent) {
-        let Some(mut action) = self.reader.read(event, typed_text) else {
+        let Some(action) = self.reader.read(event, typed_text) else {
             return;
         };
         if self.lock_machine().should_process_event(event.tick_ms) != EventDecision::Process {
@@ -437,16 +437,9 @@ impl Worker {
             Place::Sensitive => return,
             _ => {}
         }
-        // A paste puts text in as typing does, so it's recorded as typed (F003, F025): never into
-        // a password box, which returned above.
-        if let KeyAction::Combo(combo) = &action
-            && is_paste(*combo)
-            && matches!(place, Place::Editor(..) | Place::Excel(_))
-            && let Some(text) =
-                crate::platform::clipboard::text(2_000).filter(|text| !text.trim().is_empty())
-        {
-            action = KeyAction::Text(text);
-        }
+        // A paste is a "Press Ctrl + V" step, as copy is (04/10/2026: a paste into Notepad++
+        // made a "Type this code" step of the clipboard). It had been recorded as typing (F003,
+        // F025); the clipboard is no longer read at all.
         if let KeyAction::Combo(combo) = &action {
             if combo.is_noise() {
                 return;
@@ -1063,7 +1056,11 @@ impl Worker {
         )
         .ok()?;
         if self.options.mode == crate::screenshot::CaptureMode::Window {
-            crate::screenshot::hide_covering(&mut shot, window.pid, None);
+            // The Start menu, Search and the like are drawn by several shell processes:
+            // their own parts aren't someone else's window to grey out (04/10/2026).
+            if !crate::pipeline::is_shell_window(window) {
+                crate::screenshot::hide_covering(&mut shot, window.pid, None);
+            }
         }
         let excluded = self.lock_machine().excluded_apps().to_vec();
         hide_excluded(&mut shot, &excluded);
@@ -1073,16 +1070,8 @@ impl Worker {
 
 /// What was typed into an Excel cell: the formula bar's last reading, plus any keys typed after
 /// it was taken; the keys alone if the bar couldn't be read.
-/// Ctrl+V or Shift+Insert.
-fn is_paste(combo: Combo) -> bool {
-    const V: u16 = 0x56;
-    const INSERT: u16 = 0x2D;
-    (combo.ctrl && !combo.alt && !combo.win && !combo.shift && combo.vkey == V)
-        || (combo.shift && !combo.ctrl && !combo.alt && !combo.win && combo.vkey == INSERT)
-}
-
 /// A spreadsheet cell's reference ("B6"), when the element with focus is one.
-fn cell_name(facts: &ElementFacts) -> Option<String> {
+pub(crate) fn cell_name(facts: &ElementFacts) -> Option<String> {
     let name = facts.name.trim().replace('$', "");
     let letters = name.chars().take_while(char::is_ascii_uppercase).count();
     let digits = name
@@ -1251,18 +1240,7 @@ mod tests {
     }
 
     #[test]
-    fn pastes_count_as_typing_and_cells_are_named_by_their_reference() {
-        let combo = |ctrl, shift, vkey| Combo {
-            ctrl,
-            alt: false,
-            shift,
-            win: false,
-            vkey,
-        };
-        assert!(is_paste(combo(true, false, 0x56)));
-        assert!(is_paste(combo(false, true, 0x2D)));
-        assert!(!is_paste(combo(true, true, 0x56)));
-        assert!(!is_paste(combo(true, false, 0x43)));
+    fn cells_are_named_by_their_reference() {
         let cell = |control: &str, name: &str| ElementFacts {
             control_type: control.into(),
             name: name.into(),

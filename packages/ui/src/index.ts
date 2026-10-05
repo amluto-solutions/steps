@@ -36,6 +36,8 @@ export type {
   EditLock,
   Editing,
   FileFilter,
+  GuideMetaFiles,
+  GuideStats,
   LibraryBridge,
   LockLost,
   LibraryGuideSummary,

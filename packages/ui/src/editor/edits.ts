@@ -217,6 +217,43 @@ export function removeTypedValue(doc: EditorDoc, id: string, stamp: Stamp): Edit
   );
 }
 
+/**
+ * "What was typed" (04/10/2026): the typed value changed by hand, for a typo, a made-up example
+ * instead of real data, or a "Type" step that recorded none. Generated wording is rebuilt with
+ * it; hand-edited wording has the old value swapped for the new where it's there as typed. A new
+ * value on a step that had none is shown, since the person just wrote it. Emptying it removes
+ * the value, as "Remove the typed value for good" does.
+ */
+export function setTypedValue(
+  doc: EditorDoc,
+  id: string,
+  value: string,
+  stamp: Stamp,
+): Edit | null {
+  const step = findStep(doc, id);
+  if (!step || step.action !== "input") return null;
+  if (!value.trim()) return removeTypedValue(doc, id, stamp);
+  const old = step.textParts.value;
+  if (value === old) return null;
+  const show = old === undefined ? true : step.showValue;
+  const swap = (text: string) => (old ? text.split(old).join(value) : text);
+  const patch: Partial<GuideStep> = { textParts: { ...step.textParts, value }, showValue: show };
+  if (show) {
+    const target = (step.target ?? {}) as StepTarget;
+    patch.actionText = step.textEdited
+      ? swap(step.actionText)
+      : (typingWords(doc, { ...target, value }) ?? swap(step.actionText));
+    if (step.translations)
+      patch.translations = Object.fromEntries(
+        Object.entries(step.translations).map(([language, words]) => [
+          language,
+          words.actionText === undefined ? words : { ...words, actionText: swap(words.actionText) },
+        ]),
+      );
+  }
+  return updateStep(doc, id, patch, "edit typed value", stamp, `value:${id}`);
+}
+
 /** "Hide all typed values" / "Show all typed values" on the guide. */
 export function setAllValues(doc: EditorDoc, show: boolean, stamp: Stamp): Edit | null {
   const changes: Change[] = [];

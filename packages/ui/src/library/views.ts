@@ -51,6 +51,7 @@ export const guidesInView = (
   if (!view) return guides;
   if (view.kind === "tag") return guides.filter((guide) => guide.tags.includes(view.tag));
   if (view.kind === "review") return guides.filter(needsReview);
+  if (view.kind === "locked") return guides.filter((guide) => guide.locked);
   if (view.kind === "recent") {
     return recent
       .filter((key) => key.startsWith(`${libraryId}/`))

@@ -59,23 +59,32 @@ fn manual_media_ids_are_safe_for_the_javascript_bridge() {
 }
 
 #[test]
-fn interrupted_session_can_be_reopened_for_review() {
+fn interrupted_sessions_can_be_reopened_for_review_one_after_another() {
     let root = tempfile::tempdir().unwrap();
-    let directory = root.path().join("recordings/session-1");
-    fs::create_dir_all(directory.join("events")).unwrap();
-    fs::write(
-        directory.join("session.json"),
-        br#"{"sessionId":"session-1","title":"Interrupted"}"#,
-    )
-    .unwrap();
-    fs::write(directory.join("events/0001.json"), b"{}").unwrap();
+    for id in ["session-1", "session-2"] {
+        let directory = root.path().join("recordings").join(id);
+        fs::create_dir_all(directory.join("events")).unwrap();
+        fs::write(
+            directory.join("session.json"),
+            format!(r#"{{"sessionId":"{id}","title":"Interrupted"}}"#),
+        )
+        .unwrap();
+        fs::write(directory.join("events/0001.json"), b"{}").unwrap();
+    }
     let service = RecorderService::default();
     lock(&service.inner).app_data = Some(root.path().to_path_buf());
 
     let snapshot = service.recover_session("session-1").unwrap();
     assert_eq!(snapshot.session_id.as_deref(), Some("session-1"));
     assert_eq!(snapshot.state, "idle");
-    assert!(service.recover_session("session-1").is_err());
+    // Set aside, the first is let go for the second, and can be opened again after (04/10/2026).
+    let second = service.recover_session("session-2").unwrap();
+    assert_eq!(second.session_id.as_deref(), Some("session-2"));
+    assert!(service.recover_session("session-1").is_ok());
+
+    // Never while one is being recorded.
+    lock(&lock(&service.inner).machine).start().unwrap();
+    assert!(service.recover_session("session-2").is_err());
 }
 
 #[test]

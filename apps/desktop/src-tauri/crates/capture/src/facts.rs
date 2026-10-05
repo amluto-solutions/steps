@@ -206,6 +206,29 @@ pub struct NavigationRecord {
     pub tick_ms: u32,
     pub origin: String,
     pub window: WindowFacts,
+    /// The page arrived at, once its address settled (04/10/2026: "Go to" steps had no picture).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capture: Option<CaptureFacts>,
+}
+
+/// A drag across spreadsheet cells, from the cell the left button went down on to the one it came
+/// up on, with a screenshot of the selection.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DragRecord {
+    pub id: u64,
+    /// The click the drag began with.
+    pub of: u64,
+    /// When the button came up.
+    pub tick_ms: u32,
+    pub from: String,
+    pub to: String,
+    pub window: WindowFacts,
+    pub capture: Option<CaptureFacts>,
+    /// The selection: the two cells' boxes together.
+    pub selection_pct: Option<PctRect>,
 }
 
 /// A field's value was read when focus left it (only when "Record typed values" is on).
@@ -231,6 +254,17 @@ pub struct InputRecord {
     pub value: Option<String>,
     /// Why the value wasn't read: `sensitive`, `password`, `setting-off`, `unreadable`.
     pub withheld: Option<&'static str>,
+    /// A screenshot taken as focus arrived in the field, before anything was typed, with the
+    /// window and the field's place in it (04/10/2026: typing steps had no picture). Absent
+    /// where none was taken.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub window: Option<WindowFacts>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capture: Option<CaptureFacts>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub element_pct: Option<PctRect>,
 }
 
 /// A command run in a terminal (docs/spec/02-capture.md#terminals). Only recorded when "Record
@@ -328,6 +362,9 @@ pub enum Record {
         tick_ms: u32,
     },
     Input(InputRecord),
+    /// Cells selected by dragging from one to another (04/10/2026); the click it started with is
+    /// `of`, which the step replaces.
+    Drag(DragRecord),
     Command(CommandRecord),
     Typing(TypingRecord),
     Keys(KeysRecord),
@@ -360,6 +397,7 @@ impl Record {
             Self::AppSwitch(switch) => Some(switch.tick_ms),
             Self::Navigation(navigation) => Some(navigation.tick_ms),
             Self::Input(input) => Some(input.tick_ms),
+            Self::Drag(drag) => Some(drag.tick_ms),
             Self::Command(command) => Some(command.tick_ms),
             Self::Typing(typing) => Some(typing.tick_ms),
             Self::Keys(keys) => Some(keys.tick_ms),

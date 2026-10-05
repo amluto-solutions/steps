@@ -36,6 +36,21 @@ export interface LibraryGuideSummary {
   openComments?: number | undefined;
   /** Steps for Chrome: the bytes the guide takes in browser storage (its versions included). */
   sizeBytes?: number | undefined;
+  /** Locked with a password: who, and when (docs/spec/03-data-and-sharing.md#password-locks). */
+  locked?: { by: string; at: string } | undefined;
+}
+
+/** A guide's password lock and history files as stored, unparsed (`null` where there's none). */
+export interface GuideMetaFiles {
+  lock: unknown;
+  history: unknown;
+}
+
+/** What Properties shows about a guide's files. */
+export interface GuideStats {
+  pictures: number;
+  /** On disk or in browser storage. */
+  bytes: number;
 }
 
 /** Steps for Chrome: what the library takes in browser storage, and what the browser has left. */
@@ -163,6 +178,20 @@ export interface LibraryBridge {
   renameLibrary(libraryId: string, name: string): Promise<LibraryInfo>;
   removeLibrary(libraryId: string): Promise<void>;
   setDefaultLibrary(libraryId: string): Promise<LibraryInfo>;
+  /** The desktop: opens a library's folder in Explorer. Absent in the browser, which can't. */
+  openFolder?(libraryId: string): Promise<void>;
+
+  /**
+   * A guide's password lock and history (`password-lock.json`, `history.json`). Storage only:
+   * what a lock allows is decided by `withGuideLocks` (library/guide-locks.ts). Neither file goes
+   * with a copy; a move takes both, and the Bin takes the lock off.
+   */
+  guideMeta(libraryId: string, guideId: string): Promise<GuideMetaFiles>;
+  /** Writes the lock, or takes it off (`null`). */
+  writeGuideLock(libraryId: string, guideId: string, lock: unknown): Promise<void>;
+  writeGuideHistory(libraryId: string, guideId: string, history: unknown): Promise<void>;
+  /** Pictures and size, for Properties; absent where it can't be told. */
+  guideStats?(libraryId: string, guideId: string): Promise<GuideStats>;
 
   listGuides(libraryId: string): Promise<LibraryGuideSummary[]>;
   searchGuides(libraryId: string, query: string): Promise<GuideSearchHit[]>;

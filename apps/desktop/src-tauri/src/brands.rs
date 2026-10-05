@@ -134,6 +134,43 @@ fn managed_ids(paths: &[String]) -> Vec<String> {
         .collect()
 }
 
+/// Marks a brand as deployed by IT, in its own folder (04/10/2026). Once imported from the share
+/// it stays read-only on this PC for good, whether or not the share can be reached: only IT's
+/// newer file (`brands_save_managed`) may change it. Duplicate still makes an editable copy.
+const MANAGED_MARKER: &str = "managed.json";
+
+fn mark_managed(folder: &Path, id: &str) -> Result<(), CommandError> {
+    library::write_atomic(
+        &folder.join(id).join(MANAGED_MARKER),
+        br#"{ "deployedBy": "policy", "formatVersion": 1 }"#,
+    )
+    .map_err(|error| CommandError::new("storage", error.to_string()))
+}
+
+/// The brands marked as IT's on this PC.
+fn marked_ids(folder: &Path) -> Vec<String> {
+    let Ok(entries) = fs::read_dir(folder) else {
+        return Vec::new();
+    };
+    entries
+        .filter_map(Result::ok)
+        .filter(|entry| entry.path().join(MANAGED_MARKER).is_file())
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .filter(|id| safe_id(id))
+        .collect()
+}
+
+/// IT's brands: those on the share now, and those imported from it before.
+fn all_managed(folder: &Path) -> Vec<String> {
+    let mut ids = managed_ids(&crate::policy::current().brand_profiles);
+    for id in marked_ids(folder) {
+        if !ids.iter().any(|known| known.eq_ignore_ascii_case(&id)) {
+            ids.push(id);
+        }
+    }
+    ids
+}
+
 fn profile_id(profile: &Value) -> &str {
     profile
         .get("id")
@@ -150,13 +187,20 @@ fn managed_brand() -> CommandError {
 
 #[tauri::command(async)]
 pub fn brands_save(app: AppHandle, profile: Value) -> Result<(), CommandError> {
-    if managed_ids(&crate::policy::current().brand_profiles)
+    let folder = brands_folder(&app)?;
+    if all_managed(&folder)
         .iter()
         .any(|id| id.eq_ignore_ascii_case(profile_id(&profile)))
     {
         return Err(managed_brand());
     }
-    save(&brands_folder(&app)?, &profile)
+    save(&folder, &profile)
+}
+
+/// The brands IT deploys, including any imported before whose share can't be reached now.
+#[tauri::command(async)]
+pub fn brands_managed_ids(app: AppHandle) -> Result<Vec<String>, CommandError> {
+    Ok(all_managed(&brands_folder(&app)?))
 }
 
 /// The start-up sync of the brands IT deploys: only their ids may be written this way.
@@ -171,15 +215,21 @@ pub fn brands_save_managed(app: AppHandle, profile: Value) -> Result<(), Command
             "Only a brand your organisation deploys is saved this way.",
         ));
     }
-    save(&brands_folder(&app)?, &profile)
+    let folder = brands_folder(&app)?;
+    save(&folder, &profile)?;
+    mark_managed(&folder, profile_id(&profile))
 }
 
 #[tauri::command(async)]
 pub fn brands_delete(app: AppHandle, id: String) -> Result<(), CommandError> {
-    if managed_ids(&crate::policy::current().brand_profiles).contains(&id) {
+    let folder = brands_folder(&app)?;
+    if all_managed(&folder)
+        .iter()
+        .any(|known| known.eq_ignore_ascii_case(&id))
+    {
         return Err(managed_brand());
     }
-    delete(&brands_folder(&app)?, &id)
+    delete(&folder, &id)
 }
 
 /// Brand files (`.amlbrand`) that people send each other. The UI checks what is inside with the
@@ -206,6 +256,20 @@ pub fn brands_write_file(path: String, contents: String) -> Result<(), CommandEr
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn a_brand_from_the_share_stays_marked_as_its_organisations() {
+        let folder = tempfile::tempdir().expect("temp dir");
+        save(folder.path(), &json!({ "id": "acme", "name": "Acme" })).expect("save");
+        save(folder.path(), &json!({ "id": "mine", "name": "Mine" })).expect("save");
+        mark_managed(folder.path(), "acme").expect("mark");
+        assert_eq!(marked_ids(folder.path()), vec!["acme".to_string()]);
+        // Still listed as a brand: the marker isn't a profile.
+        assert_eq!(list(folder.path()).len(), 2);
+        // With no share configured here, the marker alone makes it IT's.
+        assert!(all_managed(folder.path()).iter().any(|id| id == "acme"));
+        assert!(!all_managed(folder.path()).iter().any(|id| id == "mine"));
+    }
 
     #[test]
     fn profiles_are_saved_listed_by_name_and_deleted() {

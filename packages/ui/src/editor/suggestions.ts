@@ -3,7 +3,7 @@ import type { TFunction } from "i18next";
 
 import type { Change, Edit, EditorDoc } from "./document";
 import type { Stamp } from "./edits";
-import { readBlurStrength } from "../settings/preferences";
+import { readBlurStrength, readSafeTerms } from "../settings/preferences";
 
 const TERMS_KEY = "amluto-steps-blur-terms";
 
@@ -96,7 +96,8 @@ export const setPeopleNames = (names: string[]) => {
 };
 
 export function openFindings(step: GuideStep, lines: OcrLine[], terms: string[]): Finding[] {
-  return findSensitive(lines, terms, { strength: readBlurStrength(), people }).filter((finding) => {
+  const options = { strength: readBlurStrength(), people, safe: readSafeTerms() };
+  return findSensitive(lines, terms, options).filter((finding) => {
     if (finding.rect.w <= 0 || finding.rect.h <= 0) return false;
     const visible = step.crop ? overlap(finding.rect, step.crop) > 0 : true;
     return (

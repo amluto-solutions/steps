@@ -17,8 +17,10 @@ import { errorMessage } from "../errors";
 import { formatDate } from "../library/dates";
 import type { PendingRecording } from "../library/LibraryHome";
 import {
+  applyDrags,
   dropReplacedValues,
   dropTrailingOpens,
+  borrowScreenshots,
   factToStep,
   imageFileOf,
   orderRecordedSteps,
@@ -145,8 +147,14 @@ export function useRecordingSession(context: RecordingSessionContext) {
       // reported, rather than stopping the whole recording from opening.
       const steps: GuideStep[] = [];
       let skipped = 0;
-      const merged = dropReplacedValues(mergeRecordedSteps(restored.steps, live), restored.facts);
-      for (const step of dropTrailingOpens(orderRecordedSteps(merged, restored.facts))) {
+      const merged = applyDrags(
+        dropReplacedValues(mergeRecordedSteps(restored.steps, live), restored.facts),
+        restored.facts,
+      );
+      const ordered = borrowScreenshots(
+        dropTrailingOpens(orderRecordedSteps(merged, restored.facts)),
+      );
+      for (const step of ordered) {
         try {
           steps.push(parseStep(step));
         } catch {

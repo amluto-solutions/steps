@@ -24,6 +24,7 @@ import {
   stepsWithText,
   setAllValues,
   setShowValue,
+  setTypedValue,
   setStepCode,
   setStepNotes,
   setStepText,
@@ -154,6 +155,34 @@ describe("editor edits", () => {
     const edited = roundTrips(original, setStepText(original, "s4", "Type the name", stamp()));
     const keep = roundTrips(edited, setShowValue(edited, "s4", false, stamp()));
     expect(keep.steps.find((item) => item.id === "s4")?.actionText).toBe("Type the name");
+  });
+
+  it("change what was typed, in generated and hand-edited wording (04/10/2026)", () => {
+    const original = doc();
+    const changed = roundTrips(original, setTypedValue(original, "s4", "Example Ltd", stamp()));
+    const after = changed.steps.find((item) => item.id === "s4");
+    expect(after?.textParts.value).toBe("Example Ltd");
+    expect(after?.actionText).toContain("Example Ltd");
+    expect(after?.actionText).not.toContain("Acme");
+
+    const edited = roundTrips(
+      original,
+      setStepText(original, "s4", 'Enter "Acme Ltd" as the customer', stamp()),
+    );
+    const swapped = roundTrips(edited, setTypedValue(edited, "s4", "Example Ltd", stamp()));
+    expect(swapped.steps.find((item) => item.id === "s4")?.actionText).toBe(
+      'Enter "Example Ltd" as the customer',
+    );
+    // Emptied, the value is removed; the same value again is no edit.
+    const removed = roundTrips(original, setTypedValue(original, "s4", "  ", stamp()));
+    expect(removed.steps.find((item) => item.id === "s4")?.textParts.value).toBeUndefined();
+    expect(setTypedValue(original, "s4", "Acme Ltd", stamp())).toBeNull();
+    // A typing step that recorded nothing gets the value, shown.
+    const added = roundTrips(removed, setTypedValue(removed, "s4", "Contoso", stamp()));
+    const step4 = added.steps.find((item) => item.id === "s4");
+    expect([step4?.showValue, step4?.actionText.includes("Contoso")]).toEqual([true, true]);
+    // Only typing steps have one.
+    expect(setTypedValue(original, "s1", "x", stamp())).toBeNull();
   });
 
   it("hide a typed value from the step's wording in every language, and offer standard wording (F028)", () => {

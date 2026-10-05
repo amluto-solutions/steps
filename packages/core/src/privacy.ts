@@ -86,6 +86,12 @@ export interface SensitiveOptions {
   strength?: BlurStrength;
   /** The person's own names: their Windows or Linux account, display name, OneDrive accounts. */
   people?: string[];
+  /**
+   * Words never to suggest (Settings > Privacy > Never suggest, 04/10/2026): a suggestion whose
+   * text holds one, ignoring case, spaces and punctuation, is left out. Not the organisation's
+   * always-blur words, which IT sets.
+   */
+  safe?: string[];
 }
 
 export interface Finding {
@@ -147,7 +153,12 @@ const RULES: Rule[] = [
     kind: "path",
     pattern: /(?:\b[A-Z]:\\|\\\\[\w.-]+\\|\/(?:home|Users)\/)[^\s"<>|]*/gi,
   },
-  { kind: "email", pattern: /[A-Z0-9._%+-]+@[A-Z0-9-]+(?:\.[A-Z0-9-]+)*\.[A-Z]{2,}/gi },
+  // Any letter, not only A to Z: OCR reads a "ywe" in small text as "wæ" (04/10/2026,
+  // "members@flintandholwællrotary.co.uk" went unsuggested).
+  {
+    kind: "email",
+    pattern: /[\p{L}\p{N}._%+-]+@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)*\.\p{L}{2,}/giu,
+  },
   // UK numbers: 0 or +44, then 9 or 10 more digits, spaces or dashes allowed between, and the
   // area code may be in brackets ("(020) 7946 0958").
   {
@@ -165,10 +176,16 @@ const RULES: Rule[] = [
     pattern: /\b(?:GIR ?0AA|[A-PR-UWYZ][A-HK-Y]?\d[A-Z\d]? ?\d[ABD-HJLNP-UW-Z]{2})\b/gi,
   },
   // OCR often reads 1 as I or L and 0 as O in postcodes ("SW1A 1AA" came back as "SWIA IAA"
-  // in testing), so capitals are also tried with those letters where digits belong.
+  // in testing), so capitals are also tried with those letters where digits belong. Only with the
+  // space between the halves, which OCR keeps, and not with O for both digits: SiteGround's
+  // "SITE TOOLS" button read as the postcode "TO OLS", 13 times on one page (04/10/2026).
   {
     kind: "postcode",
-    pattern: /\b[A-PR-UWYZ][A-HK-Y]?[0-9ILO][A-Z0-9]? ?[0-9ILO][ABD-HJLNP-UW-Z]{2}\b/g,
+    pattern: /\b[A-PR-UWYZ][A-HK-Y]?[0-9ILO][A-Z0-9]? [0-9ILO][ABD-HJLNP-UW-Z]{2}\b/g,
+    check: (match) => {
+      const digits = /^[A-Z]{1,2}([0-9ILO])[A-Z0-9]? ([0-9ILO])/.exec(match);
+      return !(digits?.[1] === "O" && digits[2] === "O");
+    },
   },
   {
     kind: "card",
@@ -257,7 +274,9 @@ function fitsKind(kind: SensitiveKind, value: string): boolean {
     case "dateOfBirth":
       return /\d/.test(text);
     case "email":
-      return text.includes("@") || /\S+\.\S+/.test(text);
+      // An address, with someone before the @: not a domain on its own, nor a catch-all
+      // "*@domain" (04/10/2026: a mail host's "Email Address" column suggested its domain).
+      return /[\p{L}\p{N}._%+-]\s?@\s?\S/u.test(text);
     default:
       return /\p{L}/u.test(text);
   }
@@ -452,6 +471,23 @@ const inside = (inner: Finding["rect"], outer: Finding["rect"]) =>
   inner.x + inner.w <= outer.x + outer.w + 0.01 &&
   inner.y + inner.h <= outer.y + outer.h + 0.01;
 
+/** `text` without the spaces OCR puts round "." and "@", and where each character came from. */
+function closeUp(text: string): { text: string; at: number[] } {
+  let out = "";
+  const at: number[] = [];
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index] ?? "";
+    if (/\s/.test(character)) {
+      const before = out.at(-1) ?? "";
+      const after = /\S/.exec(text.slice(index))?.[0] ?? "";
+      if (before === "." || before === "@" || after === "." || after === "@") continue;
+    }
+    out += character;
+    at.push(index);
+  }
+  return { text: out, at };
+}
+
 /**
  * `text` with only its letters and digits, lower case, and where each came from in `text`.
  */
@@ -501,6 +537,18 @@ export function findSensitive(
     };
     for (const rule of RULES) {
       if (!kinds.includes(rule.kind)) continue;
+      // Windows OCR puts spaces round the dots and @ of small text ("jo . bloggs@btinternet . com",
+      // 04/10/2026: a comma-separated list gave one email of eight), so an email is looked for with
+      // those spaces closed up, and its box drawn over the words it came from.
+      if (rule.kind === "email") {
+        const closed = closeUp(text);
+        for (const match of closed.text.matchAll(rule.pattern)) {
+          const from = closed.at[match.index] ?? 0;
+          const to = (closed.at[match.index + match[0].length - 1] ?? from) + 1;
+          add(rule.kind, from, text.slice(from, to));
+        }
+        continue;
+      }
       for (const match of text.matchAll(rule.pattern)) {
         for (const part of checkedParts(match[0], rule)) {
           add(rule.kind, match.index + part.from, match[0].slice(part.from, part.to));
@@ -538,12 +586,24 @@ export function findSensitive(
       finding.kind === "account" ||
       !labelled.some((other) => inside(finding.rect, other.rect)),
   );
-  // The strict and OCR-tolerant rules can both match the same text.
-  const seen = new Set<string>();
-  return [...kept, ...labelled].filter((finding) => {
-    const key = `${finding.kind}:${finding.text}:${finding.rect.x}:${finding.rect.y}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  // One suggestion for one area (04/10/2026: "Robin" and "Robin Hale" both listed, or the strict
+  // and OCR-tolerant rules matching the same text, showed twice and blurred twice). A finding
+  // inside a bigger one of the same kind goes; of two the same size, the first stays.
+  const safe = (options.safe ?? [])
+    .map((word) => squash(word).letters)
+    .filter((word) => word.length >= 2);
+  const all = [...kept, ...labelled].filter(
+    (finding) =>
+      finding.kind === "term" || !safe.some((word) => squash(finding.text).letters.includes(word)),
+  );
+  return all.filter(
+    (finding, index) =>
+      !all.some(
+        (other, at) =>
+          at !== index &&
+          other.kind === finding.kind &&
+          inside(finding.rect, other.rect) &&
+          (!inside(other.rect, finding.rect) || at < index),
+      ),
+  );
 }

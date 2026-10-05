@@ -176,6 +176,33 @@ describe("guides", () => {
     });
   });
 
+  it("keeps a password lock and history out of copies, takes them on a move, drops the lock in the Bin (04/10/2026)", async () => {
+    await library.writeGuideLock(guideId, {
+      formatVersion: 1,
+      locked: { by: "Robin Hale", login: "", pc: "", at: "2026-10-04T10:00:00Z" },
+      password: "pbkdf2-sha256$1000$AAAA$AAAA",
+    });
+    await library.writeGuideHistory(guideId, { formatVersion: 1, saves: 2 });
+    expect((await library.summary(guideId)).locked).toEqual({
+      by: "Robin Hale",
+      at: "2026-10-04T10:00:00Z",
+    });
+    const copy = await library.duplicateGuide(guideId, "Copy");
+    expect(copy.locked).toBeUndefined();
+    expect(await library.guideMeta(copy.id)).toEqual({ lock: null, history: null });
+    expect(await library.guideStats(guideId)).toMatchObject({ pictures: 0 });
+
+    const other = new FolderLibrary(memoryDir("other"), codec);
+    await library.moveGuideTo(guideId, other);
+    expect((await other.summary(guideId)).locked?.by).toBe("Robin Hale");
+    expect(await other.guideMeta(guideId)).toMatchObject({ history: { saves: 2 } });
+
+    const entry = await other.trashGuide(guideId);
+    const restored = await other.restoreGuide(entry.trashId);
+    expect(restored.locked).toBeUndefined();
+    expect(await other.guideMeta(guideId)).toMatchObject({ lock: null, history: { saves: 2 } });
+  });
+
   it("duplicates and copies without history, and moves to another library with it", async () => {
     await saveVersion(library, guideId, "v", "Robin Hale");
     await addComment(library, guideId, null, null, "Hi", { name: "Robin Hale", pc: "PC" });

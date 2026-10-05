@@ -252,6 +252,7 @@ impl RecorderService {
                 note: focus_note.clone(),
                 extra_sensitive_terms: policy.sensitive_field_patterns.clone(),
                 machine: Some(Arc::clone(&machine)),
+                entered: capture::lookup::FieldSlot::default(),
             },
         )))
         .map_err(|error| {

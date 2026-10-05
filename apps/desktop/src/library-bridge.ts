@@ -23,6 +23,13 @@ export const desktopLibrary: LibraryBridge = {
   renameLibrary: (libraryId, name) => invoke("library_rename_library", { libraryId, name }),
   removeLibrary: (libraryId) => invoke("library_remove_library", { libraryId }),
   setDefaultLibrary: (libraryId) => invoke("library_set_default_library", { libraryId }),
+  openFolder: (libraryId) => invoke("library_open_folder", { libraryId }),
+  guideMeta: (libraryId, guideId) => invoke("library_guide_meta", { libraryId, guideId }),
+  writeGuideLock: (libraryId, guideId, lock) =>
+    invoke("library_write_guide_lock", { libraryId, guideId, lock }),
+  writeGuideHistory: (libraryId, guideId, history) =>
+    invoke("library_write_guide_history", { libraryId, guideId, history }),
+  guideStats: (libraryId, guideId) => invoke("library_guide_stats", { libraryId, guideId }),
 
   listGuides: (libraryId) => invoke("library_list_guides", { libraryId }),
   searchGuides: (libraryId, query) => invoke("library_search_guides", { libraryId, query }),

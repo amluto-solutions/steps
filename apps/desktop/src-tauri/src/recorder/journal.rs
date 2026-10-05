@@ -61,6 +61,15 @@ impl JournalSink {
             Record::Typing(typing) => (typing.id, "typing", typing.capture.as_mut()),
             Record::Keys(keys) => (keys.id, "keys", keys.capture.as_mut()),
             Record::AppSwitch(switch) => (switch.id, "app", switch.capture.as_mut()),
+            // A field's screenshot from when focus arrived in it (04/10/2026).
+            Record::Input(input) => (input.id.unwrap_or(0), "field", input.capture.as_mut()),
+            Record::Drag(drag) => (drag.id, "drag", drag.capture.as_mut()),
+            // The page a "Go to" arrived at (04/10/2026).
+            Record::Navigation(navigation) => (
+                navigation.id.unwrap_or(0),
+                "nav",
+                navigation.capture.as_mut(),
+            ),
             _ => (0, "", None),
         };
         let capture = capture.ok_or_else(|| "This record cannot own a screenshot.".to_string())?;

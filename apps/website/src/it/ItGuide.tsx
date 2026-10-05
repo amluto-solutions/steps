@@ -23,6 +23,7 @@ const SECTIONS = [
   { id: "intune", title: "Intune" },
   { id: "registry", title: "Registry values" },
   { id: "recipes", title: "Common set-ups" },
+  { id: "locks", title: "Guide password locks" },
   { id: "updates", title: "Updates" },
   { id: "privacy", title: "What it records" },
   { id: "files", title: "Where things are kept" },
@@ -238,6 +239,13 @@ function Guide() {
             ],
             ["BLURSTRENGTH", "BlurStrength", <C key="15">light, standard or thorough</C>],
             ["SHOWUNNAMEDTYPING", "ShowUnnamedTyping", <C key="16">1 (shown) or 0 (not shown)</C>],
+            ["DISABLEGUIDELOCKS", "DisableGuideLocks", <C key="19">1</C>],
+            [
+              "GUIDELOCKRECOVERYPASSWORD",
+              "GuideLockRecoveryPassword",
+              <C key="20">pbkdf2-sha256$600000$&hellip;</C>,
+            ],
+            ["RECORDPCANDLOGIN", "RecordPcAndLogin", <C key="21">1 (recorded) or 0 (not)</C>],
             ["STEPSLANGUAGE", "Language", <C key="17">de</C>],
             ["LANGUAGETONE", "LanguageTone", <C key="18">casual, plain or formal</C>],
             ["DISABLEUPDATECHECK", "DisableUpdateCheck", <C key="12">1</C>],
@@ -302,6 +310,9 @@ function Guide() {
               "IncludeCommandOutputByDefault",
             ],
             ["Show typing into unnamed boxes", "Privacy", "ShowUnnamedTyping"],
+            ["Record the PC name and Windows login in guides", "Privacy", "RecordPcAndLogin"],
+            ["Turn off guide password locks", "Libraries", "DisableGuideLocks"],
+            ["Recovery password for locked guides", "Libraries", "GuideLockRecoveryPassword"],
             ["Deploy brands", "Branding", "BrandProfiles"],
             ["Default brand for exports", "Branding", "DefaultPdfBrand"],
             ["App colours", "Branding", "AppColoursBrand"],
@@ -415,7 +426,11 @@ function Guide() {
               "Multi-string",
               <>
                 Full paths to <C>.amlbrand</C> files, imported at start and updated when the
-                file&rsquo;s version is higher. Read-only for staff.
+                file&rsquo;s version is higher. Logos and uploaded fonts are inside the file, and
+                each PC keeps its own copy, so exports work with the share out of reach. A share
+                that can&rsquo;t be reached yet (no VPN) is tried again every few minutes. A brand
+                imported from the share stays read-only on that PC for good; staff can duplicate it
+                to make their own.
               </>,
             ],
             [
@@ -453,6 +468,25 @@ function Guide() {
               "ShowUnnamedTyping",
               "DWORD",
               "1: a step shows what was typed into something Steps couldn\u2019t name, such as a document or a box with no label. 0: the step says only \u201cType\u201d, and the author can show the text step by step. Absent: not shown, and each person chooses.",
+            ],
+            [
+              "DisableGuideLocks",
+              "DWORD",
+              "1: Lock\u2026 is hidden, so nobody can lock a guide with a password. Guides already locked stay locked. Absent: anyone who can edit a guide can lock it.",
+            ],
+            [
+              "GuideLockRecoveryPassword",
+              "String",
+              <>
+                The hash of a password that unlocks any locked guide, made as{" "}
+                <a href="#locks">Guide password locks</a> shows. Never the password itself. Absent:
+                a forgotten password can&rsquo;t be recovered.
+              </>,
+            ],
+            [
+              "RecordPcAndLogin",
+              "DWORD",
+              "1: guides record the PC\u2019s name and the Windows login of whoever saves or locks them, shown in Properties. 0: only the person\u2019s display name. Absent: on, and each person can switch it off in Settings > Privacy.",
             ],
             [
               "BlurStrength",
@@ -571,6 +605,48 @@ New-ItemProperty -Path $key -Name ExcludedApps -PropertyType MultiString -Value 
         </div>
       </Section>
 
+      <Section id="locks">
+        <p>
+          Anyone who can edit a guide can lock it with a password: guide menu &gt;{" "}
+          <strong>Lock&hellip;</strong>, or several at once from the selection bar. A locked guide
+          shows a padlock and &ldquo;Locked by&rdquo; with the person&rsquo;s name and the date.
+          Without the password nobody can change, move or delete it in Steps, including the person
+          who locked it. Anyone can still view it, export it, duplicate it, copy it to another
+          library and merge it into a new guide. The password is kept only as a salted hash
+          (PBKDF2-SHA256, 600,000 rounds) in <C>password-lock.json</C> in the guide&rsquo;s folder.
+        </p>
+        <p>
+          The lock works inside Steps only. Anyone who can write to the library&rsquo;s folder can
+          still change or delete the guide&rsquo;s files directly. Moving a guide to the Bin needs
+          the password and takes the lock off. After 10 wrong passwords, each further try waits 30
+          seconds.
+        </p>
+        <p>
+          A forgotten password can&rsquo;t be recovered unless you set a{" "}
+          <strong>recovery password</strong>, which unlocks any guide. Its use is recorded in the
+          guide&rsquo;s Properties. Make its hash on any PC with Windows PowerShell, and deploy the
+          line it prints as <C>GuideLockRecoveryPassword</C>. Keep the password itself somewhere
+          safe; Steps never needs it.
+        </p>
+        <CodeBlock
+          className=""
+          wrap
+          language="PowerShell"
+          code={`$password = Read-Host "Recovery password" -AsSecureString
+$plain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($password))
+$salt = New-Object byte[] 16
+[Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($salt)
+$kdf = New-Object Security.Cryptography.Rfc2898DeriveBytes($plain, $salt, 600000, [Security.Cryptography.HashAlgorithmName]::SHA256)
+"pbkdf2-sha256\`$600000\`$$([Convert]::ToBase64String($salt))\`$$([Convert]::ToBase64String($kdf.GetBytes(32)))"`}
+        />
+        <p>
+          Each guide also keeps a <C>history.json</C>: how many times it&rsquo;s been saved, who
+          created and last saved it, and its lock events. With <C>RecordPcAndLogin</C> on (the
+          default) these include the PC&rsquo;s name and Windows login. Both files stay with the
+          guide&rsquo;s folder and are never copied into duplicates or exports.
+        </p>
+      </Section>
+
       <Section id="updates">
         <ul className="flex list-disc flex-col gap-3 pl-5 marker:text-accent">
           <li>
@@ -631,6 +707,11 @@ New-ItemProperty -Path $key -Name ExcludedApps -PropertyType MultiString -Value 
               "Command output",
               "only when \u201cInclude command output\u201d is also ticked",
               "in the step, secrets masked",
+            ],
+            [
+              "PC name and Windows login",
+              "when a guide is saved or locked, unless switched off in Settings or by RecordPcAndLogin",
+              "in the guide\u2019s history, shown in its Properties; never in exports",
             ],
             [
               "Text in screenshots",

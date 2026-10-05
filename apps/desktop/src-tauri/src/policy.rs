@@ -68,6 +68,13 @@ pub struct Policy {
     pub language_tone: Option<String>,
     /// How much blur suggestions look for: light, standard or thorough (01/10/2026).
     pub blur_strength: Option<String>,
+    /// Lock… is hidden; guides already locked stay locked (04/10/2026).
+    pub disable_guide_locks: bool,
+    /// A password that unlocks any locked guide, as a hash (`pbkdf2-sha256$…`, made as
+    /// docs/it/guide-locks.md shows); the UI checks it.
+    pub guide_lock_recovery_password: Option<String>,
+    /// Whether guides record this PC's name and the Windows login; `None`: the person's choice.
+    pub record_pc_and_login: Option<bool>,
 }
 
 impl Policy {
@@ -108,6 +115,9 @@ pub struct HiveValues {
     pub language: Option<String>,
     pub language_tone: Option<String>,
     pub blur_strength: Option<String>,
+    pub disable_guide_locks: Option<u32>,
+    pub guide_lock_recovery_password: Option<String>,
+    pub record_pc_and_login: Option<u32>,
 }
 
 fn clean(values: Vec<String>) -> Vec<String> {
@@ -251,6 +261,16 @@ pub fn merge(machine: HiveValues, user: HiveValues) -> Policy {
         language: text(machine.language).or_else(|| text(user.language)),
         language_tone: text(machine.language_tone).or_else(|| text(user.language_tone)),
         blur_strength: text(machine.blur_strength).or_else(|| text(user.blur_strength)),
+        disable_guide_locks: machine
+            .disable_guide_locks
+            .or(user.disable_guide_locks)
+            .is_some_and(|value| value != 0),
+        guide_lock_recovery_password: text(machine.guide_lock_recovery_password)
+            .or_else(|| text(user.guide_lock_recovery_password)),
+        record_pc_and_login: machine
+            .record_pc_and_login
+            .or(user.record_pc_and_login)
+            .map(|value| value != 0),
     }
 }
 
@@ -291,6 +311,9 @@ fn read_hive(root: winreg::HKEY, path: &str) -> HiveValues {
         language: string("Language"),
         language_tone: string("LanguageTone"),
         blur_strength: string("BlurStrength"),
+        disable_guide_locks: number("DisableGuideLocks"),
+        guide_lock_recovery_password: string("GuideLockRecoveryPassword"),
+        record_pc_and_login: number("RecordPcAndLogin"),
     }
 }
 
@@ -355,6 +378,9 @@ fn hive_from_json(value: &serde_json::Value) -> HiveValues {
         language: string("Language"),
         language_tone: string("LanguageTone"),
         blur_strength: string("BlurStrength"),
+        disable_guide_locks: number("DisableGuideLocks"),
+        guide_lock_recovery_password: string("GuideLockRecoveryPassword"),
+        record_pc_and_login: number("RecordPcAndLogin"),
     }
 }
 

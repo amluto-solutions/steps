@@ -65,7 +65,7 @@ describe("Group Policy templates", () => {
     ).toBe(true);
     expect(
       all(wxs, /Key="\$\(var\.PolicyKey\)" Name="[^"]+" Type="[^"]+" Value="[^"]+" KeyPath/g),
-    ).toHaveLength(18);
+    ).toHaveLength(21);
     for (const name of written) {
       expect(wxs).toContain(`Key="$(var.RememberKey)" Name="${name}" Type="string"`);
     }

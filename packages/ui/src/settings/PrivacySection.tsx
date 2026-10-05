@@ -3,8 +3,15 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { isLinux } from "../recorder-bridge";
 import { policy } from "./policy";
-import { readBlurStrength, saveBlurStrength } from "./preferences";
-import { ChipList, Row } from "./controls";
+import {
+  readBlurStrength,
+  readRecordPcAndLogin,
+  readSafeTerms,
+  saveBlurStrength,
+  saveRecordPcAndLogin,
+  saveSafeTerms,
+} from "./preferences";
+import { ChipList, Row, Switch } from "./controls";
 import type { SettingsProps } from "./settings-props";
 
 /** "Blur suggestions": Light, Standard or Thorough (01/10/2026). Never blurs by itself. */
@@ -36,6 +43,65 @@ function StrengthRow(props: SettingsProps) {
           </option>
         ))}
       </select>
+    </Row>
+  );
+}
+
+/** "Never suggest": words that are fine to show, the opposite of the always-blur words (04/10/2026). */
+function SafeTerms(props: SettingsProps) {
+  const { t } = useTranslation();
+  const [terms, setTerms] = useState(readSafeTerms);
+  const update = (next: string[]) => {
+    setTerms(next);
+    saveSafeTerms(next);
+  };
+  return (
+    <ChipList
+      label={t("privacy.safeTerms")}
+      help={t("privacy.safeTermsHelp")}
+      managed={[]}
+      items={terms}
+      removeLabel={(term) => t("privacy.removeSafeTerm", { term })}
+      onRemove={(term) => update(terms.filter((item) => item !== term))}
+      inputLabel={t("privacy.safeTermLabel")}
+      placeholder={t("privacy.safeTermPlaceholder")}
+      addLabel={t("privacy.addSafeTerm")}
+      canAdd={(text) => text.trim().length >= 2 && !props.locked}
+      onAdd={(text) => {
+        const value = text.trim();
+        if (value.length >= 2 && !terms.some((item) => item.toLowerCase() === value.toLowerCase()))
+          update([...terms, value]);
+        return true;
+      }}
+      inputClassName="w-40"
+    />
+  );
+}
+
+/**
+ * "Record this PC's name and my Windows login in guides" (04/10/2026): kept with a guide's saves
+ * and password lock, for its Properties. On unless switched off; IT can set it.
+ */
+function RecordPcRow() {
+  const { t } = useTranslation();
+  const [on, setOn] = useState(readRecordPcAndLogin);
+  const managed = policy().recordPcAndLogin !== null;
+  return (
+    <Row
+      label={t("privacy.recordPc")}
+      help={t("privacy.recordPcHelp")}
+      id="privacy-record-pc-label"
+      managed={managed}
+    >
+      <Switch
+        labelledBy="privacy-record-pc-label"
+        disabled={managed}
+        checked={on}
+        onChange={(next) => {
+          setOn(next);
+          saveRecordPcAndLogin(next);
+        }}
+      />
     </Row>
   );
 }
@@ -72,6 +138,8 @@ export function PrivacySection(props: SettingsProps) {
         onAdd={add}
         inputClassName="w-40"
       />
+      <SafeTerms {...props} />
+      <RecordPcRow />
       <Row label={t("privacy.cache")} help={t("privacy.cacheHelp")}>
         <button
           type="button"

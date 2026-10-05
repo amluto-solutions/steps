@@ -39,3 +39,8 @@ apps/chrome/.wxt/
 
 # The website's hosting details, on the PC that deploys (apps/website/scripts/deploy.mjs).
 apps/website/scripts/deploy.local.json
+
+# Built by store/partner-center.py for Partner Center's Import folder, and Partner Center's own
+# exports it starts from.
+store/partner-center/
+store/listingData-*.csv

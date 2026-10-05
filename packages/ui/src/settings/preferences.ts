@@ -121,6 +121,24 @@ export function policyTone(): Tone | null {
 /** Settings > Privacy, "Blur suggestions": how much they look for (IT's choice if set). */
 const BLUR_STRENGTH_KEY = "amluto-steps-blur-strength";
 
+const SAFE_TERMS_KEY = "amluto-steps-safe-terms";
+
+/** Settings > Privacy > Never suggest: words that are fine to show, never suggested for blurring. */
+export function readSafeTerms(): string[] {
+  try {
+    const parsed: unknown = JSON.parse(read(SAFE_TERMS_KEY) ?? "[]");
+    return Array.isArray(parsed)
+      ? parsed.filter((value): value is string => typeof value === "string").slice(0, 200)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveSafeTerms(terms: string[]) {
+  write(SAFE_TERMS_KEY, JSON.stringify(terms));
+}
+
 export function readBlurStrength(): BlurStrength {
   const stored = read(BLUR_STRENGTH_KEY);
   return policy().blurStrength ?? (isBlurStrength(stored) ? stored : "standard");
@@ -263,6 +281,21 @@ export function readChoices(): RecordingChoices {
  * box) shows its text in the step. Off unless the person or IT turns it on: an unnamed box may
  * have been a password box that didn't say so (F021, 01/10/2026).
  */
+const RECORD_PC_KEY = "amluto-steps-record-pc-and-login";
+
+/**
+ * Settings > Privacy, "Record this PC's name and my Windows login in guides" (04/10/2026): kept
+ * with a guide's saves and password lock, shown in its Properties. On unless switched off; IT
+ * can set it either way.
+ */
+export function readRecordPcAndLogin(): boolean {
+  return policy().recordPcAndLogin ?? read(RECORD_PC_KEY) !== "false";
+}
+
+export function saveRecordPcAndLogin(on: boolean) {
+  write(RECORD_PC_KEY, String(on));
+}
+
 export function readShowUnnamedTyping(): boolean {
   return policy().showUnnamedTyping ?? read(KEYS.showUnnamedTyping) === "true";
 }

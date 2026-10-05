@@ -24,6 +24,11 @@ description = "Allows the user to choose the library new recordings are saved to
 commands.allow = ["library_set_default_library"]
 
 [[permission]]
+identifier = "allow-library-open-folder"
+description = "Allows the user to open a library's folder in Explorer."
+commands.allow = ["library_open_folder"]
+
+[[permission]]
 identifier = "allow-library-list-guides"
 description = "Allows the frontend to list the guides in a library."
 commands.allow = ["library_list_guides"]
@@ -222,3 +227,23 @@ commands.allow = ["library_resolve_comment"]
 identifier = "allow-library-delete-comment"
 description = "Allows the editor to delete the person's own review comment."
 commands.allow = ["library_delete_comment"]
+
+[[permission]]
+identifier = "allow-library-guide-meta"
+description = "Allows the frontend to read a guide's password lock and history."
+commands.allow = ["library_guide_meta"]
+
+[[permission]]
+identifier = "allow-library-write-guide-lock"
+description = "Allows the user to lock a guide with a password, or take the lock off."
+commands.allow = ["library_write_guide_lock"]
+
+[[permission]]
+identifier = "allow-library-write-guide-history"
+description = "Allows the frontend to record a guide's saves and lock events."
+commands.allow = ["library_write_guide_history"]
+
+[[permission]]
+identifier = "allow-library-guide-stats"
+description = "Allows the frontend to count a guide's pictures and its size on disk."
+commands.allow = ["library_guide_stats"]

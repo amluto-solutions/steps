@@ -69,7 +69,8 @@ describe("brands deployed by policy", () => {
       io,
       toPng,
     );
-    expect(result).toEqual({ managedIds: ["client"], changed: true });
+    // The one out of reach is counted, to be tried again (04/10/2026).
+    expect(result).toEqual({ managedIds: ["client"], changed: true, unread: 1 });
     expect(io.saveBrand).toHaveBeenCalledWith(
       expect.objectContaining({ id: "client", version: 5 }),
     );
@@ -83,7 +84,7 @@ describe("brands deployed by policy", () => {
       io,
       toPng,
     );
-    expect(result).toEqual({ managedIds: ["client"], changed: false });
+    expect(result).toEqual({ managedIds: ["client"], changed: false, unread: 0 });
     expect(io.saveBrand).not.toHaveBeenCalled();
   });
 });

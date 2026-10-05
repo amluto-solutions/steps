@@ -21,6 +21,10 @@ pub(crate) fn fingerprint(folder: &Path) -> Option<u64> {
     let mut hasher = DefaultHasher::new();
     let guide = fs::metadata(folder.join("guide.json")).ok()?;
     (guide.len(), guide.modified().ok()).hash(&mut hasher);
+    // Locking or unlocking changes the card.
+    let lock = fs::metadata(folder.join(crate::meta::LOCK_FILE)).ok();
+    lock.map(|lock| (lock.len(), lock.modified().ok()))
+        .hash(&mut hasher);
     for sub in ["steps", "comments"] {
         let Ok(entries) = fs::read_dir(folder.join(sub)) else {
             sub.hash(&mut hasher);

@@ -22,7 +22,6 @@
 //! Linux has `capture-x11` in its place; this crate is empty there.
 #![cfg(windows)]
 
-pub mod clipboard;
 pub mod cloud;
 pub mod display;
 mod error;

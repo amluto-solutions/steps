@@ -12,12 +12,16 @@ import type {
 import { mergeGuides, mergeId } from "../library/merge";
 import type { MergeRequest } from "../library/MergeDialog";
 import { toDoc } from "./documents";
+import type { GuideLocks } from "../library/guide-locks";
+import { askCount, showLockedList } from "../library/LockDialogs";
 
 /** What happened to each guide in a batch. */
 interface Outcome<T> {
   done: { guide: LibraryGuideSummary; result: T }[];
   /** Someone else is editing it, so it was left alone. */
   editing: { guide: LibraryGuideSummary; name: string }[];
+  /** Locked with a password (04/10/2026): offered afterwards, one password at a time. */
+  locked: LibraryGuideSummary[];
   failed: { guide: LibraryGuideSummary; problem: unknown }[];
 }
 
@@ -37,10 +41,13 @@ export function useBulkActions(context: {
   author: string;
   /** Opens a guide in the editor (Merge's Open). */
   openGuide: (libraryId: string, guideId: string) => void;
+  /** Password locks: a locked guide is left for the list of locked guides. */
+  locks: GuideLocks | null;
 }) {
   const { t } = useTranslation();
   const { library, libraryId, libraries, refreshGuides, notify, setBusy, author, openGuide } =
     context;
+  const { locks } = context;
 
   /** Runs `action` on each guide, skipping any someone else is editing when `needsLock`. */
   const each = async <T>(
@@ -49,10 +56,14 @@ export function useBulkActions(context: {
     needsLock: boolean,
     action: (guide: LibraryGuideSummary) => Promise<T>,
   ): Promise<Outcome<T>> => {
-    const outcome: Outcome<T> = { done: [], editing: [], failed: [] };
+    const outcome: Outcome<T> = { done: [], editing: [], locked: [], failed: [] };
     if (!library) return outcome;
     for (const guide of guides) {
       try {
+        if (needsLock && guide.locked && !locks?.isOpen(from, guide.id)) {
+          outcome.locked.push(guide);
+          continue;
+        }
         if (needsLock) {
           // Asked first, so the person editing it can be named; the lock is let go at once,
           // and the command checks again as it runs.
@@ -76,6 +87,7 @@ export function useBulkActions(context: {
     const parts = outcome.done.length ? [doneText] : [];
     for (const { guide, name } of outcome.editing)
       parts.push(t("library.bulk.editing", { title: guide.title, name }));
+    if (outcome.locked.length) parts.push(t("locks.bulkLocked", { count: outcome.locked.length }));
     for (const { guide, problem } of outcome.failed)
       parts.push(
         t("library.bulk.failed", {
@@ -112,6 +124,28 @@ export function useBulkActions(context: {
 
   const nameOf = (id: string) => libraries.find((item) => item.id === id)?.name ?? "";
 
+  /** The locked guides a batch left, each done once its password is given. */
+  const offerLocked = async (
+    from: string,
+    locked: LibraryGuideSummary[],
+    body: string,
+    act: (guide: LibraryGuideSummary) => Promise<unknown>,
+  ) => {
+    await showLockedList(
+      locked.flatMap((guide) =>
+        guide.locked
+          ? [{ libraryId: from, guideId: guide.id, title: guide.title, locked: guide.locked }]
+          : [],
+      ),
+      body,
+      async (target) => {
+        const guide = locked.find((item) => item.id === target.guideId);
+        if (guide) await act(guide);
+      },
+    );
+    await refreshGuides(from);
+  };
+
   /** Puts a guide made by a batch in the Bin and deletes it for good: Undo of a copy. */
   const unmake = async (where: string, guideId: string) => {
     if (!library) return;
@@ -123,23 +157,30 @@ export function useBulkActions(context: {
     if (!library || !libraryId) return;
     const from = libraryId;
     setBusy(true);
+    let outcome: Outcome<LibraryGuideSummary> | null = null;
     try {
-      const outcome = await each(from, guides, true, (guide) =>
-        moveGuide(library, from, guide.id, to),
-      );
+      outcome = await each(from, guides, true, (guide) => moveGuide(library, from, guide.id, to));
+      const moved = outcome;
       await refreshGuides(from);
       report(
-        outcome,
-        t("library.bulk.moved", { count: outcome.done.length, name: nameOf(to) }),
+        moved,
+        t("library.bulk.moved", { count: moved.done.length, name: nameOf(to) }),
         async () => {
           // Each guide moves back where it was.
-          for (const { result } of outcome.done) await moveGuide(library, to, result.id, from);
+          for (const { result } of moved.done) await moveGuide(library, to, result.id, from);
           await refreshGuides(from);
         },
       );
     } finally {
       setBusy(false);
     }
+    if (outcome?.locked.length)
+      await offerLocked(
+        from,
+        outcome.locked,
+        t("locks.listBodyMove", { name: nameOf(to) }),
+        (guide) => moveGuide(library, from, guide.id, to),
+      );
   };
 
   const copy = async (guides: LibraryGuideSummary[], to: string) => {
@@ -166,9 +207,21 @@ export function useBulkActions(context: {
   const trash = async (guides: LibraryGuideSummary[]) => {
     if (!library || !libraryId) return;
     const from = libraryId;
+    // Several at once: the number is typed to confirm (04/10/2026).
+    if (
+      guides.length > 1 &&
+      !(await askCount(
+        t("locks.binTitle", { count: guides.length }),
+        guides.length,
+        t("library.toTrash"),
+      ))
+    )
+      return;
     setBusy(true);
+    let left: LibraryGuideSummary[] = [];
     try {
       const outcome = await each(from, guides, true, (guide) => library.trashGuide(from, guide.id));
+      left = outcome.locked;
       await refreshGuides(from);
       report(outcome, t("library.bulk.trashed", { count: outcome.done.length }), async () => {
         for (const { result } of outcome.done) await library.restoreGuide(from, result.trashId);
@@ -177,6 +230,9 @@ export function useBulkActions(context: {
     } finally {
       setBusy(false);
     }
+    await offerLocked(from, left, t("locks.listBodyBin"), (guide) =>
+      library.trashGuide(from, guide.id),
+    );
   };
 
   /**
@@ -215,7 +271,7 @@ export function useBulkActions(context: {
         .catch(() => undefined);
 
       const binned: { libraryId: string; entry: TrashEntry }[] = [];
-      const left: Outcome<TrashEntry> = { done: [], editing: [], failed: [] };
+      const left: Outcome<TrashEntry> = { done: [], editing: [], locked: [], failed: [] };
       if (request.binOriginals)
         for (const part of request.parts) {
           const outcome = await each(part.libraryId, [part.guide], true, (guide) =>
@@ -224,6 +280,7 @@ export function useBulkActions(context: {
           for (const { result } of outcome.done)
             binned.push({ libraryId: part.libraryId, entry: result });
           left.editing.push(...outcome.editing);
+          left.locked.push(...outcome.locked);
           left.failed.push(...outcome.failed);
         }
       await refreshGuides(libraryId);
@@ -232,6 +289,8 @@ export function useBulkActions(context: {
       if (binned.length) message.push(t("merge.binned", { count: binned.length }));
       for (const { guide, name } of left.editing)
         message.push(t("library.bulk.editing", { title: guide.title, name }));
+      // A locked original stays as it is: merging only reads it.
+      for (const guide of left.locked) message.push(t("locks.mergeKept", { title: guide.title }));
       for (const { guide, problem } of left.failed)
         message.push(
           t("library.bulk.failed", {

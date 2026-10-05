@@ -225,11 +225,13 @@ export const desktopRecorder: RecorderBridge = {
   saveManagedBrand: async (profile) => {
     await invoke("brands_save_managed", { profile });
   },
+  managedBrandIds: () => invoke<string[]>("brands_managed_ids"),
   deleteBrand: async (id) => {
     await invoke("brands_delete", { id });
   },
   getPolicy: () => invoke<Policy>("policy_get"),
   identityNames: () => invoke<string[]>("identity_names"),
+  machineIdentity: () => invoke<{ pc: string; login: string }>("identity_machine"),
   writeExport: (path, bytes) =>
     // The raw bytes are the request body; the destination travels base64-encoded in headers.
     invoke<string>("export_write_file", bytes, { headers: { "x-path": header(path) } }),

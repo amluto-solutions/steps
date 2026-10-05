@@ -91,8 +91,12 @@ interface LibrarySchema extends DBSchema {
   comments: { key: [string, string]; value: StoredComment; indexes: { guide: string } };
   burned: { key: string; value: StoredBurn };
   trash: { key: string; value: StoredTrash };
-  /** `revision`: raised by every change, for the live refresh. */
-  meta: { key: string; value: number };
+  /**
+   * `revision`: raised by every change, for the live refresh. `lock:<guideId>` and
+   * `history:<guideId>`: a guide's password lock and history (04/10/2026), kept out of the guide's
+   * own record so nothing that copies a guide can take them along.
+   */
+  meta: { key: string; value: number | Json };
 }
 
 export type LibraryDb = IDBPDatabase<LibrarySchema>;

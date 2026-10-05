@@ -42,6 +42,8 @@ interface Stored {
   last: { tabId: number; at: number; image: string; width: number; height: number } | null;
   /** The site each tab was last seen on, so only a change of site is a step. */
   origins: Record<string, string>;
+  /** When each tab last had a click or typing on its page (Firefox's guess at a followed link). */
+  acted?: Record<string, number>;
   /** Sites never recorded: the person's and the organisation's (`siteName` host names). */
   excluded: string[];
   /** The organisation's extra field-name words whose values are never read. */
@@ -70,6 +72,14 @@ const IDLE: Stored = {
   excluded: [],
   sensitive: [],
 };
+
+/**
+ * How a tab's address changed (04/10/2026: a "Go to" step only for an address typed or picked in
+ * the address bar). Chrome and Edge say so (`webNavigation`); Firefox's build can't ask, so there
+ * a change within `FOLLOWED_MS` of a click or typing on the page counts as following it.
+ */
+export type NavigationCause = "addressBar" | "page" | "unknown";
+export const FOLLOWED_MS = 5_000;
 
 /** Chrome takes at most two screenshots a second (MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND). */
 export const CAPTURE_GAP_MS = 500;
@@ -346,7 +356,7 @@ export function createEngine(deps: EngineDeps) {
           };
         }
         await record(
-          { ...value, last: shot },
+          { ...value, last: shot, acted: { ...value.acted, [String(facts.tabId)]: now } },
           {
             kind: "pageClick",
             id: value.sequence + 1,
@@ -385,7 +395,7 @@ export function createEngine(deps: EngineDeps) {
             ));
         const withheld = secret ? "sensitive" : value.keys ? null : "off";
         await record(
-          value,
+          { ...value, acted: { ...value.acted, [String(facts.tabId)]: deps.now() } },
           {
             kind: "pageInput",
             tickMs: deps.now(),
@@ -398,8 +408,12 @@ export function createEngine(deps: EngineDeps) {
         );
       }),
 
-    /** A tab's address changed: a step when it's a different site. */
-    navigated: (facts: PageFacts) =>
+    /**
+     * A tab's address changed: a step when it's a different site the person typed or picked in
+     * the address bar. A link, a redirect or back and forward is left to the clicks; the site is
+     * still noted, so going there again later isn't taken for a change.
+     */
+    navigated: (facts: PageFacts, cause: NavigationCause = "unknown") =>
       serial(async () => {
         const value = await current();
         const origin = originOf(facts.url);
@@ -407,8 +421,17 @@ export function createEngine(deps: EngineDeps) {
         if (siteExcluded(facts.url, value.excluded)) return;
         const key = String(facts.tabId);
         if (value.origins[key] === origin) return;
+        const next = { ...value, origins: { ...value.origins, [key]: origin } };
+        const acted = value.acted?.[key];
+        const followed =
+          cause === "page" ||
+          (cause === "unknown" && acted !== undefined && deps.now() - acted < FOLLOWED_MS);
+        if (followed) {
+          await commit(next);
+          return;
+        }
         await record(
-          { ...value, origins: { ...value.origins, [key]: origin } },
+          next,
           { kind: "pageNavigation", tickMs: deps.now(), page: page(facts), origin },
           true,
         );

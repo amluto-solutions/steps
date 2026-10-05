@@ -14,6 +14,7 @@ import {
   type MissingText,
 } from "@amluto-steps/core";
 
+import { Spinner } from "../components/Spinner";
 import { DateField } from "../components/DateField";
 import { Icon, type IconName } from "../components/icons";
 import { useLatest } from "../useLatest";
@@ -30,6 +31,7 @@ import {
   moveStep,
   removeStepOutput,
   removeTypedValue,
+  setTypedValue,
   setAllValues,
   rebuildsWording,
   setShowValue,
@@ -50,6 +52,7 @@ import { SuggestedBlurs } from "./SuggestedBlurs";
 import { StepRail, type Selection } from "./StepRail";
 import { applySuggestions, tidySuggestions, type TidySuggestion } from "./tidy";
 import { AltTextField } from "./AltTextField";
+import { TypedValueField } from "./TypedValueField";
 import {
   changeLanguageAndTone,
   setAltTextIn,
@@ -812,7 +815,9 @@ export function GuideEditor(props: GuideEditorProps) {
             </ModalDialog>
           </div>
         )}
-        <header className="relative z-10 flex h-[60px] shrink-0 items-center gap-2.5 border-b border-panel bg-background pr-4 pl-3">
+        {/* In a narrow window the buttons move to a second row together, at the right, rather than
+            off the edge with Save (04/10/2026). */}
+        <header className="relative z-10 flex min-h-[60px] shrink-0 flex-wrap items-center gap-x-2.5 gap-y-2 border-b border-panel bg-background py-2.5 pr-4 pl-3">
           <button type="button" className="btn pl-2" onClick={props.onBack}>
             <Icon name="back" size={16} strokeWidth={2.4} />
             {t("nav.guides")}
@@ -844,166 +849,169 @@ export function GuideEditor(props: GuideEditorProps) {
               className="h-10 min-w-0 flex-1 rounded-lg border border-transparent bg-transparent px-2 font-heading text-[19px] font-bold text-navy hover:border-panel focus:border-line"
             />
           </label>
-          <span
-            role="status"
-            className={`rounded-full px-2.5 py-1 text-xs font-bold whitespace-nowrap ${props.mode === "draft" || editor.saveState === "error" ? "bg-warning-soft text-warning" : "text-secondary max-2xl:sr-only"}`}
-          >
-            {saveLabel}
-          </span>
-          <label className="flex items-center gap-1.5 text-xs text-secondary">
-            {/* Longer languages (German, Finnish) need the room for the title below 1536 px. */}
-            <span className="max-2xl:sr-only">{t("editor.languages.showing")}</span>
-            <select
-              className="field h-8 max-w-48 text-sm"
-              value={language}
-              onChange={(event) => {
-                const next = event.currentTarget.value;
-                setShowingChoice(next === main ? null : next);
-              }}
+          <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2.5">
+            <span
+              role="status"
+              className={`rounded-full px-2.5 py-1 text-xs font-bold whitespace-nowrap ${props.mode === "draft" || editor.saveState === "error" ? "bg-warning-soft text-warning" : "text-secondary max-2xl:sr-only"}`}
             >
-              <option value={main} lang={main}>
-                {t("editor.languages.mainOption", { name: languageName(main) })}
-              </option>
-              {LANGUAGES.filter((item) => item.code !== main).map((item) => (
-                <option key={item.code} value={item.code} lang={item.code}>
-                  {item.name}
+              {saveLabel}
+            </span>
+            <label className="flex items-center gap-1.5 text-xs text-secondary">
+              {/* Longer languages (German, Finnish) need the room for the title below 1536 px. */}
+              <span className="max-2xl:sr-only">{t("editor.languages.showing")}</span>
+              <select
+                className="field h-8 max-w-48 text-sm"
+                value={language}
+                onChange={(event) => {
+                  const next = event.currentTarget.value;
+                  setShowingChoice(next === main ? null : next);
+                }}
+              >
+                <option value={main} lang={main}>
+                  {t("editor.languages.mainOption", { name: languageName(main) })}
                 </option>
-              ))}
-            </select>
-          </label>
-          {shown.missing.length > 0 && (
-            <button
-              type="button"
-              className="chip h-8 shrink-0 gap-1 bg-warning-soft text-warning"
-              title={t("editor.languages.nextMissing", { name: languageName(language) })}
-              onClick={() => {
-                // The next text not written yet after what's selected, round to the first.
-                const order = (item: MissingText) =>
-                  item.stepId === null
-                    ? item.field === "intro"
-                      ? -2
-                      : item.field === "outro"
-                        ? doc.steps.length
-                        : -3
-                    : doc.steps.findIndex((step) => step.id === item.stepId);
-                const here =
-                  selection.kind === "step"
-                    ? selectedIndex
-                    : selection.kind === "details"
-                      ? -3
-                      : selection.kind === "intro"
+                {LANGUAGES.filter((item) => item.code !== main).map((item) => (
+                  <option key={item.code} value={item.code} lang={item.code}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {shown.missing.length > 0 && (
+              <button
+                type="button"
+                className="chip h-8 shrink-0 gap-1 bg-warning-soft text-warning"
+                title={t("editor.languages.nextMissing", { name: languageName(language) })}
+                onClick={() => {
+                  // The next text not written yet after what's selected, round to the first.
+                  const order = (item: MissingText) =>
+                    item.stepId === null
+                      ? item.field === "intro"
                         ? -2
-                        : doc.steps.length;
-                const next = shown.missing.find((item) => order(item) > here) ?? shown.missing[0];
-                if (!next) return;
-                setSelection(
-                  next.stepId !== null
-                    ? { kind: "step", id: next.stepId }
-                    : next.field === "intro"
-                      ? { kind: "intro" }
-                      : next.field === "outro"
-                        ? { kind: "outro" }
-                        : { kind: "details" },
-                );
-              }}
-            >
-              {t("editor.languages.missing", {
-                count: shown.missing.length,
-                name: languageName(language),
+                        : item.field === "outro"
+                          ? doc.steps.length
+                          : -3
+                      : doc.steps.findIndex((step) => step.id === item.stepId);
+                  const here =
+                    selection.kind === "step"
+                      ? selectedIndex
+                      : selection.kind === "details"
+                        ? -3
+                        : selection.kind === "intro"
+                          ? -2
+                          : doc.steps.length;
+                  const next = shown.missing.find((item) => order(item) > here) ?? shown.missing[0];
+                  if (!next) return;
+                  setSelection(
+                    next.stepId !== null
+                      ? { kind: "step", id: next.stepId }
+                      : next.field === "intro"
+                        ? { kind: "intro" }
+                        : next.field === "outro"
+                          ? { kind: "outro" }
+                          : { kind: "details" },
+                  );
+                }}
+              >
+                {t("editor.languages.missing", {
+                  count: shown.missing.length,
+                  name: languageName(language),
+                })}
+              </button>
+            )}
+            {props.headerActions}
+            <Menu
+              label={t("editor.guideMenu")}
+              entries={guideMenu}
+              trigger={(trigger) => (
+                <button
+                  type="button"
+                  {...trigger}
+                  className="icon-btn"
+                  aria-label={t("editor.guideMenu")}
+                >
+                  <Icon name="more" size={20} strokeWidth={3} />
+                </button>
+              )}
+            />
+            {readText && (
+              <button
+                type="button"
+                className="btn"
+                disabled={blurring !== null}
+                title={t("suggest.blurAllHelp")}
+                onClick={() => void blurAll()}
+              >
+                <Icon name="blur" size={16} />
+                {blurring ? (
+                  t("suggest.blurAllWorking", { done: blurring.done, total: blurring.total })
+                ) : (
+                  <span className="max-lg:sr-only">{t("suggest.blurAllGuide")}</span>
+                )}
+              </button>
+            )}
+            {props.mode === "draft" && props.onDiscard && (
+              <button type="button" className="btn" disabled={props.busy} onClick={props.onDiscard}>
+                {t("editor.discard")}
+              </button>
+            )}
+            <Menu
+              label={t("export.menu")}
+              entries={props.exportMenu(doc, editor.flush, {
+                apply: editor.apply,
+                undo: editor.undo,
+                redo: editor.redo,
+                showStep: (id) => setSelection({ kind: "step", id }),
               })}
-            </button>
-          )}
-          {props.headerActions}
-          <Menu
-            label={t("editor.guideMenu")}
-            entries={guideMenu}
-            trigger={(trigger) => (
-              <button
-                type="button"
-                {...trigger}
-                className="icon-btn"
-                aria-label={t("editor.guideMenu")}
-              >
-                <Icon name="more" size={20} strokeWidth={3} />
-              </button>
-            )}
-          />
-          {readText && (
-            <button
-              type="button"
-              className="btn"
-              disabled={blurring !== null}
-              title={t("suggest.blurAllHelp")}
-              onClick={() => void blurAll()}
-            >
-              <Icon name="blur" size={16} />
-              {blurring ? (
-                t("suggest.blurAllWorking", { done: blurring.done, total: blurring.total })
-              ) : (
-                <span className="max-lg:sr-only">{t("suggest.blurAllGuide")}</span>
+              width={300}
+              trigger={(trigger) => (
+                <button type="button" {...trigger} className="btn btn-dark">
+                  <Icon name="download" size={17} />
+                  <span className="max-lg:sr-only">{t("export.button")}</span>
+                  <Icon name="chevronDown" size={14} strokeWidth={2.4} />
+                </button>
               )}
-            </button>
-          )}
-          {props.mode === "draft" && props.onDiscard && (
-            <button type="button" className="btn" disabled={props.busy} onClick={props.onDiscard}>
-              {t("editor.discard")}
-            </button>
-          )}
-          <Menu
-            label={t("export.menu")}
-            entries={props.exportMenu(doc, editor.flush, {
-              apply: editor.apply,
-              undo: editor.undo,
-              redo: editor.redo,
-              showStep: (id) => setSelection({ kind: "step", id }),
-            })}
-            width={300}
-            trigger={(trigger) => (
-              <button type="button" {...trigger} className="btn btn-dark">
-                <Icon name="download" size={17} />
-                <span className="max-lg:sr-only">{t("export.button")}</span>
-                <Icon name="chevronDown" size={14} strokeWidth={2.4} />
-              </button>
+            />
+            {props.mode === "draft" && props.onSave && (
+              <div className="flex">
+                <button
+                  type="button"
+                  className={`btn btn-primary ${saveAs ? "rounded-r-none" : ""}`}
+                  disabled={props.busy}
+                  onClick={() => props.onSave?.(editor.flush, doc)}
+                >
+                  {props.busy && <Spinner />}
+                  {t("editor.save")}
+                </button>
+                {saveAs && (
+                  <Menu
+                    label={t("editor.saveTo")}
+                    entries={[
+                      { heading: t("editor.saveTo") },
+                      ...saveAs.targets.map((target) => ({
+                        label: target.name,
+                        icon: "folder" as const,
+                        ...(target.isDefault ? { note: t("editor.defaultLibrary") } : {}),
+                        onSelect: () => saveAs.onSaveTo(editor.flush, doc, target.id),
+                      })),
+                    ]}
+                    width={280}
+                    trigger={(trigger) => (
+                      <button
+                        type="button"
+                        {...trigger}
+                        className="btn btn-primary rounded-l-none border-l border-l-white/40 px-2"
+                        disabled={props.busy}
+                        aria-label={t("editor.saveAs")}
+                      >
+                        <Icon name="chevronDown" size={14} strokeWidth={2.4} />
+                      </button>
+                    )}
+                  />
+                )}
+              </div>
             )}
-          />
-          {props.mode === "draft" && props.onSave && (
-            <div className="flex">
-              <button
-                type="button"
-                className={`btn btn-primary ${saveAs ? "rounded-r-none" : ""}`}
-                disabled={props.busy}
-                onClick={() => props.onSave?.(editor.flush, doc)}
-              >
-                {t("editor.save")}
-              </button>
-              {saveAs && (
-                <Menu
-                  label={t("editor.saveTo")}
-                  entries={[
-                    { heading: t("editor.saveTo") },
-                    ...saveAs.targets.map((target) => ({
-                      label: target.name,
-                      icon: "folder" as const,
-                      ...(target.isDefault ? { note: t("editor.defaultLibrary") } : {}),
-                      onSelect: () => saveAs.onSaveTo(editor.flush, doc, target.id),
-                    })),
-                  ]}
-                  width={280}
-                  trigger={(trigger) => (
-                    <button
-                      type="button"
-                      {...trigger}
-                      className="btn btn-primary rounded-l-none border-l border-l-white/40 px-2"
-                      disabled={props.busy}
-                      aria-label={t("editor.saveAs")}
-                    >
-                      <Icon name="chevronDown" size={14} strokeWidth={2.4} />
-                    </button>
-                  )}
-                />
-              )}
-            </div>
-          )}
+          </div>
         </header>
 
         <div className="relative flex min-h-0 flex-1">
@@ -1222,70 +1230,81 @@ export function GuideEditor(props: GuideEditorProps) {
                 {notWritten(selected.id, "actionText") && (
                   <NotWrittenYet language={language} main={main} />
                 )}
-                {selected.textParts.value !== undefined && (
+                {selected.action === "input" && (
                   <div className="flex flex-wrap items-center gap-3 rounded-lg bg-subtle px-3 py-2 text-sm">
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={selected.showValue}
-                        onChange={async (event) => {
-                          const show = event.currentTarget.checked;
-                          // Hiding never asks: the value comes out of hand-edited wording too.
-                          if (!show) {
+                    <TypedValueField
+                      key={selected.id}
+                      value={selected.textParts.value ?? ""}
+                      onChange={(value) =>
+                        apply((current, stamp) => setTypedValue(current, selected.id, value, stamp))
+                      }
+                    />
+                    {selected.textParts.value !== undefined && (
+                      <>
+                        <label className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={selected.showValue}
+                            onChange={async (event) => {
+                              const show = event.currentTarget.checked;
+                              // Hiding never asks: the value comes out of hand-edited wording too.
+                              if (!show) {
+                                const inWording = selected.textEdited && typedValueInText(selected);
+                                // Wording written by hand that the value can't be found in may still
+                                // hold it in another form: offer the standard wording (F028).
+                                const standard =
+                                  selected.textEdited && !inWording
+                                    ? await askConfirm(
+                                        t("editor.valueNotFoundTitle"),
+                                        t("editor.valueNotFound", {
+                                          value: selected.textParts.value ?? "",
+                                        }),
+                                        t("editor.useStandardWording"),
+                                      )
+                                    : false;
+                                const edit = apply((current, stamp) =>
+                                  setShowValue(current, selected.id, false, stamp, standard),
+                                );
+                                if (edit && inWording)
+                                  props.notify({
+                                    text: t("editor.valueTakenOut"),
+                                    action: { label: t("common.undo"), run: () => editor.undo() },
+                                  });
+                                return;
+                              }
+                              const rebuild = await rebuildsWording(selected, show, () =>
+                                askConfirm(
+                                  t("editor.replaceEditedTitle"),
+                                  t("editor.replaceEditedText"),
+                                  t("editor.replaceEditedYes"),
+                                ),
+                              );
+                              apply((current, stamp) =>
+                                setShowValue(current, selected.id, show, stamp, rebuild),
+                              );
+                            }}
+                          />
+                          {t("editor.showValue")}
+                        </label>
+                        <button
+                          type="button"
+                          className="text-link underline"
+                          onClick={() => {
                             const inWording = selected.textEdited && typedValueInText(selected);
-                            // Wording written by hand that the value can't be found in may still
-                            // hold it in another form: offer the standard wording (F028).
-                            const standard =
-                              selected.textEdited && !inWording
-                                ? await askConfirm(
-                                    t("editor.valueNotFoundTitle"),
-                                    t("editor.valueNotFound", {
-                                      value: selected.textParts.value ?? "",
-                                    }),
-                                    t("editor.useStandardWording"),
-                                  )
-                                : false;
                             const edit = apply((current, stamp) =>
-                              setShowValue(current, selected.id, false, stamp, standard),
+                              removeTypedValue(current, selected.id, stamp),
                             );
                             if (edit && inWording)
                               props.notify({
                                 text: t("editor.valueTakenOut"),
                                 action: { label: t("common.undo"), run: () => editor.undo() },
                               });
-                            return;
-                          }
-                          const rebuild = await rebuildsWording(selected, show, () =>
-                            askConfirm(
-                              t("editor.replaceEditedTitle"),
-                              t("editor.replaceEditedText"),
-                              t("editor.replaceEditedYes"),
-                            ),
-                          );
-                          apply((current, stamp) =>
-                            setShowValue(current, selected.id, show, stamp, rebuild),
-                          );
-                        }}
-                      />
-                      {t("editor.showValue")}
-                    </label>
-                    <button
-                      type="button"
-                      className="text-link underline"
-                      onClick={() => {
-                        const inWording = selected.textEdited && typedValueInText(selected);
-                        const edit = apply((current, stamp) =>
-                          removeTypedValue(current, selected.id, stamp),
-                        );
-                        if (edit && inWording)
-                          props.notify({
-                            text: t("editor.valueTakenOut"),
-                            action: { label: t("common.undo"), run: () => editor.undo() },
-                          });
-                      }}
-                    >
-                      {t("editor.removeValue")}
-                    </button>
+                          }}
+                        >
+                          {t("editor.removeValue")}
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
                 {selected.code && (
@@ -1335,7 +1354,7 @@ export function GuideEditor(props: GuideEditorProps) {
                     {t("editor.addNote")}
                   </button>
                 )}
-                <div className="card flex min-h-[320px] flex-1 flex-col overflow-hidden">
+                <div className="card flex min-h-[320px] flex-auto shrink-0 flex-col overflow-hidden">
                   <div
                     role="toolbar"
                     aria-label={t("editor.imageTools")}
@@ -1506,7 +1525,10 @@ export function GuideEditor(props: GuideEditorProps) {
                       <span className="flex-1">{t("editor.sharedLibraryBlur")}</span>
                     </p>
                   )}
-                  <div className="flex min-h-0 flex-1 bg-subtle p-3">
+                  {/* Never squeezed by a long list of suggestions above it: the step's pane scrolls
+                      instead, so the screenshot keeps its size (04/10/2026: with 15 suggestions it
+                      shrank to a strip). */}
+                  <div className="flex min-h-[50vh] flex-1 bg-subtle p-3">
                     <ImageEditor
                       key={selected.id}
                       step={selected}

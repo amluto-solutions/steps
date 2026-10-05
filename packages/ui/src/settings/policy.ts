@@ -52,6 +52,12 @@ export interface Policy {
   languageTone: Tone | null;
   /** How much blur suggestions look for, set by IT; null: the person's choice. */
   blurStrength: BlurStrength | null;
+  /** Lock… is hidden; guides already locked stay locked (04/10/2026). */
+  disableGuideLocks: boolean;
+  /** A hash (`pbkdf2-sha256$…`) of a password that unlocks any locked guide; null: none. */
+  guideLockRecoveryPassword: string | null;
+  /** Guides record this PC's name and login: IT's choice; null: the person's. */
+  recordPcAndLogin: boolean | null;
 }
 
 export const NO_POLICY: Policy = {
@@ -73,6 +79,9 @@ export const NO_POLICY: Policy = {
   language: null,
   languageTone: null,
   blurStrength: null,
+  disableGuideLocks: false,
+  guideLockRecoveryPassword: null,
+  recordPcAndLogin: null,
 };
 
 const LOCKABLE: readonly LockableSetting[] = [
@@ -136,6 +145,9 @@ const policySchema = z
       .nullable()
       .catch(null)
       .transform((strength) => (isBlurStrength(strength) ? strength : null)),
+    disableGuideLocks: z.boolean().catch(false),
+    guideLockRecoveryPassword: z.string().max(400).nullable().catch(null),
+    recordPcAndLogin: z.boolean().nullable().catch(null),
   })
   .strip();
 
@@ -174,4 +186,7 @@ export const isManaged = () =>
   current.showUnnamedTyping !== null ||
   current.language !== null ||
   current.languageTone !== null ||
-  current.blurStrength !== null;
+  current.blurStrength !== null ||
+  current.disableGuideLocks ||
+  current.guideLockRecoveryPassword !== null ||
+  current.recordPcAndLogin !== null;

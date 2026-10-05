@@ -14,6 +14,36 @@ pub fn identity_names() -> Vec<String> {
     names
 }
 
+/// This PC's name and the Windows (or Linux) login, recorded with a guide's saves and lock when
+/// Settings > Privacy allows (docs/spec/03-data-and-sharing.md#password-locks, 04/10/2026).
+#[derive(serde::Serialize)]
+pub struct Machine {
+    pc: String,
+    login: String,
+}
+
+#[tauri::command]
+pub fn identity_machine() -> Machine {
+    let variable = |name: &str| std::env::var(name).unwrap_or_default().trim().to_string();
+    let pc = if cfg!(windows) {
+        variable("COMPUTERNAME")
+    } else {
+        std::fs::read_to_string("/etc/hostname")
+            .map_or_else(|_| variable("HOSTNAME"), |name| name.trim().to_string())
+    };
+    let login = if cfg!(windows) {
+        variable("USERNAME")
+    } else {
+        variable("USER")
+    };
+    // Kept short: they go into shared guide files.
+    let short = |text: String| text.chars().take(100).collect::<String>();
+    Machine {
+        pc: short(pc),
+        login: short(login),
+    }
+}
+
 #[cfg(windows)]
 fn platform_names() -> Vec<String> {
     use winreg::RegKey;

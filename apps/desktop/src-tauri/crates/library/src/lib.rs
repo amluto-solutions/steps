@@ -16,6 +16,7 @@ mod error;
 mod guides;
 mod locks;
 mod media;
+mod meta;
 mod redact;
 mod registry;
 mod schema;
@@ -37,6 +38,7 @@ pub use media::{
     MAX_EDGE, MAX_IMPORT_BYTES, MAX_PIXELS, MediaInfo, ScreenshotQuality, THUMBNAIL_EDGE,
     screenshot_webp,
 };
+pub use meta::{GuideMeta, GuideStats, LockedBy};
 pub use registry::{
     FIRST_LIBRARY_NAME, LibraryEntry, REGISTRY_FILE, Registry, prepare_library_folder,
 };

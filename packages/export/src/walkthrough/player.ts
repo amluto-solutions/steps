@@ -23,6 +23,8 @@ export interface PlayerItem {
   type?: string;
   /** What to animate for this kind of step: typed text, key caps, a web address or an app. */
   motion?: StepMotion | null;
+  /** A typing step's field on the screenshot (percentages of the image), typed into live. */
+  field?: { shape: "circle" | "box"; x: number; y: number; w: number; h: number };
   heading?: string;
   /** A coloured-box block's kind, for its colours. */
   callout?: string;
@@ -138,6 +140,8 @@ export function playerMain(): void {
   let timer: number | undefined;
   let lastClick: { x: number; y: number } | null = null;
   let typing: number | undefined;
+  /** Whether this step's typing is shown on the screenshot, so the card needn't type it too. */
+  let typedOnScreen = false;
 
   const el = <K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string) => {
     const node = document.createElement(tag);
@@ -353,6 +357,7 @@ export function playerMain(): void {
     const sourceImage = source?.querySelector<HTMLImageElement>("img.wt-shot");
     root?.classList.toggle("wt-no-image", !sourceImage);
     marks.replaceChildren();
+    typedOnScreen = false;
     if (!item || !sourceImage) {
       cursor.classList.remove("wt-visible");
       lastClick = null;
@@ -381,6 +386,7 @@ export function playerMain(): void {
       marks.append(overlay);
       replay(overlay, "wt-draw");
     }
+    typedOnScreen = typeInto(item, view);
     // The cursor goes where the click shows once the camera has arrived.
     const click =
       item.click && view
@@ -452,7 +458,8 @@ export function playerMain(): void {
         el("h2", "wt-step-text", item.text ?? ""),
       );
       card.append(top);
-      if (item.motion) card.append(motionFor(item.motion));
+      if (item.motion && !(item.motion.type === "typed" && typedOnScreen))
+        card.append(motionFor(item.motion));
       const code = cloneOf(".wt-code", staticItem(item.index));
       if (code) card.append(code);
       const output = cloneOf(".wt-output", staticItem(item.index));
@@ -461,6 +468,66 @@ export function playerMain(): void {
       if (notes) card.append(notes);
     }
     replay(card, "wt-enter");
+  }
+
+  /**
+   * A typing step with its field highlighted: the text is typed into the field on the screenshot,
+   * letter by letter, as the person did. A boxed field of a line or so is typed in place; a
+   * taller area (a document, a big box) gets a small card at its top-left corner; a ringed click
+   * (whose ring shows where, not the field's size) gets a card starting where it was clicked. It
+   * sits in the camera, so it moves with the picture; its size is divided by the camera's zoom to
+   * stay readable.
+   */
+  function typeInto(item: PlayerItem, view: PlayerItem["camera"]): boolean {
+    const field = item.field;
+    if (item.motion?.type !== "typed" || !field || item.width <= 0) return false;
+    const value = item.motion.value;
+    const zoom = view ? 100 / view.w : 1;
+    // The field's height on screen, as a percentage of the frame's width (its `cqw`).
+    const tall = ((field.h * item.height) / item.width) * zoom;
+    const ring = field.shape === "circle";
+    const inField = !ring && tall <= 6 && !value.includes("\n");
+    const box = el(
+      "div",
+      `wt-typing ${inField ? "wt-typing-field" : "wt-typing-card"}${ring ? " wt-typing-at" : ""}`,
+    );
+    box.setAttribute("aria-hidden", "true");
+    // Beside a ring, not under it, so the ring and the pointer don't cover the first letters.
+    box.style.left = `${ring ? field.x + field.w : field.x}%`;
+    box.style.top = `${ring ? field.y + field.h / 2 : field.y}%`;
+    if (ring) {
+      box.style.maxWidth = `${Math.max(100 - field.x - field.w - 2, 20)}%`;
+      box.style.fontSize = `calc(clamp(11px, 1.4cqw, 16px) / ${zoom})`;
+    } else if (inField) {
+      box.style.width = `${field.w}%`;
+      box.style.height = `${field.h}%`;
+      box.style.fontSize = `calc(clamp(10px, ${(tall * 0.5).toFixed(2)}cqw, 18px) / ${zoom})`;
+    } else {
+      box.style.maxWidth = `${Math.max(field.w, 30)}%`;
+      box.style.fontSize = `calc(clamp(11px, 1.4cqw, 16px) / ${zoom})`;
+    }
+    const text = el("span", "wt-typed");
+    box.append(text, el("span", "wt-caret"));
+    // Under the highlight, so its outline still shows round the field.
+    marks.prepend(box);
+    if (reduce) {
+      text.textContent = value;
+      return true;
+    }
+    const letters = [...value];
+    const step = Math.min(45, 1200 / Math.max(1, letters.length));
+    let shown = 0;
+    const next = () => {
+      shown += 1;
+      text.textContent = letters.slice(0, shown).join("");
+      // The newest letters stay in view, as in a real box.
+      box.scrollLeft = box.scrollWidth;
+      box.scrollTop = box.scrollHeight;
+      if (shown < letters.length) typing = window.setTimeout(next, step);
+    };
+    // After the highlight is drawn, and after the camera has arrived when there is one.
+    typing = window.setTimeout(next, view ? 900 : 600);
+    return true;
   }
 
   /** Typed text appears letter by letter, key caps pop in one after another, and a web address or

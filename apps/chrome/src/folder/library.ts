@@ -1,4 +1,6 @@
 import type {
+  GuideMetaFiles,
+  GuideStats,
   LibraryGuideSummary,
   MediaInfo,
   RawGuideDocument,
@@ -33,6 +35,7 @@ import {
 } from "../library/search";
 
 import { openCommentCount } from "./comments";
+import { GUIDE_HISTORY_FILE, GUIDE_LOCK_FILE } from "@amluto-steps/core";
 import { withNewerFields } from "./newer-fields";
 import type { Dir } from "./dir";
 import {
@@ -100,7 +103,12 @@ export async function readSteps(folder: Dir | null): Promise<Json[]> {
 async function stampOf(folder: Dir): Promise<string | null> {
   const guide = await folder.stat("guide.json");
   if (!guide) return null;
-  const parts = [`${guide.size}:${guide.modified}`];
+  // Locking or unlocking changes the card.
+  const lock = await folder.stat(GUIDE_LOCK_FILE);
+  const parts = [
+    `${guide.size}:${guide.modified}`,
+    `lock ${lock?.size ?? "-"}:${lock?.modified ?? "-"}`,
+  ];
   for (const sub of ["steps", "comments"]) {
     const dir = await folder.folder(sub);
     parts.push(`/${sub}${dir ? "" : " none"}`);
@@ -113,6 +121,14 @@ async function stampOf(folder: Dir): Promise<string | null> {
     parts.push(...files.sort(byName));
   }
   return parts.join("\n");
+}
+
+/** Who locked a guide and when, from its lock file, for its card. */
+function lockedOf(lock: unknown): { locked?: { by: string; at: string } } {
+  const locked = (lock as { locked?: { by?: unknown; at?: unknown } } | null)?.locked;
+  return typeof locked?.by === "string"
+    ? { locked: { by: locked.by, at: typeof locked.at === "string" ? locked.at : "" } }
+    : {};
 }
 
 /** A per-guide copy, used while the guide's files are unchanged (the desktop's `GuideCache`). */
@@ -288,8 +304,55 @@ export class FolderLibrary {
         reviewBy: typeof guide.reviewBy === "string" ? guide.reviewBy : null,
         thumbnailMediaId: steps.map(stepMediaId).find((id) => id !== null) ?? null,
         openComments: await openCommentCount(folder),
+        ...lockedOf(await tryJson(folder, GUIDE_LOCK_FILE)),
       };
     });
+  }
+
+  // ---------- password lock and history (04/10/2026) ----------
+
+  async guideMeta(guideId: string): Promise<GuideMetaFiles> {
+    const folder = await this.guideDir(guideId);
+    return {
+      lock: (await tryJson(folder, GUIDE_LOCK_FILE)) ?? null,
+      history: (await tryJson(folder, GUIDE_HISTORY_FILE)) ?? null,
+    };
+  }
+
+  async writeGuideLock(guideId: string, lock: unknown): Promise<void> {
+    const folder = await this.guideDir(guideId);
+    if (lock === null) await folder.remove(GUIDE_LOCK_FILE).catch(() => undefined);
+    else {
+      const value = obj(lock);
+      if (typeof value.password !== "string") throw errors.invalid("That isn't a guide lock.");
+      await writeJson(folder, GUIDE_LOCK_FILE, value);
+    }
+    this.summaries.forget(guideId);
+  }
+
+  async writeGuideHistory(guideId: string, history: unknown): Promise<void> {
+    await writeJson(await this.guideDir(guideId), GUIDE_HISTORY_FILE, obj(history));
+  }
+
+  async guideStats(guideId: string): Promise<GuideStats> {
+    const folder = await this.guideDir(guideId);
+    const media = await folder.folder("media");
+    const pictures = media
+      ? (await media.entries()).filter(
+          (entry) => entry.name.endsWith(".webp") && !entry.name.endsWith(".thumb.webp"),
+        ).length
+      : 0;
+    const bytesOf = async (dir: Dir): Promise<number> => {
+      let total = 0;
+      for (const entry of await dir.entries()) {
+        if (entry.kind === "directory") {
+          const child = await dir.folder(entry.name);
+          if (child) total += await bytesOf(child);
+        } else total += (await dir.stat(entry.name))?.size ?? 0;
+      }
+      return total;
+    };
+    return { pictures, bytes: await bytesOf(folder) };
   }
 
   async loadGuide(guideId: string): Promise<RawGuideDocument> {
@@ -400,7 +463,8 @@ export class FolderLibrary {
     try {
       await destination.write(BUILDING, entry.deletedAt);
       await writeJson(destination, "trashed.json", { ...entry, formatVersion: 1 });
-      await copyGuideFolder(folder, destination, [], true);
+      // The Bin takes a password lock off (04/10/2026).
+      await copyGuideFolder(folder, destination, [GUIDE_LOCK_FILE], true);
       await folder.remove("guide.json");
     } catch (error) {
       await trash.remove(trashId, true).catch(() => undefined);
@@ -510,11 +574,17 @@ export class FolderLibrary {
       async (folder) => {
         await copyFiles(await source.folder("steps"), await folder.makeFolder("steps"), [".json"]);
         await copyFiles(await source.folder("media"), await folder.makeFolder("media"), [".webp"]);
-        if (history)
+        if (history) {
           for (const sub of ["versions", "comments"]) {
             const from = await source.folder(sub);
             if (from) await copyTree(from, await folder.makeFolder(sub));
           }
+          // A moved guide keeps its password lock and history; copies leave them behind.
+          for (const name of [GUIDE_LOCK_FILE, GUIDE_HISTORY_FILE]) {
+            const data = await source.read(name);
+            if (data) await folder.write(name, data);
+          }
+        }
       },
       guide,
     );

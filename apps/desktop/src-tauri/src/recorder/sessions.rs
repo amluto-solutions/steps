@@ -348,7 +348,10 @@ impl RecorderService {
         session_id: &str,
     ) -> Result<RecorderSnapshot, CommandError> {
         let mut inner = lock(&self.inner);
-        if lock(&inner.machine).state() != &RecorderState::Idle || inner.session.is_some() {
+        // Only a recording still being made stops another opening. One opened earlier and set
+        // aside (04/10/2026: "A recording is already in progress" for the second of two unsaved
+        // recordings) is let go: it's all on disk, and stays in the list.
+        if lock(&inner.machine).state() != &RecorderState::Idle {
             return Err(CommandError::new(
                 "busy",
                 "Save or discard the current recording before recovering another.",

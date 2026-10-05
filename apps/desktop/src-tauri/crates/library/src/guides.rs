@@ -155,6 +155,10 @@ pub struct GuideSummary {
     pub thumbnail_media_id: Option<String>,
     /// How many review comment threads are open.
     pub open_comments: usize,
+    /// Who locked it with a password, if anyone (04/10/2026). Left out when not locked, as
+    /// Steps for Chrome's list leaves it out.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub locked: Option<crate::meta::LockedBy>,
 }
 
 /// A whole guide: `guide.json` and its steps in order.
@@ -422,6 +426,7 @@ fn read_summary(folder: &Path, guide_id: &str) -> Result<GuideSummary> {
         review_by: text("reviewBy"),
         thumbnail_media_id: steps.iter().find_map(step_media_id).map(str::to_string),
         open_comments: Library::open_comment_count(folder),
+        locked: crate::meta::locked_by(folder),
     })
 }
 
@@ -555,6 +560,9 @@ impl Library {
         }
         let destination = self.trash_dir().join(&trash_id);
         fs::rename(&folder, &destination)?;
+        // Binning a locked guide needs its password, and takes the lock off (04/10/2026): it
+        // comes back from the Bin unlocked.
+        let _ = fs::remove_file(destination.join(crate::meta::LOCK_FILE));
         let entry = TrashEntry {
             trash_id,
             guide_id: guide_id.to_string(),
@@ -744,6 +752,15 @@ impl Library {
             if scope == CopyScope::WithHistory {
                 copy_tree(&source.join("versions"), &staging.join("versions"))?;
                 copy_tree(&source.join("comments"), &staging.join("comments"))?;
+                // A moved guide keeps its password lock and history; copies leave them behind.
+                for name in [crate::meta::LOCK_FILE, crate::meta::HISTORY_FILE] {
+                    match fs::copy(source.join(name), staging.join(name)) {
+                        Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
+                            return Err(error.into());
+                        }
+                        _ => {}
+                    }
+                }
             }
             let destination = target.guides_dir().join(new_id);
             if destination.exists() {

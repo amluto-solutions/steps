@@ -203,9 +203,10 @@ export async function syncPolicyBrands(
     saveBrand: (profile: BrandProfile) => Promise<void>;
   },
   convertSvg?: (svg: string) => Promise<string>,
-): Promise<{ managedIds: string[]; changed: boolean }> {
+): Promise<{ managedIds: string[]; changed: boolean; unread: number }> {
   const managedIds: string[] = [];
   let changed = false;
+  let unread = 0;
   for (const path of paths) {
     try {
       const { profile } = await readAmlbrand(
@@ -220,8 +221,10 @@ export async function syncPolicyBrands(
         changed = true;
       }
     } catch {
-      // Not reachable or not a brand file: skipped, tried again at the next start.
+      // Not reachable (no VPN yet, say) or not a brand file: tried again a few minutes later,
+      // and when the window comes forward (04/10/2026).
+      unread += 1;
     }
   }
-  return { managedIds, changed };
+  return { managedIds, changed, unread };
 }

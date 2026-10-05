@@ -4,7 +4,12 @@ import type { Finding } from "@amluto-steps/core";
 import { Icon } from "../components/icons";
 import { describeFinding, describeFindings } from "./suggestions";
 
-const keyOf = (finding: Finding) => `${finding.kind}:${finding.rect.x}:${finding.rect.y}`;
+// The whole area and the words: two findings starting at the same point used to share a key, and a
+// dismissed one's row stayed on screen with a repeated number (04/10/2026).
+const keyOf = (finding: Finding) => {
+  const { x, y, w, h } = finding.rect;
+  return `${finding.kind}:${x}:${y}:${w}:${h}:${finding.text}`;
+};
 
 /**
  * The possible personal details on the screenshot on screen (docs/spec/04-editor.md#image-tools),

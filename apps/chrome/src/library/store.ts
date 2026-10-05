@@ -122,6 +122,16 @@ const stepMediaId = (step: Json): string | null => {
   return isSafeId(id) ? id : null;
 };
 
+/** Who locked a guide and when, from its lock as stored. */
+function lockedOf(lock: Json | null): { by: string; at: string } | null {
+  const locked = lock?.locked;
+  if (!locked || typeof locked !== "object") return null;
+  const who = locked as Json;
+  return typeof who.by === "string"
+    ? { by: who.by, at: typeof who.at === "string" ? who.at : "" }
+    : null;
+}
+
 function summaryOf(guide: Json, steps: Json[], openComments: number): LibraryGuideSummary {
   const sorted = sortSteps(steps);
   const thumbnail = sorted.map(stepMediaId).find((id) => id !== null) ?? null;
@@ -185,7 +195,8 @@ export function createBrowserLibrary(options: BrowserLibraryOptions): LibraryBri
 
   const bump = async () => {
     const tx = db.transaction("meta", "readwrite");
-    const current = (await tx.store.get("revision")) ?? 0;
+    const stored = await tx.store.get("revision");
+    const current = typeof stored === "number" ? stored : 0;
     await tx.store.put(current + 1, "revision");
     await tx.done;
   };
@@ -205,9 +216,18 @@ export function createBrowserLibrary(options: BrowserLibraryOptions): LibraryBri
       (thread) => thread.resolved === null,
     ).length;
 
+  const lockKey = (guideId: string) => `lock:${guideId}`;
+  const historyKey = (guideId: string) => `history:${guideId}`;
+  const stored = async (key: string) => {
+    const value = await db.get("meta", key);
+    return typeof value === "object" ? value : null;
+  };
+
   const summary = async (guideId: string) => {
     const guide = await requireGuide(guideId);
-    return summaryOf(guide, await stepsOf(guideId), await openComments(guideId));
+    const found = summaryOf(guide, await stepsOf(guideId), await openComments(guideId));
+    const locked = lockedOf(await stored(lockKey(guideId)));
+    return locked ? { ...found, locked } : found;
   };
 
   const library = async (): Promise<LibraryInfo> => ({
@@ -542,6 +562,8 @@ export function createBrowserLibrary(options: BrowserLibraryOptions): LibraryBri
         await tx.objectStore("comments").delete([guideId, comment.id]);
       await tx.objectStore("burned").delete(guideId);
       await tx.done;
+      // The Bin takes a password lock off (04/10/2026); the history stays for a restore.
+      await db.delete("meta", lockKey(guideId));
       await bump();
       return entry;
     },
@@ -805,8 +827,43 @@ export function createBrowserLibrary(options: BrowserLibraryOptions): LibraryBri
         await tx.objectStore("comments").delete([guideId, comment.id]);
       await tx.objectStore("burned").delete(guideId);
       await tx.done;
+      await db.delete("meta", lockKey(guideId));
+      await db.delete("meta", historyKey(guideId));
       await bump();
       return saved;
+    },
+
+    async guideMeta(libraryId, guideId) {
+      checkLibrary(libraryId);
+      await requireGuide(guideId);
+      return { lock: await stored(lockKey(guideId)), history: await stored(historyKey(guideId)) };
+    },
+
+    async writeGuideLock(libraryId, guideId, lock) {
+      checkLibrary(libraryId);
+      await requireGuide(guideId);
+      if (lock === null) await db.delete("meta", lockKey(guideId));
+      else {
+        const value = obj(lock);
+        if (typeof value.password !== "string") throw errors.invalid("That isn't a guide lock.");
+        await db.put("meta", value, lockKey(guideId));
+      }
+      await bump();
+    },
+
+    async writeGuideHistory(libraryId, guideId, history) {
+      checkLibrary(libraryId);
+      await requireGuide(guideId);
+      await db.put("meta", obj(history), historyKey(guideId));
+    },
+
+    async guideStats(libraryId, guideId) {
+      checkLibrary(libraryId);
+      await requireGuide(guideId);
+      return {
+        pictures: await db.countFromIndex("media", "guide", guideId),
+        bytes: (await guideSizes()).get(guideId) ?? 0,
+      };
     },
 
     // One library, so there's no folder to choose.

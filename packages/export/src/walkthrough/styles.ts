@@ -63,7 +63,7 @@ a{color:var(--wt-accent)}
 .wt-no-image .wt-stage{display:none}
 .wt-no-image .wt-card{max-width:680px;justify-self:center;width:100%}
 .wt-stage{display:grid;place-items:center;min-width:0;min-height:0;align-self:stretch;container-type:size;touch-action:pan-y}
-.wt-frame{position:relative;width:min(100%,calc((100dvh - 280px) * var(--wt-ratio,1.6)));width:min(100cqw,calc(100cqh * var(--wt-ratio,1.6)));border-radius:10px;overflow:hidden;box-shadow:0 6px 24px rgba(14,37,66,.14);background:#fff}
+.wt-frame{position:relative;container-type:inline-size;width:min(100%,calc((100dvh - 280px) * var(--wt-ratio,1.6)));width:min(100cqw,calc(100cqh * var(--wt-ratio,1.6)));border-radius:10px;overflow:hidden;box-shadow:0 6px 24px rgba(14,37,66,.14);background:#fff}
 .wt-image{display:block;width:100%;height:100%;object-fit:contain}
 .wt-camera{position:absolute;inset:0;transform-origin:0 0}
 .wt-camera.wt-moving{transition:transform var(--wt-camera) var(--wt-camera-ease) var(--wt-camera-delay)}
@@ -86,6 +86,12 @@ a{color:var(--wt-accent)}
 .wt-step-text{font:700 19px/1.35 var(--wt-body-font);color:var(--wt-ink);margin:4px 0 0}
 .wt-motion{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 14px 46px}
 .wt-field{display:inline-block;min-width:14ch;min-height:2.2em;padding:6px 10px;border:1px solid var(--wt-line);border-radius:6px;background:#fff;font:15px/1.4 Consolas,"Cascadia Mono",monospace;color:var(--wt-ink)}
+.wt-typing{position:absolute;display:flex;overflow:hidden;color:#1b1f24;font-family:Consolas,"Cascadia Mono",monospace;line-height:1.3;animation:wt-appear var(--wt-marks) ease-out var(--wt-draw-delay) both}
+.wt-typing-field{align-items:center;padding:0 .45em;background:#fff;border-radius:.25em;white-space:pre}
+.wt-typing-card{display:block;margin:.6em;max-height:45%;padding:.45em .7em;background:#fff;border:1px solid var(--wt-line);border-radius:.5em;box-shadow:0 .3em 1em rgba(14,37,66,.18);white-space:pre-wrap;overflow-wrap:anywhere}
+.wt-typing-at{margin:0 0 0 .3em;transform:translateY(-50%);white-space:pre;overflow-wrap:normal}
+.wt-caret{display:inline-block;flex:none;align-self:center;vertical-align:text-bottom;width:0;height:1.15em;margin-left:1px;border-left:.09em solid currentColor;animation:wt-blink 1s steps(1) infinite}
+.wt-reduce .wt-caret{animation:none}
 .wt-key{display:inline-block;min-width:2.2em;padding:4px 9px;border:1px solid var(--wt-line);border-bottom-width:3px;border-radius:6px;background:#fff;font:600 14px var(--wt-body-font);color:var(--wt-primary);text-align:center;animation:wt-pop 220ms ease-out both}
 .wt-plus{color:var(--wt-muted)}
 .wt-pill{display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:5px 12px;border-radius:999px;background:var(--wt-bg);border:1px solid var(--wt-line);font-size:14px;color:var(--wt-primary);animation:wt-slide 320ms ease-out var(--wt-marks-delay) both}
@@ -135,6 +141,7 @@ a{color:var(--wt-accent)}
 @keyframes wt-pop{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}
 @keyframes wt-slide{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:none}}
 @keyframes wt-appear{from{opacity:0}to{opacity:1}}
+@keyframes wt-blink{50%{opacity:0}}
 @keyframes wt-trace{to{stroke-dashoffset:0}}
 @keyframes wt-press{0%{transform:scale(1)}50%{transform:scale(.9)}100%{transform:scale(1)}}
 @keyframes wt-ripple{0%{opacity:.9;transform:scale(.2)}100%{opacity:0;transform:scale(2.2)}}

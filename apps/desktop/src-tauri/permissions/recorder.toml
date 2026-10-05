@@ -249,6 +249,11 @@ description = "Allows deleting a brand profile."
 commands.allow = ["brands_delete"]
 
 [[permission]]
+identifier = "allow-brands-managed-ids"
+description = "Allows the main window to know which brands the organisation deploys, so they stay read-only."
+commands.allow = ["brands_managed_ids"]
+
+[[permission]]
 identifier = "allow-privacy-ocr"
 description = "Allows reading text from a screenshot on this PC (Windows OCR) to suggest blurs."
 commands.allow = ["privacy_ocr"]
@@ -267,6 +272,11 @@ commands.allow = ["policy_get"]
 identifier = "allow-identity-names"
 description = "Allows the main window to read the person's own account names, so blur suggestions can find them in screenshots. They stay on this PC."
 commands.allow = ["identity_names"]
+
+[[permission]]
+identifier = "allow-identity-machine"
+description = "Allows the main window to read this PC's name and the Windows login, recorded with a guide's saves and password lock when Settings > Privacy allows."
+commands.allow = ["identity_machine"]
 
 [[permission]]
 identifier = "allow-support-create-bundle"

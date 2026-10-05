@@ -132,6 +132,23 @@ describe("the Chrome recorder", () => {
     ).toEqual(["https://finance.example.test", "https://bank.example.test"]);
   });
 
+  it("makes a step only of a site typed or picked in the address bar (04/10/2026)", async () => {
+    await engine.start("Typed", { keys: false, excluded: [], sensitive: [] });
+    await engine.navigated({ ...tab, url: "https://typed.example.test/" }, "addressBar");
+    await engine.navigated({ ...tab, url: "https://linked.example.test/" }, "page");
+    // Firefox: a change of site straight after a click on the page is a followed link.
+    await engine.pointer(tab, pointer);
+    await engine.navigated({ ...tab, url: "https://clicked.example.test/" });
+    clock += 6_000;
+    await engine.navigated({ ...tab, url: "https://later.example.test/" });
+    const { sessionId } = await engine.getState();
+    expect(
+      (await log.facts(sessionId as string)).flatMap((fact) =>
+        fact.record.kind === "pageNavigation" ? [fact.record.origin] : [],
+      ),
+    ).toEqual(["https://typed.example.test", "https://later.example.test"]);
+  });
+
   it("keeps nothing from an excluded site, not even a screenshot", async () => {
     const bank = { ...tab, url: "https://online.bank.example.test/pay" };
     await engine.start("Excluded", {

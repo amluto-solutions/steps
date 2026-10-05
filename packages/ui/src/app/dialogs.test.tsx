@@ -52,4 +52,20 @@ describe("StartRecordingDialog", () => {
     );
     expect(box("Include command output").checked).toBe(false);
   });
+
+  it("ticks the output too when what's typed is ticked, and it can be unticked (04/10/2026)", () => {
+    const onStart = vi.fn();
+    render(
+      <StartRecordingDialog
+        defaults={{ keys: false, output: false }}
+        onCancel={vi.fn()}
+        onStart={onStart}
+      />,
+    );
+    fireEvent.click(box("Record what's typed"));
+    expect(box("Include command output").checked).toBe(true);
+    fireEvent.click(box("Include command output"));
+    fireEvent.click(screen.getByRole("button", { name: "Start recording" }));
+    expect(onStart).toHaveBeenCalledWith({ keys: true, output: false });
+  });
 });

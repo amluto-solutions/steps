@@ -387,6 +387,57 @@ describe("step motion", () => {
     expect(q("#player .wt-pill")?.textContent).toBe("https://example.com");
     Reflect.deleteProperty(window, "matchMedia");
   });
+
+  it("types into the field on the screenshot, beside a ring or in a box (04/10/2026)", async () => {
+    const typing = (id: string) =>
+      step(id, {
+        action: "input",
+        showValue: true,
+        textParts: { verb: "Type", target: "Name", kind: "field", value: "<i>Acme</i>" },
+      });
+    const html = await renderWalkthrough(
+      buildRenderModel(
+        guide,
+        [typing("ring"), typing("box")],
+        new Map([
+          [
+            "ring",
+            image({
+              highlight: { shape: "circle", x: 40, y: 40, w: 4, h: 6 },
+              click: { x: 42, y: 43 },
+              annotations: [],
+            }),
+          ],
+          [
+            "box",
+            image({
+              highlight: { shape: "box", x: 10, y: 20, w: 30, h: 6 },
+              click: { x: 25, y: 23 },
+              annotations: [],
+            }),
+          ],
+        ]),
+        { preparedBy: "", now: new Date(2026, 9, 4) },
+      ),
+    );
+    window.matchMedia = ((query: string) => ({
+      matches: query.includes("reduce"),
+      addEventListener: () => undefined,
+    })) as unknown as typeof window.matchMedia;
+    open(html, "#step-1");
+    const ring = q("#player .wt-marks .wt-typing");
+    expect(ring?.classList.contains("wt-typing-at")).toBe(true);
+    expect(ring?.style.left).toBe("44%");
+    expect(q("#player .wt-typed")?.textContent).toBe("<i>Acme</i>");
+    expect(q("#player .wt-typed i")).toBeNull();
+    // Typed on the screenshot, so not again in the card.
+    expect(q("#player .wt-card .wt-motion")).toBeNull();
+    click("Next");
+    const box = q("#player .wt-marks .wt-typing");
+    expect(box?.classList.contains("wt-typing-field")).toBe(true);
+    expect([box?.style.left, box?.style.top, box?.style.width]).toEqual(["10%", "20%", "30%"]);
+    Reflect.deleteProperty(window, "matchMedia");
+  });
 });
 
 describe("thumbnail strip", () => {

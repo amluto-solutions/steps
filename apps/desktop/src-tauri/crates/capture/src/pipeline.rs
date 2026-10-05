@@ -25,7 +25,7 @@ use crate::facts::{
     AppSwitchRecord, CaptureFacts, ClickRecord, ElementFacts, InputRecord, NavigationRecord,
     Record, UiaOutcome, WindowFacts,
 };
-use crate::navigation::{NavigationSettle, PendingNavigation, SETTLING_POLL};
+use crate::navigation::{NavigationSettle, PendingNavigation, SETTLING_POLL, TYPED_WITHIN};
 use crate::screenshot::{CaptureMode, capture};
 use crate::state_machine::{PauseReason, RecorderState, RecorderStateMachine};
 use crate::typing::{ClickNews, KeyedRecord};
@@ -147,11 +147,31 @@ fn input_is_blocked(machine: Option<&Mutex<RecorderStateMachine>>, record: &Inpu
 
 /// Chrome and Edge: `chrome.exe` and `msedge.exe` on Windows, `chrome`, `chromium` and `msedge`
 /// on Linux.
-fn is_chromium_browser(exe_name: Option<&str>) -> bool {
+/// Browsers whose address bar is read for "Go to" steps: Chrome, Edge and the browsers built on
+/// Chromium with its address bar, and Firefox (04/10/2026).
+fn is_browser(exe_name: Option<&str>) -> bool {
     exe_name.is_some_and(|name| {
-        ["chrome.exe", "msedge.exe", "chrome", "chromium", "msedge"]
-            .iter()
-            .any(|browser| name.eq_ignore_ascii_case(browser))
+        [
+            "chrome.exe",
+            "msedge.exe",
+            "chromium.exe",
+            "brave.exe",
+            "opera.exe",
+            "vivaldi.exe",
+            "firefox.exe",
+            "chrome",
+            "chromium",
+            "chromium-browser",
+            "msedge",
+            "brave",
+            "brave-browser",
+            "opera",
+            "vivaldi-bin",
+            "firefox",
+            "firefox-bin",
+        ]
+        .iter()
+        .any(|browser| name.eq_ignore_ascii_case(browser))
     })
 }
 
@@ -201,6 +221,52 @@ fn names_steps(element: Option<&ElementFacts>) -> bool {
     })
 }
 
+/// A window's screenshot for a step without a click (a field as focus arrives in it, a page once its
+/// address settles), with excluded apps hidden, as a click's would be. Not while the recording
+/// isn't taking steps.
+fn shoot_field(
+    window: &WindowInfo,
+    config: &PipelineConfig,
+    machine: Option<&Mutex<RecorderStateMachine>>,
+) -> Option<crate::screenshot::Shot> {
+    let excluded = match machine {
+        Some(machine) => {
+            let machine = machine
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if !machine.is_active() || !machine.takes_clicks() {
+                return None;
+            }
+            machine.excluded_apps().to_vec()
+        }
+        None => Vec::new(),
+    };
+    if window
+        .exe_name()
+        .is_some_and(|name| excluded.iter().any(|app| app.eq_ignore_ascii_case(name)))
+    {
+        return None;
+    }
+    let frame = PxRect::from(window.frame);
+    let mut shot = capture(
+        config.mode,
+        Some(frame),
+        frame.left + (frame.right - frame.left) / 2,
+        frame.top + (frame.bottom - frame.top) / 2,
+        config.target_monitor,
+    )
+    .ok()?;
+    if config.mode == CaptureMode::Window {
+        // The Start menu, Search and the like are drawn by several shell processes:
+        // their own parts aren't someone else's window to grey out (04/10/2026).
+        if !is_shell_window(window) {
+            crate::screenshot::hide_covering(&mut shot, window.pid, None);
+        }
+    }
+    crate::screenshot::hide_excluded(&mut shot, &excluded);
+    Some(shot)
+}
+
 /// How long after an app comes forward its "Open" step's screenshot is taken: time to draw.
 const SWITCH_SHOT_AFTER: Duration = Duration::from_millis(450);
 
@@ -236,7 +302,11 @@ fn write_switch(
     .ok()
     .map(|mut shot| {
         if config.mode == CaptureMode::Window {
-            crate::screenshot::hide_covering(&mut shot, window.pid, None);
+            // The Start menu, Search and the like are drawn by several shell processes:
+            // their own parts aren't someone else's window to grey out (04/10/2026).
+            if !is_shell_window(&window) {
+                crate::screenshot::hide_covering(&mut shot, window.pid, None);
+            }
         }
         crate::screenshot::hide_excluded(&mut shot, &excluded);
         shot
@@ -487,12 +557,18 @@ fn write_key_records_after(
     }
 }
 
+/// Ids for the pictures of "Go to" steps (`nav-<id>.webp`), unique within a run.
+static NEXT_NAVIGATION_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
 /// Writes a browser address that has settled as a "Go to" step, unless it's where the browser
-/// already was.
+/// already was, or it wasn't typed or picked in the address bar: a link followed on a page, a
+/// redirect, back and forward, or the page the recording started on are left to the clicks
+/// (04/10/2026). With a screenshot of the page it went to.
 fn write_navigation(
     pending: Option<PendingNavigation<WindowInfo>>,
     last_origin: &mut Option<(u32, String)>,
     machine: Option<&Mutex<RecorderStateMachine>>,
+    config: &PipelineConfig,
     sink: &mut dyn Sink,
 ) {
     let Some(navigation) = pending else {
@@ -502,6 +578,10 @@ fn write_navigation(
     if last_origin.as_ref() == Some(&key) {
         return;
     }
+    if !navigation.typed {
+        *last_origin = Some(key);
+        return;
+    }
     if let Some(machine) = machine {
         machine
             .lock()
@@ -509,13 +589,28 @@ fn write_navigation(
             .note_auxiliary_step();
     }
     *last_origin = Some(key);
+    // The page it went to, now its address has settled (or just before the next step on it).
+    let shot = shoot_field(&navigation.window, config, machine);
+    let capture = shot.as_ref().map(|shot| CaptureFacts {
+        mode: config.mode.as_str(),
+        rect: shot.rect,
+        monitor: shot.monitor,
+        scale: shot.scale,
+        width: shot.image.width(),
+        height: shot.image.height(),
+        image: None,
+    });
     sink.write(
         Record::Navigation(NavigationRecord {
             tick_ms: navigation.tick_ms,
             origin: navigation.origin,
             window: window_facts(&navigation.window),
+            id: capture
+                .as_ref()
+                .map(|_| NEXT_NAVIGATION_ID.fetch_add(1, Ordering::Relaxed)),
+            capture,
         }),
-        None,
+        shot.map(|shot| shot.image),
     );
 }
 
@@ -560,6 +655,14 @@ fn run_inner(
     let mut browser_request_id = 0_u64;
     let mut browser_request: Option<(u64, WindowInfo)> = None;
     let mut last_origin: Option<(u32, String)> = None;
+    // A left click on a spreadsheet cell, until the button comes up: a drag to another cell
+    // selects the cells between (04/10/2026).
+    let mut drag_from: Option<DragStart> = None;
+    // The screenshot of the field that has focus, taken as it arrived, and the next one's id.
+    let mut field_shot: Option<(u32, crate::screenshot::Shot, WindowInfo)> = None;
+    let mut next_field_id: u64 = 0;
+    // When a browser's address bar was last seen with the keyboard, by process.
+    let mut bar_focused: Option<(u32, Instant)> = None;
     let mut settle: NavigationSettle<WindowInfo> = NavigationSettle::default();
     let mut pending_switch: Option<(Instant, AppSwitchRecord, WindowInfo)> = None;
     // The program in front before the waiting "Open" step's.
@@ -588,8 +691,7 @@ fn run_inner(
                         .exe_name()
                         .is_some_and(|name| recorder.is_app_excluded(name))
                 {
-                    let is_browser = is_chromium_browser(window.exe_name());
-                    if is_browser {
+                    if is_browser(window.exe_name()) {
                         next_browser_poll = Instant::now();
                     }
                     // One "Open" per program: its own dialogs and other windows (Save As, Word's start
@@ -643,7 +745,13 @@ fn run_inner(
                 let takes_clicks = recorder.takes_clicks();
                 drop(recorder);
                 if let Some((record, window)) = app_switch {
-                    write_navigation(settle.flush(), &mut last_origin, Some(machine), sink);
+                    write_navigation(
+                        settle.flush(),
+                        &mut last_origin,
+                        Some(machine),
+                        config,
+                        sink,
+                    );
                     // Written once the app has had a moment to draw, with its screenshot; an
                     // earlier one still waiting goes first.
                     if let Some(earlier) = pending_switch.take() {
@@ -764,34 +872,56 @@ fn run_inner(
         }
 
         if let Some(machine) = machine {
-            if let Some(origin) = browser_request
+            if let Some(read) = browser_request
                 .as_ref()
                 .and_then(|(id, _)| uia.take_browser_origin(*id))
                 && let Some((_, window)) = browser_request.take()
-                && let Some(origin) = origin
-                // While an address settles every read counts, even one back where it started.
-                && (settle.is_settling()
-                    || last_origin.as_ref() != Some(&(window.pid, origin.clone())))
-                && machine
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner)
-                    .is_active()
             {
-                let tick_ms = now_tick();
-                let process = machine
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner)
-                    .should_process_event(tick_ms)
-                    == crate::state_machine::EventDecision::Process;
-                if process {
-                    let earlier = settle.seen(window.pid, origin, window, tick_ms, Instant::now());
-                    write_navigation(earlier, &mut last_origin, Some(machine), sink);
+                if read.focused {
+                    bar_focused = Some((window.pid, Instant::now()));
+                    // Read again soon, to catch the address it goes to.
+                    next_browser_poll = next_browser_poll.min(Instant::now() + SETTLING_POLL);
+                }
+                let unchanged = read.origin.as_ref().is_some_and(|origin| {
+                    last_origin.as_ref() == Some(&(window.pid, origin.clone()))
+                });
+                // Left without going anywhere (Escape, a click on the page): a link clicked
+                // later isn't typed.
+                if !read.focused && unchanged && !settle.is_settling() {
+                    bar_focused = None;
+                }
+                if let Some(origin) = read.origin
+                    // While an address settles every read counts, even one back where it started.
+                    && (settle.is_settling() || !unchanged)
+                    && machine
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .is_active()
+                {
+                    let tick_ms = now_tick();
+                    let process = machine
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .should_process_event(tick_ms)
+                        == crate::state_machine::EventDecision::Process;
+                    if process {
+                        let typed = bar_focused.is_some_and(|(pid, at)| {
+                            pid == window.pid && at.elapsed() <= TYPED_WITHIN
+                        });
+                        if typed {
+                            bar_focused = None;
+                        }
+                        let earlier =
+                            settle.seen(window.pid, origin, window, tick_ms, typed, Instant::now());
+                        write_navigation(earlier, &mut last_origin, Some(machine), config, sink);
+                    }
                 }
             }
             write_navigation(
                 settle.due(Instant::now()),
                 &mut last_origin,
                 Some(machine),
+                config,
                 sink,
             );
 
@@ -807,9 +937,8 @@ fn run_inner(
                     .lock()
                     .unwrap_or_else(std::sync::PoisonError::into_inner)
                     .is_active()
-                    && let Some(window) = foreground_window().filter(|window| {
-                        window.pid != own_pid && is_chromium_browser(window.exe_name())
-                    })
+                    && let Some(window) = foreground_window()
+                        .filter(|window| window.pid != own_pid && is_browser(window.exe_name()))
                 {
                     browser_request_id = browser_request_id.wrapping_add(1);
                     uia.request_browser_origin(browser_request_id, window.hwnd);
@@ -818,8 +947,24 @@ fn run_inner(
             }
         }
 
+        if let Some(start) = drag_from.take_if(|start| {
+            shared.last_left_up().is_some_and(|(tick, _, _)| {
+                tick.wrapping_sub(start.tick_ms) < 1 << 31 && tick != start.tick_ms
+            }) || start.at.elapsed() > DRAG_GIVE_UP
+        }) && let Some(up) = shared.last_left_up()
+        {
+            write_drag(start, up, uia, config, machine, sink);
+        }
+
+        // An editable field gained focus: its screenshot now, before anything is typed, for the
+        // typing step its value makes when focus leaves (04/10/2026).
+        if let Some(entered) = uia.take_field_entered() {
+            field_shot = shoot_field(&entered.window, config, machine)
+                .map(|shot| (entered.tick_ms, shot, entered.window));
+        }
+
         if let Some(inputs) = inputs {
-            while let Ok(record) = inputs.try_recv() {
+            while let Ok(mut record) = inputs.try_recv() {
                 if machine.is_some_and(|shared| {
                     let current = shared
                         .lock()
@@ -843,14 +988,41 @@ fn run_inner(
                         .unwrap_or_else(std::sync::PoisonError::into_inner)
                         .note_auxiliary_step();
                 }
-                write_navigation(settle.flush(), &mut last_origin, machine, sink);
-                sink.write(Record::Input(record), None);
+                write_navigation(settle.flush(), &mut last_origin, machine, config, sink);
+                let image = field_shot
+                    .take_if(|(tick, _, _)| *tick == record.focused_tick_ms)
+                    .map(|(_, shot, window)| {
+                        next_field_id += 1;
+                        record.id = Some(next_field_id);
+                        record.window = Some(window_facts(&window));
+                        record.element_pct = record
+                            .element
+                            .bounds
+                            .and_then(|bounds| rect_to_pct(&shot.rect, &bounds));
+                        record.capture = Some(CaptureFacts {
+                            mode: config.mode.as_str(),
+                            rect: shot.rect,
+                            monitor: shot.monitor,
+                            scale: shot.scale,
+                            width: shot.image.width(),
+                            height: shot.image.height(),
+                            image: None,
+                        });
+                        shot.image
+                    });
+                sink.write(Record::Input(record), image);
             }
         }
 
         if let (Some(keys), Some(machine)) = (keys, machine) {
             write_key_records_after(&keys.records, machine, sink, |sink| {
-                write_navigation(settle.flush(), &mut last_origin, Some(machine), sink);
+                write_navigation(
+                    settle.flush(),
+                    &mut last_origin,
+                    Some(machine),
+                    config,
+                    sink,
+                );
             });
         }
 
@@ -974,7 +1146,7 @@ fn run_inner(
                     write_switch(switch, config, machine, sink);
                 }
                 // An address read before Stop still counts, settled or not.
-                write_navigation(settle.flush(), &mut last_origin, machine, sink);
+                write_navigation(settle.flush(), &mut last_origin, machine, config, sink);
                 break;
             }
             // Missed clicks were marked where they happened; once the queue has drained with no
@@ -1101,7 +1273,22 @@ fn run_inner(
             if is_shell_window(&window) {
                 last_shell_click = Some(Instant::now());
             }
-            write_navigation(settle.flush(), &mut last_origin, machine, sink);
+            write_navigation(settle.flush(), &mut last_origin, machine, config, sink);
+            drag_from = (event.button == MouseButton::Left)
+                .then(|| {
+                    let cell = record.element.as_ref().and_then(crate::typing::cell_name)?;
+                    Some(DragStart {
+                        of: record.id,
+                        tick_ms: event.tick_ms,
+                        x: event.x,
+                        y: event.y,
+                        cell,
+                        bounds: record.element.as_ref().and_then(|facts| facts.bounds),
+                        window: window.clone(),
+                        at: Instant::now(),
+                    })
+                })
+                .flatten();
             sink.write(Record::Click(record), Some(image));
             previous = Some(event);
             // A click on a link changes the address a moment later, not at once.
@@ -1112,6 +1299,93 @@ fn run_inner(
         }
     }
     stats
+}
+
+/// A left click on a cell, waiting to see whether it becomes a drag.
+struct DragStart {
+    of: u64,
+    tick_ms: u32,
+    x: i32,
+    y: i32,
+    cell: String,
+    bounds: Option<PxRect>,
+    window: WindowInfo,
+    at: Instant,
+}
+
+/// How far the pointer must move between press and release to be a drag, in physical pixels.
+const DRAG_MIN_PX: i32 = 8;
+/// A release this long after the press, or never seen, ends the wait.
+const DRAG_GIVE_UP: Duration = Duration::from_secs(30);
+/// Ids for drag lookups and pictures, away from click ids.
+static NEXT_DRAG_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1 << 48);
+
+/// The button came up: if it moved to another cell, the cells between were selected. The cell
+/// under the release is looked up, and the window's screenshot shows the selection.
+fn write_drag(
+    start: DragStart,
+    (tick_ms, x, y): (u32, i32, i32),
+    uia: &UiaClient,
+    config: &PipelineConfig,
+    machine: Option<&Mutex<RecorderStateMachine>>,
+    sink: &mut dyn Sink,
+) {
+    if (x - start.x).abs() < DRAG_MIN_PX && (y - start.y).abs() < DRAG_MIN_PX {
+        return;
+    }
+    let id = NEXT_DRAG_ID.fetch_add(1, Ordering::Relaxed);
+    let started = Instant::now();
+    uia.request(id, x, y, start.window.hwnd);
+    let mut ignored = Stats::default();
+    let (element, _) = lookup_outcome(
+        uia.wait(id, started, started + Duration::from_millis(300)),
+        &mut ignored,
+    );
+    let Some(to) = element.as_ref().and_then(crate::typing::cell_name) else {
+        return;
+    };
+    if to == start.cell {
+        return;
+    }
+    let shot = shoot_field(&start.window, config, machine);
+    let selection = match (
+        start.bounds,
+        element.as_ref().and_then(|facts| facts.bounds),
+    ) {
+        (Some(from), Some(to)) => Some(PxRect {
+            left: from.left.min(to.left),
+            top: from.top.min(to.top),
+            right: from.right.max(to.right),
+            bottom: from.bottom.max(to.bottom),
+        }),
+        _ => None,
+    };
+    let capture = shot.as_ref().map(|shot| CaptureFacts {
+        mode: config.mode.as_str(),
+        rect: shot.rect,
+        monitor: shot.monitor,
+        scale: shot.scale,
+        width: shot.image.width(),
+        height: shot.image.height(),
+        image: None,
+    });
+    let selection_pct = shot
+        .as_ref()
+        .zip(selection)
+        .and_then(|(shot, area)| rect_to_pct(&shot.rect, &area));
+    sink.write(
+        Record::Drag(crate::facts::DragRecord {
+            id,
+            of: start.of,
+            tick_ms,
+            from: start.cell,
+            to,
+            window: window_facts(&start.window),
+            capture,
+            selection_pct,
+        }),
+        shot.map(|shot| shot.image),
+    );
 }
 
 /// Turns a UIA lookup into the element (if any) and the outcome recorded with the click.
@@ -1174,7 +1448,11 @@ fn process_click(
     };
     stats.screenshot_ms.push(shot.ms);
     if config.mode == CaptureMode::Window {
-        crate::screenshot::hide_covering(&mut shot, window.pid, stack);
+        // The Start menu, Search and the like are drawn by several shell processes:
+        // their own parts aren't someone else's window to grey out (04/10/2026).
+        if !is_shell_window(window) {
+            crate::screenshot::hide_covering(&mut shot, window.pid, stack);
+        }
     }
     if let Some(machine) = machine {
         let excluded = machine
@@ -1265,6 +1543,10 @@ mod tests {
 
     fn typed(pid: u32, window_pid: u32, window_exe: Option<&str>) -> InputRecord {
         InputRecord {
+            id: None,
+            window: None,
+            capture: None,
+            element_pct: None,
             tick_ms: 2000,
             focused_tick_ms: 1000,
             pid,

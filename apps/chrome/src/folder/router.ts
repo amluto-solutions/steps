@@ -244,12 +244,20 @@ export function createLibraryRouter(options: RouterOptions): LibraryRouter {
         "moveIncomplete",
         `The guide was copied, but the original could not be moved to the bin: ${error instanceof Error ? error.message : String(error)}`,
       );
+    // A moved guide keeps its password lock and history (04/10/2026); copies leave them behind.
+    const carry = async (id: string) => {
+      if (!move) return;
+      const meta = await bridge.guideMeta(fromLibraryId, guideId);
+      if (meta.history) await bridge.writeGuideHistory(toLibraryId, id, meta.history);
+      if (meta.lock) await bridge.writeGuideLock(toLibraryId, id, meta.lock);
+    };
     if (isBrowser(fromLibraryId)) {
       const to = await folder(toLibraryId);
       const bundle = await browserBundle(db, guideId);
       if (!move) asCopy(bundle);
       const id = await to.chooseId(guideId);
       await putFolderBundle(to, bundle, id, options.pc);
+      await carry(id);
       const summary = await to.summary(id);
       if (move)
         await browser.trashGuide(fromLibraryId, guideId).catch((error: unknown) => {
@@ -261,6 +269,7 @@ export function createLibraryRouter(options: RouterOptions): LibraryRouter {
     const bundle = await folderBundle(from, guideId);
     if (!move) asCopy(bundle);
     const id = await putBrowserBundle(db, codec, bundle, guideId);
+    await carry(id);
     const summary = (await browser.listGuides(toLibraryId)).find((guide) => guide.id === id);
     if (!summary) throw errors.guideNotFound();
     if (move)
@@ -439,6 +448,28 @@ export function createLibraryRouter(options: RouterOptions): LibraryRouter {
       isBrowser(libraryId)
         ? browser.draftToCopy(libraryId, guideId, draftId, title)
         : draftToCopy(await folder(libraryId), guideId, draftId, title),
+
+    // A guide's password lock and history: files of their own, written without the edit lock
+    // (locking a guide someone else has open is allowed; they can't save over it after).
+    guideMeta: async (libraryId, guideId) =>
+      isBrowser(libraryId)
+        ? browser.guideMeta(libraryId, guideId)
+        : (await folder(libraryId)).guideMeta(guideId),
+
+    writeGuideLock: async (libraryId, guideId, lock) =>
+      isBrowser(libraryId)
+        ? browser.writeGuideLock(libraryId, guideId, lock)
+        : (await folder(libraryId)).writeGuideLock(guideId, lock),
+
+    writeGuideHistory: async (libraryId, guideId, history) =>
+      isBrowser(libraryId)
+        ? browser.writeGuideHistory(libraryId, guideId, history)
+        : (await folder(libraryId)).writeGuideHistory(guideId, history),
+
+    guideStats: async (libraryId, guideId) =>
+      isBrowser(libraryId)
+        ? (browser.guideStats?.(libraryId, guideId) ?? Promise.reject(errors.notInBrowser()))
+        : (await folder(libraryId)).guideStats(guideId),
 
     // Comments are files of their own and never change the guide: no lock needed.
     listComments: async (libraryId, guideId) =>

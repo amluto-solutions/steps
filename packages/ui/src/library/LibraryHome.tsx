@@ -1,6 +1,7 @@
 import { foldForSearch } from "@amluto-steps/core";
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { useLockedBy } from "./LockDialogs";
 
 import { useAnnounce } from "../components/Announcer";
 import { Icon } from "../components/icons";
@@ -32,6 +33,9 @@ export interface BulkActions {
   onMerge?: ((guides: LibraryGuideSummary[]) => void) | undefined;
   /** The formats several guides can be exported in, one review each. */
   exportMenu: (guides: LibraryGuideSummary[]) => MenuEntry[];
+  /** Password locks (04/10/2026): Lock… for any not locked, Remove lock… for any locked. */
+  onLock?: ((guides: LibraryGuideSummary[]) => void) | undefined;
+  onRemoveLock?: ((guides: LibraryGuideSummary[]) => void) | undefined;
 }
 
 interface LibraryHomeProps {
@@ -122,6 +126,7 @@ function FoundIn({ found }: { found: GuideSearchHit["foundIn"] }) {
  */
 export function LibraryHome(props: LibraryHomeProps) {
   const { t } = useTranslation();
+  const lockedBy = useLockedBy();
   const announce = useAnnounce();
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<Sort>("updated");
@@ -455,6 +460,28 @@ export function LibraryHome(props: LibraryHomeProps) {
               </button>
             )}
           />
+          {props.bulk.onLock && ticked.some((guide) => !guide.locked) && (
+            <button
+              type="button"
+              className="btn h-8"
+              disabled={props.busy}
+              onClick={() => runTicked((guides) => props.bulk?.onLock?.(guides))}
+            >
+              <Icon name="lock" size={16} />
+              {t("locks.lock")}
+            </button>
+          )}
+          {props.bulk.onRemoveLock && ticked.some((guide) => guide.locked) && (
+            <button
+              type="button"
+              className="btn h-8"
+              disabled={props.busy}
+              onClick={() => runTicked((guides) => props.bulk?.onRemoveLock?.(guides))}
+            >
+              <Icon name="lock" size={16} />
+              {t("locks.removeLock")}
+            </button>
+          )}
           <button
             type="button"
             className="btn btn-danger h-8"
@@ -627,6 +654,12 @@ export function LibraryHome(props: LibraryHomeProps) {
                           {t("comments.openCount", { count: guide.openComments })}
                         </span>
                         <span aria-hidden="true">{guide.openComments}</span>
+                      </span>
+                    )}
+                    {guide.locked && (
+                      <span className="chip shrink-0" title={lockedBy(guide.locked)}>
+                        <Icon name="lock" size={12} />
+                        <span className="sr-only">{lockedBy(guide.locked)}</span>
                       </span>
                     )}
                     {guide.tags[0] && (

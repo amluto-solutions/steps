@@ -44,6 +44,9 @@
     <Property Id="INCLUDEOUTPUTBYDEFAULT" Secure="yes" />
     <Property Id="BLURSTRENGTH" Secure="yes" />
     <Property Id="SHOWUNNAMEDTYPING" Secure="yes" />
+    <Property Id="DISABLEGUIDELOCKS" Secure="yes" />
+    <Property Id="GUIDELOCKRECOVERYPASSWORD" Secure="yes" />
+    <Property Id="RECORDPCANDLOGIN" Secure="yes" />
 
     <!-- The values already installed, read back for a repair or an upgrade. -->
     <Property Id="LIBRARIES_SAVED" Secure="yes">
@@ -97,6 +100,15 @@
     <Property Id="SHOWUNNAMEDTYPING_SAVED" Secure="yes">
       <RegistrySearch Id="SavedShowUnnamedTyping" Root="HKLM" Key="$(var.RememberKey)" Name="ShowUnnamedTyping" Type="raw" Win64="$(var.PolicyWin64)" />
     </Property>
+    <Property Id="DISABLEGUIDELOCKS_SAVED" Secure="yes">
+      <RegistrySearch Id="SavedDisableGuideLocks" Root="HKLM" Key="$(var.RememberKey)" Name="DisableGuideLocks" Type="raw" Win64="$(var.PolicyWin64)" />
+    </Property>
+    <Property Id="GUIDELOCKRECOVERYPASSWORD_SAVED" Secure="yes">
+      <RegistrySearch Id="SavedGuideLockRecoveryPassword" Root="HKLM" Key="$(var.RememberKey)" Name="GuideLockRecoveryPassword" Type="raw" Win64="$(var.PolicyWin64)" />
+    </Property>
+    <Property Id="RECORDPCANDLOGIN_SAVED" Secure="yes">
+      <RegistrySearch Id="SavedRecordPcAndLogin" Root="HKLM" Key="$(var.RememberKey)" Name="RecordPcAndLogin" Type="raw" Win64="$(var.PolicyWin64)" />
+    </Property>
     <Property Id="LOCKED_SAVED" Secure="yes">
       <RegistrySearch Id="SavedLocked" Root="HKLM" Key="$(var.RememberKey)" Name="Locked" Type="raw" Win64="$(var.PolicyWin64)" />
     </Property>
@@ -120,6 +132,9 @@
     <SetProperty Id="INCLUDEOUTPUTBYDEFAULT" Value="[INCLUDEOUTPUTBYDEFAULT_SAVED]" After="AppSearch" Sequence="first"><![CDATA[INCLUDEOUTPUTBYDEFAULT_SAVED AND NOT INCLUDEOUTPUTBYDEFAULT]]></SetProperty>
     <SetProperty Id="BLURSTRENGTH" Value="[BLURSTRENGTH_SAVED]" After="AppSearch" Sequence="first"><![CDATA[BLURSTRENGTH_SAVED AND NOT BLURSTRENGTH]]></SetProperty>
     <SetProperty Id="SHOWUNNAMEDTYPING" Value="[SHOWUNNAMEDTYPING_SAVED]" After="AppSearch" Sequence="first"><![CDATA[SHOWUNNAMEDTYPING_SAVED AND NOT SHOWUNNAMEDTYPING]]></SetProperty>
+    <SetProperty Id="DISABLEGUIDELOCKS" Value="[DISABLEGUIDELOCKS_SAVED]" After="AppSearch" Sequence="first"><![CDATA[DISABLEGUIDELOCKS_SAVED AND NOT DISABLEGUIDELOCKS]]></SetProperty>
+    <SetProperty Id="GUIDELOCKRECOVERYPASSWORD" Value="[GUIDELOCKRECOVERYPASSWORD_SAVED]" After="AppSearch" Sequence="first"><![CDATA[GUIDELOCKRECOVERYPASSWORD_SAVED AND NOT GUIDELOCKRECOVERYPASSWORD]]></SetProperty>
+    <SetProperty Id="RECORDPCANDLOGIN" Value="[RECORDPCANDLOGIN_SAVED]" After="AppSearch" Sequence="first"><![CDATA[RECORDPCANDLOGIN_SAVED AND NOT RECORDPCANDLOGIN]]></SetProperty>
 
     <ComponentGroup Id="PolicyProperties" Directory="TARGETDIR">
       <Component Id="PolicyLibraries" Guid="EE55252C-1789-4BE7-AA57-BA73AEF5FCAB" Win64="$(var.PolicyWin64)" Transitive="yes">
@@ -217,6 +232,22 @@
         <Condition><![CDATA[SHOWUNNAMEDTYPING = "0" OR SHOWUNNAMEDTYPING = "1"]]></Condition>
         <RegistryValue Root="HKLM" Key="$(var.PolicyKey)" Name="ShowUnnamedTyping" Type="integer" Value="[SHOWUNNAMEDTYPING]" KeyPath="yes" />
         <RegistryValue Root="HKLM" Key="$(var.RememberKey)" Name="ShowUnnamedTyping" Type="string" Value="[SHOWUNNAMEDTYPING]" />
+      </Component>
+      <!-- Guide password locks (04/10/2026): off, a recovery password's hash, and the PC name and login. -->
+      <Component Id="PolicyDisableGuideLocks" Guid="71F1D7A4-BB09-4897-BE72-CA3C701490A8" Win64="$(var.PolicyWin64)" Transitive="yes">
+        <Condition><![CDATA[DISABLEGUIDELOCKS = "1"]]></Condition>
+        <RegistryValue Root="HKLM" Key="$(var.PolicyKey)" Name="DisableGuideLocks" Type="integer" Value="[DISABLEGUIDELOCKS]" KeyPath="yes" />
+        <RegistryValue Root="HKLM" Key="$(var.RememberKey)" Name="DisableGuideLocks" Type="string" Value="[DISABLEGUIDELOCKS]" />
+      </Component>
+      <Component Id="PolicyGuideLockRecoveryPassword" Guid="B76D8A15-6DAA-4A1B-8310-B8474265169D" Win64="$(var.PolicyWin64)" Transitive="yes">
+        <Condition><![CDATA[GUIDELOCKRECOVERYPASSWORD]]></Condition>
+        <RegistryValue Root="HKLM" Key="$(var.PolicyKey)" Name="GuideLockRecoveryPassword" Type="string" Value="[GUIDELOCKRECOVERYPASSWORD]" KeyPath="yes" />
+        <RegistryValue Root="HKLM" Key="$(var.RememberKey)" Name="GuideLockRecoveryPassword" Type="string" Value="[GUIDELOCKRECOVERYPASSWORD]" />
+      </Component>
+      <Component Id="PolicyRecordPcAndLogin" Guid="8F381F13-172B-4F77-8B78-745A6F76E2BD" Win64="$(var.PolicyWin64)" Transitive="yes">
+        <Condition><![CDATA[RECORDPCANDLOGIN = "0" OR RECORDPCANDLOGIN = "1"]]></Condition>
+        <RegistryValue Root="HKLM" Key="$(var.PolicyKey)" Name="RecordPcAndLogin" Type="integer" Value="[RECORDPCANDLOGIN]" KeyPath="yes" />
+        <RegistryValue Root="HKLM" Key="$(var.RememberKey)" Name="RecordPcAndLogin" Type="string" Value="[RECORDPCANDLOGIN]" />
       </Component>
     </ComponentGroup>
   </Fragment>

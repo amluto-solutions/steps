@@ -60,6 +60,23 @@ export function LibrariesSection(props: SettingsProps) {
                   : ` · ${t("library.count", { count: item.guideCount })}`}
               </span>
             </div>
+            {library?.openFolder && !item.builtIn && !item.needsAccess && (
+              <button
+                type="button"
+                className="btn h-8 px-3"
+                onClick={() =>
+                  void library.openFolder?.(item.id).catch((error: unknown) =>
+                    props.notify({
+                      kind: "error",
+                      text: errorMessage(error, t("settings.libraries.openFailed")),
+                    }),
+                  )
+                }
+              >
+                <Icon name="folder" size={15} />
+                {t("settings.libraries.openFolder")}
+              </button>
+            )}
             {item.managed ? (
               <span className="flex items-center gap-1.5 text-xs text-secondary">
                 <Icon name="lock" size={14} />

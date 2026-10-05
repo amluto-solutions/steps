@@ -88,18 +88,18 @@ Amluto Solutions Ltd
 
 ### Restricted capabilities: why the package needs them
 
-Partner Center asks for a reason for each restricted capability. Paste these.
+Partner Center asks for a reason for each restricted capability, in at most 500 characters. Paste these.
 
 **runFullTrust**
 
 ```
-Steps is a desktop app that records how a task is done. It needs full trust to do that: it reads the mouse through Windows Raw Input, reads the names of the buttons and fields that were clicked through Windows UI Automation, and takes a screenshot of the window at each click. None of these work from an AppContainer. It only does this while the person is recording, with a recording bar on screen the whole time, and everything stays on their PC.
+Steps records how a task is done in any desktop app. While the person records, with a recording bar always on screen, it reads clicks through Windows Raw Input, names the clicked button or field through UI Automation, and screenshots the window. If they tick "Record what's typed", it also reads the keyboard, never in password fields. None of this works from an AppContainer. Nothing is sent anywhere: it all stays on the PC.
 ```
 
 **unvirtualizedResources**
 
 ```
-Steps excludes only its own three folders from AppData virtualisation: %APPDATA%\Amluto\Steps, %LOCALAPPDATA%\com.amluto.steps and %APPDATA%\com.amluto.steps (through the manifest's ExcludedDirectories, not the whole package). Three things need it. The interactive walkthrough preview is a file Steps writes and opens in the person's browser, which can't read a package's private copy. Settings > About opens the logs and the support file in File Explorer for the person to attach to an email, which likewise can't see the private copy. And uninstalling must not delete recordings the person hasn't saved yet. Everything else stays virtualised.
+Steps excludes only its own three AppData folders from virtualisation (ExcludedDirectories, not the whole package). It writes a walkthrough preview that it opens in the browser, and opens its logs and support file in File Explorer for the person to email; neither can read a package's private copy. And uninstalling must not delete recordings the person hasn't saved yet. Everything else stays virtualised.
 ```
 
 ### Notes for certification

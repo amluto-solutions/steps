@@ -30,6 +30,7 @@ use crate::lookup::{
     Replies, Reply, await_worker_ready, fingerprint, fit_value, is_editable, origin_from_address,
     reading_blocked,
 };
+use crate::navigation::BarRead;
 use crate::platform::window::WindowInfo;
 use crate::screen_text::TerminalKind;
 use crate::sensitive::{looks_sensitive, mask_value};
@@ -571,7 +572,7 @@ enum OriginRequest {
 
 struct OriginReply {
     id: u64,
-    origin: Option<String>,
+    read: BarRead,
 }
 
 /// Handle to the AT-SPI worker threads.
@@ -584,6 +585,7 @@ pub struct UiaClient {
     thread: Option<JoinHandle<()>>,
     origin_thread: Option<JoinHandle<()>>,
     focus: Option<FocusListener>,
+    entered: crate::lookup::FieldSlot,
 }
 
 const STARTUP_TIMEOUT: Duration = Duration::from_secs(5);
@@ -595,6 +597,11 @@ impl UiaClient {
     /// # Errors
     /// If there's no session bus or accessibility bus.
     pub fn start(focus: Option<(Sender<InputRecord>, FocusOptions)>) -> Result<Self, String> {
+        let entered = focus
+            .as_ref()
+            .map_or_else(crate::lookup::FieldSlot::default, |(_, options)| {
+                Arc::clone(&options.entered)
+            });
         let (request_tx, request_rx) = mpsc::channel();
         let (reply_tx, reply_rx) = mpsc::channel();
         let (origin_request_tx, origin_request_rx) = mpsc::channel();
@@ -619,6 +626,7 @@ impl UiaClient {
             FocusListener::start(sender, options, Arc::clone(&cancelled))
         });
         Ok(Self {
+            entered,
             requests: request_tx,
             replies: Replies { receiver: reply_rx },
             origin_requests: origin_request_tx,
@@ -638,16 +646,25 @@ impl UiaClient {
     }
 
     /// Requests the current address-bar origin from a Chrome or Edge window.
+    /// The latest editable field to gain focus since this was last asked (04/10/2026).
+    #[must_use]
+    pub fn take_field_entered(&self) -> Option<crate::lookup::FieldEntered> {
+        self.entered
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take()
+    }
+
     pub fn request_browser_origin(&self, id: u64, hwnd: isize) {
         let _ = self.origin_requests.send(OriginRequest::Read { id, hwnd });
     }
 
     /// Returns a completed result for this navigation query without waiting.
     #[must_use]
-    pub fn take_browser_origin(&self, id: u64) -> Option<Option<String>> {
+    pub fn take_browser_origin(&self, id: u64) -> Option<BarRead> {
         while let Ok(reply) = self.origin_replies.try_recv() {
             if reply.id == id {
-                return Some(reply.origin);
+                return Some(reply.read);
             }
         }
         None
@@ -732,31 +749,52 @@ fn origin_worker(requests: &Receiver<OriginRequest>, replies: &Sender<OriginRepl
     let bus = Bus::connect().ok();
     let mut known: HashMap<isize, Omnibox> = HashMap::new();
     while let Ok(OriginRequest::Read { id, hwnd }) = requests.recv() {
-        let origin = bus.as_ref().and_then(|bus| {
-            catch_unwind(AssertUnwindSafe(|| cached_origin(bus, &mut known, hwnd)))
-                .ok()
-                .flatten()
-        });
-        let _ = replies.send(OriginReply { id, origin });
+        let read = bus
+            .as_ref()
+            .and_then(|bus| {
+                catch_unwind(AssertUnwindSafe(|| cached_origin(bus, &mut known, hwnd))).ok()
+            })
+            .unwrap_or_default();
+        let _ = replies.send(OriginReply { id, read });
     }
 }
 
-fn cached_origin(bus: &Bus, known: &mut HashMap<isize, Omnibox>, hwnd: isize) -> Option<String> {
+/// The address bar's origin, and whether it has the keyboard: while it has, what it holds may be
+/// a search being typed, and that it has is what makes the next address a "Go to".
+fn omnibox_read(bus: &Bus, element: &Element) -> Option<BarRead> {
+    if bus.states(element).has(State::Focused) {
+        return Some(BarRead {
+            origin: None,
+            focused: true,
+        });
+    }
+    let text = bus.text(element)?;
+    Some(BarRead {
+        origin: origin_from_address(&text),
+        focused: false,
+    })
+}
+
+fn cached_origin(bus: &Bus, known: &mut HashMap<isize, Omnibox>, hwnd: isize) -> BarRead {
     if let Some(Omnibox::Found(element)) = known.get(&hwnd)
-        && let Some(text) = bus.text(element)
+        && let Some(read) = omnibox_read(bus, element)
     {
-        return origin_from_address(&text);
+        return read;
     }
     if let Some(Omnibox::Missing { since, again }) = known.get(&hwnd)
         && since.elapsed() < *again
     {
-        return None;
+        return BarRead::default();
     }
     if known.len() > 32 {
         known.clear();
     }
-    let window = crate::platform::window::window_info(hwnd)?;
-    let top = bus.top_level(&window)?;
+    let Some(window) = crate::platform::window::window_info(hwnd) else {
+        return BarRead::default();
+    };
+    let Some(top) = bus.top_level(&window) else {
+        return BarRead::default();
+    };
     let Some(omnibox) = find_omnibox(bus, &top) else {
         let again = if bus.children(&top).is_empty() {
             UNBUILT_RETRY
@@ -765,22 +803,30 @@ fn cached_origin(bus: &Bus, known: &mut HashMap<isize, Omnibox>, hwnd: isize) ->
         };
         let since = Instant::now();
         known.insert(hwnd, Omnibox::Missing { since, again });
-        return None;
+        return BarRead::default();
     };
-    let origin = bus
-        .text(&omnibox)
-        .and_then(|text| origin_from_address(&text));
+    let read = omnibox_read(bus, &omnibox).unwrap_or_default();
     known.insert(hwnd, Omnibox::Found(omnibox));
-    origin
+    read
 }
 
-/// Whether an entry is the browser's address bar, by its name or the omnibox's class.
+/// Whether an entry is the browser's address bar, by its name or the omnibox's class, or
+/// Firefox's, by its id (a combo box in Firefox 143 on Windows, 04/10/2026). Pages' own elements
+/// are never searched (see `find_omnibox`), so a page can't pass for one.
 fn is_omnibox(bus: &Bus, element: &Element) -> bool {
-    if bus.role_name(element) != "entry" {
+    let role = bus.role_name(element);
+    if role != "entry" && role != "combo box" {
+        return false;
+    }
+    let mut attributes = bus.attributes(element);
+    if attributes.remove("id").as_deref() == Some("urlbar-input") {
+        return true;
+    }
+    if role != "entry" {
         return false;
     }
     let name = bus.string_property(element, "Name");
-    let class = bus.attributes(element).remove("class").unwrap_or_default();
+    let class = attributes.remove("class").unwrap_or_default();
     name == "Address and search bar" || class.contains("Omnibox")
 }
 
@@ -799,7 +845,7 @@ fn find_omnibox(bus: &Bus, top: &Element) -> Option<Element> {
         if role == "document web" {
             continue;
         }
-        if role == "entry" && is_omnibox(bus, &element) {
+        if (role == "entry" || role == "combo box") && is_omnibox(bus, &element) {
             return Some(element);
         }
         if depth < 20 {
@@ -828,6 +874,7 @@ struct Focused {
     since_tick_ms: u32,
     window_pid: u32,
     window_exe: Option<String>,
+    window: Option<WindowInfo>,
 }
 
 /// Listens for focus changes on its own connection and thread.
@@ -989,13 +1036,25 @@ fn on_focus_changed(
             element: previous.facts,
             value,
             withheld,
+            id: None,
+            window: None,
+            capture: None,
+            element_pct: None,
         };
         let covered_by_keys = options.note.is_some() && record.withheld == Some("unreadable");
         if (record.value.is_some() || record.withheld.is_some()) && !covered_by_keys {
             let _ = sender.send(record);
         }
     }
-    *current = Some(remember(bus, element, options));
+    let focused = remember(bus, element, options);
+    if focused.editable {
+        crate::lookup::note_entered(
+            &options.entered,
+            focused.since_tick_ms,
+            focused.window.as_ref(),
+        );
+    }
+    *current = Some(focused);
 }
 
 /// The newly focused element. Sensitive fields are never read, not even here, and neither are
@@ -1068,6 +1127,7 @@ fn remember(bus: &Bus, element: &Element, options: &FocusOptions) -> Focused {
             .as_ref()
             .and_then(WindowInfo::exe_name)
             .map(str::to_string),
+        window,
     }
 }
 

@@ -3,6 +3,7 @@ import { defineBackground } from "wxt/utils/define-background";
 
 import type { FrameHop, FramePointer } from "../capture/frames";
 import type { PageFacts, PageInput, PagePointer, StartChoices } from "../recorder/engine";
+import { navigationCause } from "../recorder/navigation-cause";
 import { desktopLink, RETRY_ALARM } from "../desktop/chrome";
 import { engine } from "../recorder/chrome";
 import { frameClicks, type FrameSender } from "../recorder/frames";
@@ -157,13 +158,36 @@ export default defineBackground(() => {
     if (alarm.name === RETRY_ALARM) desktopLink.retry();
   });
 
-  chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
-    if (!change.url || tab.windowId === undefined) return;
-    void engine.navigated({
-      tabId,
-      windowId: tab.windowId,
-      title: tab.title ?? "",
-      url: change.url,
+  if (firefox()) {
+    // No webNavigation here: the engine guesses from clicks and typing on the page.
+    chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
+      if (!change.url || tab.windowId === undefined) return;
+      void engine.navigated({
+        tabId,
+        windowId: tab.windowId,
+        title: tab.title ?? "",
+        url: change.url,
+      });
     });
-  });
+  } else {
+    // Chrome and Edge say how each page was reached: typed or picked in the address bar, or not.
+    const cause = navigationCause(() => Date.now());
+    chrome.webNavigation.onCommitted.addListener((details) => {
+      if (details.frameId !== 0) return;
+      const how = cause(details.tabId, details.transitionType, details.transitionQualifiers);
+      void chrome.tabs.get(details.tabId).then(
+        (tab) =>
+          engine.navigated(
+            {
+              tabId: details.tabId,
+              windowId: tab.windowId,
+              title: tab.title ?? "",
+              url: details.url,
+            },
+            how,
+          ),
+        () => undefined,
+      );
+    });
+  }
 });

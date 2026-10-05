@@ -16,3 +16,4 @@ export * from "./fold.ts";
 export * from "./secret-like.ts";
 export * from "./screen-text.ts";
 export * from "./translation.ts";
+export * from "./guide-lock.ts";

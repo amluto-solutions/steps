@@ -180,6 +180,12 @@ const input = z.object({
   element,
   value: z.string().nullable(),
   withheld: z.string().nullable(),
+  // The field's screenshot from when focus arrived in it (04/10/2026); absent before then, or
+  // where none was taken.
+  id: z.number().optional(),
+  window: windowFacts.optional(),
+  capture: click.shape.capture.optional(),
+  elementPct: click.shape.elementPct.optional(),
 });
 
 const manual = z.object({
@@ -267,8 +273,23 @@ const record = z.discriminatedUnion("kind", [
     tickMs: z.number().int().nonnegative(),
     origin: siteOrigin,
     window: windowFacts,
+    // The page arrived at, once its address settled (04/10/2026); absent before then.
+    id: z.number().optional(),
+    capture: click.shape.capture.optional(),
   }),
   z.object({ kind: z.literal("double"), of: z.number(), tickMs: z.number() }),
+  // Cells selected by dragging (04/10/2026): it replaces the click `of`.
+  z.object({
+    kind: z.literal("drag"),
+    id: z.number(),
+    of: z.number(),
+    tickMs: z.number(),
+    from: z.string().max(40),
+    to: z.string().max(40),
+    window: windowFacts,
+    capture: click.shape.capture.nullable(),
+    selectionPct: click.shape.elementPct,
+  }),
   z.object({ kind: z.literal("missed"), count: z.number(), afterId: z.number() }),
   z.object({ kind: z.literal("touch"), count: z.number(), tickMs: z.number() }),
   z.object({ kind: z.literal("state"), state: z.string(), reason: z.string(), tickMs: z.number() }),
@@ -288,6 +309,7 @@ export type InputFact = z.infer<typeof input>;
 export type ManualFact = z.infer<typeof manual>;
 export type AppSwitchFact = Extract<z.infer<typeof record>, { kind: "appSwitch" }>;
 export type NavigationFact = Extract<z.infer<typeof record>, { kind: "navigation" }>;
+export type DragFact = Extract<z.infer<typeof record>, { kind: "drag" }>;
 export type CommandFact = z.infer<typeof command>;
 export type TypingFact = z.infer<typeof typing>;
 export type KeysFact = z.infer<typeof keys>;
@@ -315,7 +337,8 @@ export interface RecordedStep {
     scale: number | null;
     captureRect: [number, number, number, number] | null;
   } | null;
-  highlight: { shape: "circle"; x: number; y: number; w: number; h: number } | null;
+  /** A click's circle, or a field's box (a typing step's own screenshot, 04/10/2026). */
+  highlight: { shape: "circle" | "box"; x: number; y: number; w: number; h: number } | null;
   crop: null;
   redactions: [];
   annotations: [];
@@ -359,7 +382,7 @@ export const recordedStepSchema = z
       .nullable(),
     highlight: z
       .object({
-        shape: z.literal("circle"),
+        shape: z.enum(["circle", "box"]),
         x: z.number(),
         y: z.number(),
         w: z.number(),

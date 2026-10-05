@@ -235,6 +235,10 @@ function playerData(model: RenderModel): PlayerData {
       click: step.image?.overlay?.click ?? null,
       camera: step.image?.camera ?? null,
       motion: step.motion,
+      // Where the typing shows on the screenshot: the highlighted field.
+      ...(step.motion?.type === "typed" && step.image?.overlay?.highlight
+        ? { field: step.image.overlay.highlight }
+        : {}),
     };
   });
   return { title: model.title, stepCount: model.stepCount, labels: walkthroughLabels(), items };

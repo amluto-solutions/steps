@@ -26,5 +26,9 @@ export function managedPolicy(managed: Record<string, unknown>): Policy {
     appColoursBrand: managed.AppColoursBrand,
     language: managed.Language,
     languageTone: managed.LanguageTone,
+    // Password locks on guides (04/10/2026). The browser can't tell the PC's name or login, so
+    // RecordPcAndLogin has nothing to switch.
+    disableGuideLocks: managed.DisableGuideLocks,
+    guideLockRecoveryPassword: managed.GuideLockRecoveryPassword,
   });
 }

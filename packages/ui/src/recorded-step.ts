@@ -1,5 +1,6 @@
 import {
   CODE_LANGUAGES,
+  asRightClick,
   CODE_LANGUAGE_LABELS,
   compareSortKeys,
   describeClick,
@@ -17,6 +18,7 @@ import {
 import type {
   ClickFact,
   CodeLanguage,
+  DragFact,
   CommandFact,
   KeysFact,
   NavigationFact,
@@ -117,6 +119,20 @@ export function clickHighlight(
 }
 
 type Capture = ClickFact["capture"];
+
+/** A field's box, a little larger than the field, kept inside the picture. */
+function fieldHighlight(field: { x: number; y: number; w: number; h: number }) {
+  const pad = 0.4;
+  const x = Math.max(0, field.x - pad);
+  const y = Math.max(0, field.y - pad);
+  return {
+    shape: "box" as const,
+    x: round3(x),
+    y: round3(y),
+    w: round3(Math.min(100 - x, field.w + pad * 2)),
+    h: round3(Math.min(100 - y, field.h + pad * 2)),
+  };
+}
 
 /** A screenshot as a step's media, or null when the recorder took none. */
 const mediaOf = (capture: Capture | null): RecordedStep["media"] =>
@@ -260,17 +276,20 @@ function clickStep(fact: RecordingFact, record: ClickFact, wording: StepWording)
   // In Chrome or Edge, what the page itself said the element was, when it named it
   // (docs/spec/02-capture.md#steps-for-chrome-and-the-desktop-together).
   const page = record.page ? { ...record.page.target } : null;
+  // A right-click says so (04/10/2026), or a context menu's choice seems to come from nowhere.
+  const right = record.button === "right";
+  const button = (phrase: Phrase) => (right ? asRightClick(phrase) : phrase);
   const pagePhrase = page ? phraseFor("click", page) : undefined;
-  const pageText = pagePhrase && say(pagePhrase, wording);
+  const pageText = pagePhrase && say(button(pagePhrase), wording);
   const description =
     pageText !== undefined
       ? { text: pageText, unnamed: false }
       : onTaskbar
         ? {
-            text: say({ key: "clickTaskbar", name: taskbarAppName(element.name) }, wording),
+            text: say(button({ key: "clickTaskbar", name: taskbarAppName(element.name) }), wording),
             unnamed: false,
           }
-        : describeClick(element, record.window.title, wording);
+        : describeClick(element, record.window.title, wording, right);
   const target = pageText !== undefined ? page : element ? uiaToStepTarget(element) : null;
   const step = baseStep(
     fact,
@@ -289,6 +308,7 @@ function clickStep(fact: RecordingFact, record: ClickFact, wording: StepWording)
     description.unnamed,
   );
   step.context = { app: record.window.exe, windowTitle: record.window.title };
+  if (right) step.textParts.verb = "rightClick";
   step.media = mediaOf(record.capture);
   if (record.clickPct) {
     step.highlight = clickHighlight(record.clickPct, record.capture.width, record.capture.height);
@@ -310,7 +330,54 @@ function navigationStep(
     "website",
   );
   step.context = { app: record.window.exe, windowTitle: record.window.title };
+  // The page it arrived at (04/10/2026).
+  if (record.capture?.image) step.media = mediaOf(record.capture);
   return step;
+}
+
+/** Cells selected by dragging (04/10/2026): "Select "D38:F42"", the selection boxed. */
+function dragStep(fact: RecordingFact, record: DragFact, wording: StepWording): RecordedStep {
+  const range = `${record.from}:${record.to}`;
+  const step = baseStep(
+    fact,
+    "click",
+    say({ key: "selectRange", range }, wording),
+    { tagName: "TD", role: "gridcell", labelText: range },
+    range,
+    "cells",
+  );
+  step.textParts.verb = "selectRange";
+  step.context = { app: record.window.exe, windowTitle: record.window.title };
+  if (record.capture?.image) step.media = mediaOf(record.capture);
+  if (record.selectionPct) step.highlight = fieldHighlight(record.selectionPct);
+  return step;
+}
+
+/**
+ * A drag replaces the click it began with: the drag's step takes the click's place, and the
+ * click's step goes (04/10/2026).
+ */
+export function applyDrags(
+  steps: readonly RecordedStep[],
+  facts: readonly RecordingFact[],
+): RecordedStep[] {
+  const clickFact = new Map<number, RecordingFact>();
+  for (const fact of facts) if (fact.record.kind === "click") clickFact.set(fact.record.id, fact);
+  const replaced = new Map<string, string>();
+  for (const fact of facts) {
+    if (fact.record.kind !== "drag") continue;
+    const started = clickFact.get(fact.record.of);
+    if (started) replaced.set(captureStepId(started.sequence), captureStepId(fact.sequence));
+  }
+  if (replaced.size === 0) return [...steps];
+  const sortKeys = new Map(steps.map((step) => [step.id, step.sortKey]));
+  return steps
+    .filter((step) => !replaced.has(step.id))
+    .map((step) => {
+      const click = [...replaced].find(([, drag]) => drag === step.id)?.[0];
+      const sortKey = click ? sortKeys.get(click) : undefined;
+      return sortKey ? { ...step, sortKey } : step;
+    });
 }
 
 /**
@@ -381,12 +448,6 @@ export function factToStep(fact: RecordingFact, wording: StepWording): RecordedS
   return step && fitToFormat(step);
 }
 
-/**
- * How far a browser's first address can trail the clicks on that page. Finding the address bar
- * the first time after the app starts can take a second or two, so a quick first click is
- * written before it.
- */
-const FIRST_ADDRESS_LAG_MS = 5_000;
 /** How soon after a click focus leaves the field it was taken from. */
 const FOCUS_LEAVE_LAG_MS = 500;
 /**
@@ -424,15 +485,12 @@ const sameElement = (left: Element | null, right: Element) => {
 };
 
 /**
- * Two kinds of step reach the journal after the click they belong before
+ * Some kinds of step reach the journal after the click they belong before
  * (docs/spec/02-capture.md#events), and are moved in front of it. `steps` may be in any order;
  * the result is sorted, and only those steps' sort keys change.
  *
  * - **A typing step** is read when focus leaves its field, which is when the next click lands:
  *   it goes before that click. Not before a click in the field itself.
- * - **A browser's first `Go to`** is where the recording started in that browser, but the first
- *   read can trail quick first clicks: it goes before that browser's clicks from a few seconds
- *   earlier on the same page title. A click that changed the title (a link) really came first.
  *   Later addresses stay where they arrived, after the click that changed the site.
  * - **An `Open` step** can trail the click that brought its window forward (the window manager
  *   marks it active once the click has arrived, on Linux): it goes before a click in that same
@@ -461,7 +519,6 @@ export function orderRecordedSteps(
     const id = captureStepId(fact.sequence);
     placed = placed.map((step) => (step.id === id ? { ...step, sortKey } : step)).sort(bySortKey);
   };
-  const seen = new Set<number>();
   for (const fact of ordered) {
     const record = fact.record;
     if (record.kind === "input") {
@@ -486,16 +543,11 @@ export function orderRecordedSteps(
       ) {
         moveBefore(fact, mover.sequence);
       }
-    } else if (record.kind === "navigation" && !seen.has(record.window.pid)) {
-      seen.add(record.window.pid);
-      const trailed = clicksBefore(fact).find(
-        ({ click }) =>
-          click.window.pid === record.window.pid &&
-          click.window.title === record.window.title &&
-          ticksBetween(click.tickMs, record.tickMs) <= FIRST_ADDRESS_LAG_MS,
-      );
-      if (trailed) moveBefore(fact, trailed.sequence);
     } else if (record.kind === "appSwitch") {
+      // A "Go to" stays where it was written (04/10/2026): it's only made for an address typed
+      // or picked in the address bar, which always comes after the click into the bar. Moving a
+      // browser's first address before the clicks it trailed was for the page a recording started
+      // on, which no longer makes a step; it put "Go to" before "Click the address bar".
       const mover = clicksBefore(fact).at(-1);
       if (
         mover &&
@@ -546,6 +598,22 @@ export function dropReplacedValues(
     }
   });
   return steps.filter((step) => !replaced.has(step.id));
+}
+
+/**
+ * Gives a typing step without a screenshot the one before it, when that's in the same window:
+ * usually the click into the very field, highlighted (04/10/2026: guides flicked between steps with
+ * screenshots and steps without). Typing is read as focus leaves a field, with no screenshot of its
+ * own, and taking one then would show what was typed. The step keeps its own words; only the
+ * picture is shared.
+ */
+export function borrowScreenshots(steps: readonly RecordedStep[]): RecordedStep[] {
+  return steps.map((step, index) => {
+    if (step.media?.id || !["input", "code", "formula"].includes(step.action)) return step;
+    const before = steps[index - 1];
+    if (!before?.media?.id || before.context.windowTitle !== step.context.windowTitle) return step;
+    return { ...step, media: { ...before.media }, highlight: before.highlight };
+  });
 }
 
 /**
@@ -604,6 +672,7 @@ function buildStep(fact: RecordingFact, wording: StepWording): RecordedStep | nu
     return step;
   }
   if (record.kind === "click") return clickStep(fact, record, wording);
+  if (record.kind === "drag") return dragStep(fact, record, wording);
   if (record.kind === "input") {
     const target = uiaToStepTarget(record.element);
     const actionText = describeInput(record.element, record.value ?? undefined, wording);
@@ -611,6 +680,13 @@ function buildStep(fact: RecordingFact, wording: StepWording): RecordedStep | nu
     const step = baseStep(fact, "input", actionText, target, label, "field");
     step.showValue = record.value !== null;
     if (record.value !== null) step.textParts.value = record.value;
+    // Its own screenshot, from when focus arrived in the field, with the field boxed (04/10/2026).
+    if (record.capture?.image) {
+      step.media = mediaOf(record.capture);
+      if (record.window)
+        step.context = { app: record.window.exe, windowTitle: record.window.title };
+      if (record.elementPct) step.highlight = fieldHighlight(record.elementPct);
+    }
     return step;
   }
   // The count is kept with the step, so its wording can be worked out again in another language.

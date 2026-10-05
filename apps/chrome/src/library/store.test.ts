@@ -139,6 +139,30 @@ describe("the browser library", () => {
     ).rejects.toMatchObject({ code: "unsupportedImage" });
   });
 
+  it("keeps a password lock and history out of copies, and drops the lock in the Bin (04/10/2026)", async () => {
+    const id = idOf(await library.createGuide(LIB, "Locked"));
+    await library.writeGuideLock(LIB, id, {
+      formatVersion: 1,
+      locked: { by: "Robin Hale", login: "", pc: "", at: "2026-10-04T10:00:00Z" },
+      password: "pbkdf2-sha256$1000$AAAA$AAAA",
+    });
+    await library.writeGuideHistory(LIB, id, { formatVersion: 1, saves: 2 });
+    expect((await library.listGuides(LIB))[0]?.locked).toEqual({
+      by: "Robin Hale",
+      at: "2026-10-04T10:00:00Z",
+    });
+    expect(await library.guideMeta(LIB, id)).toMatchObject({ history: { saves: 2 } });
+    const copy = await library.duplicateGuide(LIB, id, "Copy");
+    expect(copy.locked).toBeUndefined();
+    expect(await library.guideMeta(LIB, copy.id)).toEqual({ lock: null, history: null });
+    await expect(library.writeGuideLock(LIB, id, { nope: true })).rejects.toThrow();
+
+    const entry = await library.trashGuide(LIB, id);
+    const restored = await library.restoreGuide(LIB, entry.trashId);
+    expect(restored.locked).toBeUndefined();
+    expect(await library.guideMeta(LIB, id)).toMatchObject({ lock: null, history: { saves: 2 } });
+  });
+
   it("moves a guide to the Bin and back, whole", async () => {
     const id = idOf(await library.createGuide(LIB, "Holiday"));
     await library.saveStep(LIB, id, step("s1", "a0"));

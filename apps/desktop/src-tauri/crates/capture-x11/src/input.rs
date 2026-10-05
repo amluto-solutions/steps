@@ -135,6 +135,12 @@ pub struct InputShared {
 }
 
 impl InputShared {
+    /// The left button's latest release: not read on X11 yet, so drags stay clicks there.
+    #[must_use]
+    pub const fn last_left_up(&self) -> Option<(u32, i32, i32)> {
+        None
+    }
+
     fn new(capacity: usize) -> Self {
         Self {
             queue: ArrayQueue::new(capacity),

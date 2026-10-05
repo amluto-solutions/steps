@@ -638,7 +638,11 @@ describe("Recording", () => {
     const dialog = await screen.findByRole("dialog");
     fireEvent.click(within(dialog).getByRole("checkbox", { name: /Record what.s typed/ }));
     expect(within(dialog).getByText("Keys are read during this recording only.")).toBeTruthy();
-    fireEvent.click(within(dialog).getByRole("checkbox", { name: /Include command output/ }));
+    // Ticking what's typed ticks the output too (04/10/2026).
+    expect(
+      (within(dialog).getByRole("checkbox", { name: /Include command output/ }) as HTMLInputElement)
+        .checked,
+    ).toBe(true);
     fireEvent.click(within(dialog).getByRole("button", { name: "Start recording" }));
     await waitFor(() =>
       expect(recorder.start).toHaveBeenCalledWith(expect.any(String), {

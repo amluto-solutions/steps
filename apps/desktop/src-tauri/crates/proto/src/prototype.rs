@@ -158,6 +158,10 @@ fn print_record(record: &Record) {
             println!("navigation   {}", change.origin);
         }
         Record::Double { of, .. } => println!("double       of #{of}"),
+        Record::Drag(drag) => println!(
+            "drag         {} to {} (of #{})",
+            drag.from, drag.to, drag.of
+        ),
         Record::Missed { count, after_id } => {
             println!("MISSED       {count} click(s) after #{after_id}");
         }
@@ -254,6 +258,7 @@ fn run() -> Result<(), String> {
             note: None,
             extra_sensitive_terms: Vec::new(),
             machine: None,
+            entered: capture::lookup::FieldSlot::default(),
         },
     )))?;
     let (mut sink, writer) = start_writer(&options.out)?;

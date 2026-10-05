@@ -24,6 +24,52 @@ const kinds = (text: string, terms: string[] = []) =>
   findSensitive([line(text)], terms).map((found) => found.kind);
 
 describe("suggested blurs", () => {
+  it("finds every email in a list OCR spaced out", () => {
+    // As Windows OCR read a comma-separated list in Notepad++ (04/10/2026).
+    const found = findSensitive([
+      line(
+        "sam.testerl@gmail . com, jo . bloggs@btinternet . com,alex . jones@hotmail . com , chris42@yahoo . co . uk, lee.green7@gmai1. com",
+      ),
+    ]);
+    expect(found.map((item) => item.kind)).toEqual(["email", "email", "email", "email", "email"]);
+    expect(found[1]?.text).toBe("jo . bloggs@btinternet . com");
+    expect(kinds("End of sentence . Next one")).toEqual([]);
+    // OCR's misreading of small text, with a letter outside A to Z (04/10/2026).
+    expect(kinds("members@flintandholwællrotary.co.uk")).toEqual(["email"]);
+    // A catch-all isn't anyone's address.
+    expect(kinds("*@flintandholywellrotary.co.uk DEFAULT")).toEqual([]);
+  });
+
+  it("doesn't take a domain under an Email Address heading for an address (04/10/2026)", () => {
+    const table = [
+      at("Email Address", 10, 10),
+      at("flintandholywellrotary.co.uk", 10, 14),
+      at("members@flintandholywellrotary.co.uk", 10, 18),
+    ];
+    expect(findSensitive(table).map((found) => [found.kind, found.text])).toEqual([
+      ["email", "members@flintandholywellrotary.co.uk"],
+    ]);
+  });
+
+  it("never suggests a word on the person's own list, but keeps the always-blur words", () => {
+    const text = "Mail steps@amluto.com or call 07700 900123 about Falcon";
+    expect(
+      findSensitive([line(text)], ["Falcon"], { safe: ["Amluto"] }).map((f) => f.kind),
+    ).toEqual(["phone", "term"]);
+    expect(
+      findSensitive([line(text)], ["Falcon"], { safe: ["falcon", "07700 900 123"] }).map(
+        (f) => f.kind,
+      ),
+    ).toEqual(["email", "term"]);
+  });
+
+  it("suggests each area once", () => {
+    const found = findSensitive([line("Signed in as Robin Hale today")], [], {
+      people: ["Robin", "Robin Hale"],
+    });
+    expect(found.map((item) => item.text)).toEqual(["Robin Hale"]);
+  });
+
   it("finds each kind of personal data", () => {
     expect(kinds("Email jane.doe@acme.co.uk today")).toEqual(["email"]);
     expect(kinds("Call 07700 900123 now")).toEqual(["phone"]);
@@ -31,6 +77,10 @@ describe("suggested blurs", () => {
     expect(kinds("Office SW1A 1AA London")).toEqual(["postcode"]);
     // As Windows OCR actually read it.
     expect(kinds("Postcode SWIA IAA and MI IAE")).toEqual(["postcode", "postcode"]);
+    // Capital words OCR's misreads would otherwise make postcodes of (04/10/2026).
+    expect(kinds("SITE TOOLS")).toEqual([]);
+    expect(kinds("TOOLS")).toEqual([]);
+    expect(kinds("TOO OLD")).toEqual([]);
     expect(kinds("Card 4111 1111 1111 1111 exp")).toEqual(["card"]);
     expect(kinds("NI AB 12 34 56 C")).toEqual(["niNumber"]);
     expect(kinds("IBAN GB82 WEST 1234 5698 7654 32")).toEqual(["iban"]);

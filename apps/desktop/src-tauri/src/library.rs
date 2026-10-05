@@ -381,6 +381,73 @@ pub fn library_set_default_library(
     service.set_default(&recorder, &library_id)
 }
 
+/// Opens a library's folder in Explorer (Settings > Libraries). Takes the library's id, not a
+/// path, so the window can only open folders already on the list.
+#[tauri::command(async, rename_all = "camelCase")]
+pub fn library_open_folder(
+    service: State<'_, LibraryService>,
+    recorder: State<'_, RecorderService>,
+    library_id: String,
+) -> Result<(), CommandError> {
+    let library = service.library(&recorder, &library_id)?;
+    crate::open::open_path(library.root())
+}
+
+/// A guide's password lock and history files (docs/spec/03-data-and-sharing.md#password-locks).
+/// What a lock allows is decided in the app (`packages/ui/src/library/guide-locks.ts`).
+#[tauri::command(async, rename_all = "camelCase")]
+pub fn library_guide_meta(
+    service: State<'_, LibraryService>,
+    recorder: State<'_, RecorderService>,
+    library_id: String,
+    guide_id: String,
+) -> Result<library::GuideMeta, CommandError> {
+    in_library(&service, &recorder, &library_id, |library| {
+        library.guide_meta(&guide_id)
+    })
+}
+
+/// Locks a guide (its lock file), or takes the lock off (`null`).
+#[tauri::command(async, rename_all = "camelCase")]
+pub fn library_write_guide_lock(
+    service: State<'_, LibraryService>,
+    recorder: State<'_, RecorderService>,
+    library_id: String,
+    guide_id: String,
+    lock: Option<serde_json::Value>,
+) -> Result<(), CommandError> {
+    in_library(&service, &recorder, &library_id, |library| {
+        library.write_guide_lock(&guide_id, lock.as_ref())
+    })
+}
+
+/// Writes a guide's history (Properties: saves, who saved last, lock events).
+#[tauri::command(async, rename_all = "camelCase")]
+pub fn library_write_guide_history(
+    service: State<'_, LibraryService>,
+    recorder: State<'_, RecorderService>,
+    library_id: String,
+    guide_id: String,
+    history: serde_json::Value,
+) -> Result<(), CommandError> {
+    in_library(&service, &recorder, &library_id, |library| {
+        library.write_guide_history(&guide_id, &history)
+    })
+}
+
+/// A guide's pictures and size on disk, for Properties.
+#[tauri::command(async, rename_all = "camelCase")]
+pub fn library_guide_stats(
+    service: State<'_, LibraryService>,
+    recorder: State<'_, RecorderService>,
+    library_id: String,
+    guide_id: String,
+) -> Result<library::GuideStats, CommandError> {
+    in_library(&service, &recorder, &library_id, |library| {
+        library.guide_stats(&guide_id)
+    })
+}
+
 /// Lists a library's guides, newest change first.
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_list_guides(

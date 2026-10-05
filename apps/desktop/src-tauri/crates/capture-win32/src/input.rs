@@ -53,10 +53,11 @@ use windows::Win32::UI::WindowsAndMessaging::{
     CallNextHookEx, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW,
     EVENT_SYSTEM_FOREGROUND, GetForegroundWindow, GetMessagePos, GetMessageTime, GetMessageW,
     HC_ACTION, HHOOK, HWND_MESSAGE, LLMHF_INJECTED, MSG, MSLLHOOKSTRUCT, PostThreadMessageW,
-    RI_MOUSE_LEFT_BUTTON_DOWN, RI_MOUSE_MIDDLE_BUTTON_DOWN, RI_MOUSE_RIGHT_BUTTON_DOWN,
-    RegisterClassExW, SetWindowsHookExW, UnhookWindowsHookEx, WH_MOUSE_LL, WINDOW_EX_STYLE,
-    WINDOW_STYLE, WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS, WM_APP, WM_INPUT, WM_LBUTTONDOWN,
-    WM_MBUTTONDOWN, WM_MOUSEMOVE, WM_QUIT, WM_RBUTTONDOWN, WNDCLASSEXW,
+    RI_MOUSE_LEFT_BUTTON_DOWN, RI_MOUSE_LEFT_BUTTON_UP, RI_MOUSE_MIDDLE_BUTTON_DOWN,
+    RI_MOUSE_RIGHT_BUTTON_DOWN, RegisterClassExW, SetWindowsHookExW, UnhookWindowsHookEx,
+    WH_MOUSE_LL, WINDOW_EX_STYLE, WINDOW_STYLE, WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS,
+    WM_APP, WM_INPUT, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MOUSEMOVE, WM_QUIT,
+    WM_RBUTTONDOWN, WNDCLASSEXW,
 };
 use windows::core::w;
 
@@ -177,6 +178,9 @@ pub struct InputShared {
     /// time the click is handled the window clicked has come to the front, but the screenshot
     /// can still show what lay over it: those windows are greyed out by this (F014).
     stacks: Mutex<VecDeque<(u64, Vec<crate::window::ShownWindow>)>>,
+    /// The left button's latest release (time, position), for telling a drag from a click: a
+    /// selection of cells dragged in Excel (04/10/2026).
+    left_up: Mutex<Option<(u32, i32, i32)>>,
 }
 
 /// How many clicks' window stacks are kept: more than can be waiting to be handled.
@@ -197,6 +201,19 @@ impl InputShared {
             enabled: AtomicBool::new(false),
             source: AtomicU8::new(InputSource::RawInput.to_u8()),
             stacks: Mutex::new(VecDeque::new()),
+            left_up: Mutex::new(None),
+        }
+    }
+
+    /// The left button's latest release while recording: time, and where.
+    #[must_use]
+    pub fn last_left_up(&self) -> Option<(u32, i32, i32)> {
+        *self.left_up.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn record_left_up(&self, tick_ms: u32, x: i32, y: i32) {
+        if self.enabled.load(Ordering::Relaxed) {
+            *self.left_up.lock().unwrap_or_else(PoisonError::into_inner) = Some((tick_ms, x, y));
         }
     }
 
@@ -768,6 +785,8 @@ unsafe extern "system" fn mouse_hook_proc(code: i32, wparam: WPARAM, lparam: LPA
             let shared = shared();
             if let Some(button) = button {
                 mouse_down(info.time, info.pt.x, info.pt.y, button, injected);
+            } else if message == WM_LBUTTONUP {
+                shared.record_left_up(info.time, info.pt.x, info.pt.y);
             } else if message == WM_MOUSEMOVE {
                 shared.record_move();
             }
@@ -921,6 +940,11 @@ fn read_raw_mouse(raw: &RAWINPUT, tick: u32) {
 
     if mouse.lLastX != 0 || mouse.lLastY != 0 {
         shared.record_move();
+    }
+    if flags & RI_MOUSE_LEFT_BUTTON_UP != 0 {
+        // SAFETY: no arguments; describes the message currently being processed.
+        let (x, y) = unpack_message_pos(unsafe { GetMessagePos() });
+        shared.record_left_up(tick, x, y);
     }
     let button = if flags & RI_MOUSE_LEFT_BUTTON_DOWN != 0 {
         Some(MouseButton::Left)

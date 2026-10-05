@@ -256,6 +256,11 @@ export interface RecorderBridge {
   getPolicy(): Promise<Policy>;
   /** The person's own account names, for blur suggestions (desktop only; they stay on the PC). */
   identityNames?(): Promise<string[]>;
+  /**
+   * This PC's name and login, kept with a guide's saves and lock when Settings > Privacy allows
+   * (desktop only: the browser can't tell them).
+   */
+  machineIdentity?(): Promise<{ pc: string; login: string }>;
   /** Saves an export where the user chose in the save dialog (PDF, Word or web page only). */
   writeExport(path: string, bytes: Uint8Array): Promise<string>;
   /** Saves an export in a folder under a new name (never replacing a file); returns the path. */
@@ -329,5 +334,7 @@ export interface RecorderBridge {
   saveBrand(profile: unknown): Promise<void>;
   /** Saves a brand the organisation deploys (the start-up sync only; others are refused). */
   saveManagedBrand(profile: unknown): Promise<void>;
+  /** The brands IT deploys, including those imported before whose share is out of reach now. */
+  managedBrandIds?(): Promise<string[]>;
   deleteBrand(id: string): Promise<void>;
 }
