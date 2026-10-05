@@ -257,8 +257,12 @@ export function ExportDialog(props: ExportDialogProps) {
     const firstPass = !firstPassDone.current;
     void (async () => {
       let done = 0;
-      for (const step of withImages) {
-        if (cancelled) return;
+      // Four at a time (05/10/2026): reading a screenshot's text happens in the app while the next
+      // is drawn, so a long guide is ready far sooner than one page after another.
+      const queue = [...withImages];
+      const prepareNext = async (): Promise<void> => {
+        const step = queue.shift();
+        if (!step || cancelled) return;
         try {
           const known = sources.current.get(step.id);
           const source = known ?? (await props.loadImage(step.media?.id ?? ""));
@@ -289,7 +293,9 @@ export function ExportDialog(props: ExportDialogProps) {
         if (cancelled) return;
         done += 1;
         setPrepared({ brandId: brand.id, count: done });
-      }
+        await prepareNext();
+      };
+      await Promise.all(Array.from({ length: 4 }, () => prepareNext()));
       if (cancelled) return;
       // A guide with no screenshots (text blocks only) is ready at once; without this its Export
       // button never came on.

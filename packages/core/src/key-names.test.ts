@@ -13,8 +13,15 @@ describe("keys named as the keyboard names them", () => {
 
   it("words a recorded shortcut in the guide's language", () => {
     expect(renderPhrase({ key: "press", keys: "Ctrl + S" }, "de", "casual")).toContain("Strg + S");
+    expect(renderPhrase({ key: "press", keys: "Ctrl + Shift + S" }, "en", "casual")).toBe(
+      'Press "Ctrl + Shift + S"',
+    );
+    // A shortcut Windows names says that name too, in the guide's language.
     expect(renderPhrase({ key: "press", keys: "Ctrl + S" }, "en", "casual")).toBe(
-      'Press "Ctrl + S"',
+      'Press "Ctrl + S" (Save)',
+    );
+    expect(renderPhrase({ key: "press", keys: "Ctrl + C" }, "de", "formal")).toBe(
+      "Drücken Sie Strg + C (Kopieren).",
     );
   });
 });

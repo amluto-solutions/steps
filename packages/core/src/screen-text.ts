@@ -17,21 +17,25 @@ export function textAtPoint(lines: OcrLine[], x: number, y: number): string | nu
     const index = line.words.findIndex(hit);
     if (index >= 0) return phraseAround(line.words, index);
   }
-  // An icon with its label beside it (Settings' navigation, File Explorer's buttons).
-  let best: { distance: number; words: OcrWord[]; index: number } | null = null;
+  // An icon with its label beside it (Settings' navigation, File Explorer's buttons), or a click
+  // just past the end of a menu item's word. A label on the click's own row comes before one
+  // underneath: the next menu item down is not the one clicked (05/10/2026).
+  type Found = { distance: number; words: OcrWord[]; index: number };
+  let beside: Found | null = null;
+  let under: Found | null = null;
   for (const line of lines) {
     line.words.forEach((word, index) => {
-      const sameRow = y >= word.y - word.h * 0.6 && y <= word.y + word.h * 1.6;
-      const right = word.x - x;
-      if (sameRow && right > 0 && right < 12 && (!best || right < best.distance))
-        best = { distance: right, words: line.words, index };
+      const sameRow = y >= word.y - word.h * 0.25 && y <= word.y + word.h * 1.25;
+      const gap = word.x > x ? word.x - x : x - (word.x + word.w);
+      if (sameRow && gap > 0 && gap < 12 && (!beside || gap < beside.distance))
+        beside = { distance: gap, words: line.words, index };
       const below = word.y - y;
       const centred = Math.abs(word.x + word.w / 2 - x) < Math.max(word.w, 3);
-      if (centred && below > 0 && below < 5 && (!best || below < best.distance))
-        best = { distance: below, words: line.words, index };
+      if (centred && below > 0 && below < 5 && (!under || below < under.distance))
+        under = { distance: below, words: line.words, index };
     });
   }
-  const found = best as { words: OcrWord[]; index: number } | null;
+  const found = (beside ?? under) as Found | null;
   return found ? phraseAround(found.words, found.index) : null;
 }
 

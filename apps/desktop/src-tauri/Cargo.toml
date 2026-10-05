@@ -78,11 +78,16 @@ workspace = true
 
 # Development builds keep line numbers for our own code and no debug information for libraries:
 # full debug information for every crate made the build folder grow past 70 GB (28/09/2026).
+# Optimised even in development: an unoptimised build took ~10x as long per screenshot (250 ms
+# against 25), so a test recording with `npm run dev` fell behind its clicks and its screenshots
+# showed later moments than the installed app's would (05/10/2026).
 [profile.dev]
 debug = "line-tables-only"
+opt-level = 1
 
 [profile.dev.package."*"]
 debug = false
+opt-level = 3
 
 [profile.release]
 # Symbols stripped, never packed or compressed (docs/spec/08-privacy-and-security.md#antivirus--edr-rules).

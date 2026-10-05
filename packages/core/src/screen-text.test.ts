@@ -34,6 +34,16 @@ describe("naming a click from the screenshot's words", () => {
     expect(textAtPoint([line("Paste", 40, 12)], 42, 8)).toBe("Paste");
   });
 
+  it("takes a menu item's word just left of the click before the next item down", () => {
+    // SiteGround's Email menu (05/10/2026): a click just past "Forwarders" was named
+    // "Autoresponders", the item underneath.
+    const menu = [
+      { words: [{ text: "Forwarders", x: 7.6, y: 37.4, w: 5.5, h: 1.6 }] },
+      { words: [{ text: "Autoresponders", x: 7.6, y: 43.4, w: 7.9, h: 1.6 }] },
+    ];
+    expect(textAtPoint(menu, 14.18, 38.84)).toBe("Forwarders");
+  });
+
   it("says nothing when there's no word near, or only a number", () => {
     expect(textAtPoint(settings, 40, 80)).toBeNull();
     expect(textAtPoint([line("42", 10, 10)], 10.5, 10.5)).toBeNull();

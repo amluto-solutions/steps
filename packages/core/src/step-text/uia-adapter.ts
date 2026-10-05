@@ -44,11 +44,17 @@ const promoteTextLeaf = (facts: UiaElementFacts): UiaElementFacts => {
   }
   const textInInteractive =
     facts.controlType === "Text" && INTERACTIVE_PARENTS.has(parent.controlType);
+  // An unnamed part of a named menu or list item, button or link is that item: SiteGround's
+  // "Forwarders" is a list item whose clickable inside has no name (05/10/2026).
+  const unnamedInInteractive =
+    !clean(facts.name) &&
+    INTERACTIVE_PARENTS.has(parent.controlType) &&
+    ["Group", "Text", "Image", "Custom", "Pane"].includes(facts.controlType);
   const cellInDesktopRow =
     facts.frameworkId !== "Chrome" &&
     ROW_PARENTS.has(parent.controlType) &&
     ["Edit", "Text", "Image"].includes(facts.controlType);
-  if (textInInteractive || cellInDesktopRow) {
+  if (textInInteractive || unnamedInInteractive || cellInDesktopRow) {
     return { ...facts, controlType: parent.controlType, name: parent.name };
   }
   return facts;

@@ -64,6 +64,18 @@ describe("uiaToStepTarget", () => {
     expect(target).toEqual({ tagName: "BUTTON", innerText: "Save changes" });
   });
 
+  it("names an unnamed part of a named list item by the item", () => {
+    const inside = facts({
+      controlType: "Group",
+      className: "sg-nav-list-item__content",
+      parent: { controlType: "ListItem", name: "Forwarders" },
+    });
+    expect(describeClick(inside, "Site Tools").text).toBe('Click "Forwarders"');
+    // A named part keeps its own name, and a field stays a field.
+    expect(uiaToStepTarget({ ...inside, name: "Badge" })).toMatchObject({ innerText: "Badge" });
+    expect(uiaToStepTarget({ ...inside, controlType: "Edit" })).toMatchObject({ tagName: "INPUT" });
+  });
+
   it("reads a cell in a desktop list row as the row (File Explorer details view)", () => {
     const cell = facts({
       controlType: "Edit",

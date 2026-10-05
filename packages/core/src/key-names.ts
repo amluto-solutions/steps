@@ -159,6 +159,46 @@ const ALIASES: Record<string, string> = {
   Return: "Enter",
 };
 
+/**
+ * The shortcuts a step names as well as presses, `Press "Ctrl + C" (Copy)` (05/10/2026), by
+ * what Windows calls them. Only ones that do the same thing in every app: Ctrl + N is a new
+ * document in one app and a new window in another, so it isn't here.
+ */
+export const SHORTCUTS = {
+  "Ctrl + A": "selectAll",
+  "Ctrl + C": "copy",
+  "Ctrl + X": "cut",
+  "Ctrl + V": "paste",
+  "Ctrl + S": "save",
+  "Ctrl + P": "print",
+  "Ctrl + F": "find",
+  "Alt + F4": "close",
+  "Ctrl + Shift + Esc": "taskManager",
+  "Win + D": "showDesktop",
+  "Win + E": "fileExplorer",
+  "Win + I": "settings",
+  "Win + L": "lock",
+  "Win + R": "run",
+  "Win + V": "clipboardHistory",
+  "Shift + Win + S": "snippingTool",
+} as const;
+export type Shortcut = (typeof SHORTCUTS)[keyof typeof SHORTCUTS];
+
+const MODIFIER_ORDER = ["Ctrl", "Alt", "Shift", "Win"];
+
+/** The shortcut `keys` is, however its keys are spelt or ordered, or null. */
+export function shortcutOf(keys: string): Shortcut | null {
+  const parts = keys.split(/\s*\+\s*/).map((part) => {
+    const named = ALIASES[part] ?? part;
+    return named.length === 1 ? named.toUpperCase() : named;
+  });
+  const modifiers = parts.filter((part) => MODIFIER_ORDER.includes(part));
+  const rest = parts.filter((part) => !MODIFIER_ORDER.includes(part));
+  modifiers.sort((a, b) => MODIFIER_ORDER.indexOf(a) - MODIFIER_ORDER.indexOf(b));
+  const canonical = [...modifiers, ...rest].join(" + ");
+  return (SHORTCUTS as Record<string, Shortcut>)[canonical] ?? null;
+}
+
 /** A combination such as "Ctrl + S" with each key named as `language`'s keyboards name it. */
 export const localKeys = (keys: string, language: string): string =>
   keys

@@ -83,6 +83,11 @@ describe.each(books)("%s phrasebook", (code, book) => {
     expect(problems).toEqual([]);
   });
 
+  it("names every shortcut", () => {
+    expect(Object.keys(book?.shortcuts ?? {}).sort()).toEqual(Object.keys(en.shortcuts).sort());
+    for (const name of Object.values(book?.shortcuts ?? {})) expect(name.trim()).toBeTruthy();
+  });
+
   it("names the terminals", () => {
     expect(Object.keys(book?.terminals ?? {}).sort()).toEqual(["bash", "cmd", "powershell"]);
     for (const name of Object.values(book?.terminals ?? {})) expect(name.trim()).toBeTruthy();

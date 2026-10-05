@@ -545,7 +545,10 @@ export function GuideEditor(props: GuideEditorProps) {
     },
   ];
 
-  const addAt = selectedIndex >= 0 ? selectedIndex : doc.steps.length - 1;
+  // New items go after the selected step; with the guide details or intro selected they go
+  // first, and only the outro sends them to the end.
+  const addAt =
+    selectedIndex >= 0 ? selectedIndex : selection.kind === "outro" ? doc.steps.length - 1 : -1;
   const addBlock = (type: Block["type"]) =>
     insertAfter(
       blockStep(newId("block"), type, { at: Date.now(), by: props.author }),

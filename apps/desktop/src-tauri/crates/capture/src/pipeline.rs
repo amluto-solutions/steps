@@ -53,7 +53,8 @@ impl Default for PipelineConfig {
         Self {
             mode: CaptureMode::Window,
             target_monitor: None,
-            uia_timeout: Duration::from_millis(150),
+            // Room for Chrome's second look (`uia::CHROME_SETTLE`), which can take ~200 ms.
+            uia_timeout: Duration::from_millis(350),
             stall_per_event: Duration::ZERO,
             silence_limit: Duration::from_secs(2),
         }

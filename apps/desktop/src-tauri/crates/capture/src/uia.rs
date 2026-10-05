@@ -7,7 +7,7 @@
 use std::collections::HashMap;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -202,7 +202,16 @@ fn worker(
     }
     let _ = ready.send(Ok(()));
 
-    while let Ok(request) = requests.recv() {
+    let mut warmth = Warmth::default();
+    loop {
+        let request = match requests.recv_timeout(CHROME_WARM_EVERY) {
+            Ok(request) => request,
+            Err(RecvTimeoutError::Timeout) => {
+                warm_chrome(&automation, &mut warmth);
+                continue;
+            }
+            Err(RecvTimeoutError::Disconnected) => break,
+        };
         match request {
             Request::At { id, x, y, hwnd } => {
                 let started = Instant::now();
@@ -636,14 +645,69 @@ fn descend(
     current.build_updated_cache(cache).ok()
 }
 
-/// Chrome builds its accessibility tree only when asked; the first lookup can return an empty pane.
-fn looks_unbuilt(facts: &ElementFacts) -> bool {
-    facts.name.is_empty()
-        && facts.framework_id == "Chrome"
-        && matches!(
-            facts.control_type.as_str(),
-            "Pane" | "Document" | "Custom" | "Group"
-        )
+/// Chrome (and Edge, Brave, Opera, Vivaldi) answers a hit test at once from what it already has:
+/// the element its previous hit test found, when the point is inside that one's bounds, or else a
+/// guess from the boxes in its tree that knows nothing of what's on top. It asks the page for the
+/// real answer in the background. So a click got the previous click's button, the whole page, or
+/// a tile under an open drop-down list (a hosting control panel, 05/10/2026). Looking again later
+/// is no cure: by then the click has done its work and the page shows a loading screen. Instead
+/// the worker asks about the point under the pointer while it rests (`warm_chrome`), so Chrome's
+/// answer for the click is ready before the click.
+const CHROME_WARM_EVERY: Duration = Duration::from_millis(40);
+/// A pointer resting in one place is asked about again this often, for a page that changes under
+/// it (a menu opening).
+const CHROME_REWARM: Duration = Duration::from_millis(250);
+
+/// The browsers built on Chromium, whose hit test works this way.
+fn is_chromium(exe_name: Option<&str>) -> bool {
+    exe_name.is_some_and(|name| {
+        [
+            "chrome.exe",
+            "msedge.exe",
+            "chromium.exe",
+            "brave.exe",
+            "opera.exe",
+            "vivaldi.exe",
+        ]
+        .iter()
+        .any(|browser| name.eq_ignore_ascii_case(browser))
+    })
+}
+
+/// Where the worker last asked Chrome about the pointer, and when.
+#[derive(Default)]
+struct Warmth {
+    at: Option<(i32, i32)>,
+    when: Option<Instant>,
+}
+
+/// Asks Chrome what is under a resting pointer, so its answer is in hand when the click comes.
+/// Only a Chromium window under the pointer is asked; other apps are left alone.
+fn warm_chrome(automation: &UIAutomation, warmth: &mut Warmth) {
+    let Some(point) = crate::platform::display::cursor_pos() else {
+        return;
+    };
+    let fresh = warmth
+        .when
+        .is_some_and(|when| when.elapsed() < CHROME_REWARM);
+    if warmth.at == Some(point) && fresh {
+        return;
+    }
+    let chromium = crate::platform::window::root_window_at(point.0, point.1)
+        .is_some_and(|window| is_chromium(window.exe_name()));
+    if chromium {
+        let _ = automation.element_from_point(Point::new(point.0, point.1));
+    }
+    warmth.at = Some(point);
+    warmth.when = Some(Instant::now());
+}
+
+/// A first answer from Chrome that is only its guess: the page, a pane, or nothing under the click.
+fn chrome_guess(facts: &ElementFacts, x: i32, y: i32) -> bool {
+    facts.framework_id == "Chrome"
+        && (matches!(facts.control_type.as_str(), "Document" | "Pane")
+            || (facts.name.is_empty() && facts.control_type == "Custom")
+            || !contains(facts.bounds.as_ref(), x, y))
 }
 
 fn element_at(
@@ -668,9 +732,13 @@ fn element_at(
     };
     let (mut element, mut facts) = lookup().map_err(|error| error.to_string())?;
     let mut retried = false;
-    if looks_unbuilt(&facts) {
-        std::thread::sleep(Duration::from_millis(30));
-        if let Ok(second) = lookup() {
+    // The pointer wasn't resting long enough for `warm_chrome`: one more look, kept only if it
+    // finds something real under the click.
+    if chrome_guess(&facts, x, y) {
+        std::thread::sleep(Duration::from_millis(40));
+        if let Ok(second) = lookup()
+            && !chrome_guess(&second.1, x, y)
+        {
             (element, facts) = second;
         }
         retried = true;
@@ -979,24 +1047,6 @@ mod tests {
             found += usize::from(read.origin.is_some() || read.focused);
         }
         assert!(found > 0, "no browser address bar was read");
-    }
-
-    #[test]
-    fn empty_chrome_panes_look_unbuilt() {
-        let facts = ElementFacts {
-            control_type: "Pane".into(),
-            framework_id: "Chrome".into(),
-            ..ElementFacts::default()
-        };
-        assert!(looks_unbuilt(&facts));
-        assert!(!looks_unbuilt(&ElementFacts {
-            name: "Save".into(),
-            ..facts.clone()
-        }));
-        assert!(!looks_unbuilt(&ElementFacts {
-            framework_id: "Win32".into(),
-            ..facts
-        }));
     }
 
     #[test]

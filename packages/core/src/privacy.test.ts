@@ -36,6 +36,11 @@ describe("suggested blurs", () => {
     expect(kinds("End of sentence . Next one")).toEqual([]);
     // OCR's misreading of small text, with a letter outside A to Z (04/10/2026).
     expect(kinds("members@flintandholwællrotary.co.uk")).toEqual(["email"]);
+    // Underscores and apostrophes before the @, blurred whole (05/10/2026).
+    const texts = (text: string) => findSensitive([line(text)]).map((found) => found.text);
+    expect(texts("alan_smith@live.co.uk")).toEqual(["alan_smith@live.co.uk"]);
+    expect(texts("j_wiltshire@live . co . uk")).toEqual(["j_wiltshire@live . co . uk"]);
+    expect(texts("jo.o'brien@example.com")).toEqual(["jo.o'brien@example.com"]);
     // A catch-all isn't anyone's address.
     expect(kinds("*@flintandholywellrotary.co.uk DEFAULT")).toEqual([]);
   });

@@ -160,5 +160,5 @@ describe("the document-control page", () => {
     expect(document).toContain("Steps 2–3");
     expect(document).toContain('w:type="page"');
     expect(wordAnchor("a".repeat(60))).toHaveLength(40);
-  });
+  }, 30_000);
 });

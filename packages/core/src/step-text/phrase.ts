@@ -1,5 +1,5 @@
 import type { CodeLanguage } from "../code.ts";
-import { localKeys } from "../key-names.ts";
+import { localKeys, shortcutOf, type Shortcut } from "../key-names.ts";
 import { DEFAULT_LANGUAGE } from "../languages.ts";
 import { PHRASEBOOKS } from "./phrasebooks/index.ts";
 import type { StepAction, StepTarget } from "./types.ts";
@@ -111,6 +111,8 @@ export interface Phrasebook {
   typeValueInCell: string;
   typeInCell: string;
   press: string;
+  /** A shortcut Windows has a name for: `{keys}`, `{name}` ("Copy"). */
+  pressNamed: string;
   goTo: string;
   open: string;
   runIn: string;
@@ -129,6 +131,8 @@ export interface LanguagePhrases {
   formal: Phrasebook;
   /** The terminals' names in this language, where they have one ("Eingabeaufforderung"). */
   terminals: Record<Terminal, string>;
+  /** What Windows calls each shortcut in this language, for `pressNamed`. */
+  shortcuts: Record<Shortcut, string>;
 }
 
 /** Kinds worded like another when a language has no words of their own for them. */
@@ -217,8 +221,13 @@ export function renderPhrase(phrase: Phrase, language: string, tone: Tone): stri
       return fill(book.typeValueInCell, { value: shorten(phrase.value), cell: phrase.cell });
     case "typeInCell":
       return fill(book.typeInCell, { cell: phrase.cell });
-    case "press":
-      return fill(book.press, { keys: localKeys(phrase.keys, language) });
+    case "press": {
+      const keys = localKeys(phrase.keys, language);
+      const shortcut = shortcutOf(phrase.keys);
+      return shortcut
+        ? fill(book.pressNamed, { keys, name: phrases.shortcuts[shortcut] })
+        : fill(book.press, { keys });
+    }
     case "goTo":
       return fill(book.goTo, { site: phrase.site });
     case "open":

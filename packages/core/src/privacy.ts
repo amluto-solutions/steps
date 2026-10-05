@@ -157,7 +157,8 @@ const RULES: Rule[] = [
   // "members@flintandholwællrotary.co.uk" went unsuggested).
   {
     kind: "email",
-    pattern: /[\p{L}\p{N}._%+-]+@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)*\.\p{L}{2,}/giu,
+    // Underscores and apostrophes too (05/10/2026: "alan_…@" was blurred from after the "_").
+    pattern: /[\p{L}\p{N}._%+'-]+@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)*\.\p{L}{2,}/giu,
   },
   // UK numbers: 0 or +44, then 9 or 10 more digits, spaces or dashes allowed between, and the
   // area code may be in brackets ("(020) 7946 0958").
@@ -276,7 +277,7 @@ function fitsKind(kind: SensitiveKind, value: string): boolean {
     case "email":
       // An address, with someone before the @: not a domain on its own, nor a catch-all
       // "*@domain" (04/10/2026: a mail host's "Email Address" column suggested its domain).
-      return /[\p{L}\p{N}._%+-]\s?@\s?\S/u.test(text);
+      return /[\p{L}\p{N}._%+'-]\s?@\s?\S/u.test(text);
     default:
       return /\p{L}/u.test(text);
   }

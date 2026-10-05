@@ -79,6 +79,15 @@ describe("keys and other steps", () => {
     expect(wordStep("keypress", null, null, "Ctrl + Shift + S")).toBe('Press "Ctrl + Shift + S"');
   });
 
+  it("names a shortcut Windows has a name for", () => {
+    expect(wordStep("keypress", null, null, "Ctrl + C")).toBe('Press "Ctrl + C" (Copy)');
+    expect(wordStep("keypress", null, null, "Control + v")).toBe('Press "Ctrl + v" (Paste)');
+    expect(wordStep("keypress", null, null, "Shift + Win + S")).toBe(
+      'Press "Shift + Win + S" (Snipping Tool)',
+    );
+    expect(wordStep("keypress", null, null, "Ctrl + N")).toBe('Press "Ctrl + N"');
+  });
+
   it("leaves a navigation to its site's wording (\"Go to\"), never an element's", () => {
     expect(wordStep("navigation", { ariaLabel: "Home" })).toBeUndefined();
     expect(wordStep("navigation", { innerText: "Home" })).toBeUndefined();
