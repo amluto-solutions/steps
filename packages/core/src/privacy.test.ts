@@ -41,8 +41,20 @@ describe("suggested blurs", () => {
     expect(texts("alan_smith@live.co.uk")).toEqual(["alan_smith@live.co.uk"]);
     expect(texts("j_wiltshire@live . co . uk")).toEqual(["j_wiltshire@live . co . uk"]);
     expect(texts("jo.o'brien@example.com")).toEqual(["jo.o'brien@example.com"]);
-    // A catch-all isn't anyone's address.
-    expect(kinds("*@flintandholywellrotary.co.uk DEFAULT")).toEqual([]);
+    // Every other character an address may have before the @, and hyphens in the domain.
+    for (const address of [
+      "jo-bloggs@my-firm.co.uk",
+      "first.last+news@example.com",
+      "100%sure@example.org",
+      "a!b#c$d&e*f@example.com",
+      "x/y=z?w^v@example.com",
+      "{curly}|pipe~`tick@example.com",
+    ])
+      expect(texts(`Contact ${address} today`)).toEqual([address]);
+    // A catch-all is blurred too (06/10/2026).
+    expect(texts("*@flintandholywellrotary.co.uk DEFAULT")).toEqual([
+      "*@flintandholywellrotary.co.uk",
+    ]);
   });
 
   it("doesn't take a domain under an Email Address heading for an address (04/10/2026)", () => {
