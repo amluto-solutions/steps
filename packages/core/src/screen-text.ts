@@ -35,7 +35,6 @@ export function textAtPoint(
       Math.max(word.x - x, 0, x - (word.x + word.w)),
       Math.max(word.y - y, 0, y - (word.y + word.h)),
     );
-  type Found = { distance: number; words: OcrWord[]; index: number };
   let on: Found | null = null;
   for (const line of lines) {
     line.words.forEach((word, index) => {
@@ -46,7 +45,7 @@ export function textAtPoint(
   }
   const hit = on as Found | null;
   if (hit) return phraseAround(hit.words, hit.index);
-  if (element) {
+  if (element && controlSized(element)) {
     const own = ownLabel(lines, x, y, element);
     if (own) return phraseAround(own.words, own.index);
   }
@@ -77,32 +76,43 @@ export function textAtPoint(
   return found ? phraseAround(found.words, found.index) : null;
 }
 
+/** A word found near the click: how near, and the line it's in. */
+type Found = { distance: number; words: OcrWord[]; index: number };
+
+/** The largest outline, in percent of the screenshot each way, that is one control's own. */
+const CONTROL_SIZE = 25;
+
+/**
+ * Whether an outline is a control's (an icon, a button, a field) and not a window or a pane: a
+ * click UI Automation named only after its window has the window as its outline, and the nearest
+ * word anywhere in it isn't the clicked thing's name (07/10/2026).
+ */
+function controlSized(box: Box): boolean {
+  return box.w <= CONTROL_SIZE && box.h <= CONTROL_SIZE;
+}
+
 /**
  * The element's own words: those inside its outline (the nearest to the click), or else a label
- * centred under it, within its own height (an icon labelled underneath).
+ * under it, its middle within the outline's width, no further down than the outline is tall (an
+ * icon labelled underneath).
  */
-function ownLabel(
-  lines: OcrLine[],
-  x: number,
-  y: number,
-  box: Box,
-): { words: OcrWord[]; index: number } | null {
-  let inside: { distance: number; words: OcrWord[]; index: number } | null = null;
-  let under: { distance: number; words: OcrWord[]; index: number } | null = null;
-  const right = box.x + box.w;
+function ownLabel(lines: OcrLine[], x: number, y: number, box: Box): Found | null {
+  let inside: Found | null = null;
+  let under: Found | null = null;
   const bottom = box.y + box.h;
   for (const line of lines) {
     line.words.forEach((word, index) => {
       const middleX = word.x + word.w / 2;
       const middleY = word.y + word.h / 2;
-      if (middleX >= box.x && middleX <= right && middleY >= box.y && middleY <= bottom) {
+      if (middleX < box.x || middleX > box.x + box.w) return;
+      if (middleY >= box.y && middleY <= bottom) {
         const distance = Math.hypot(middleX - x, middleY - y);
         if (!inside || distance < inside.distance) inside = { distance, words: line.words, index };
         return;
       }
       const gap = word.y - bottom;
-      if (middleX >= box.x && middleX <= right && gap >= -word.h / 2 && gap < Math.max(box.h, 2))
-        if (!under || gap < under.distance) under = { distance: gap, words: line.words, index };
+      if (gap >= -word.h / 2 && gap < Math.max(box.h, 2) && (!under || gap < under.distance))
+        under = { distance: gap, words: line.words, index };
     });
   }
   return inside ?? under;

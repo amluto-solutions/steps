@@ -147,6 +147,8 @@ struct Session {
     directory: PathBuf,
     sequence: Arc<AtomicU64>,
     gap: Arc<JournalGap>,
+    /// Steps the capture worker has handed to its writer and that aren't journalled yet.
+    backlog: Arc<capture::queued_sink::Backlog>,
     /// Facts up to this sequence were dropped by "Start again" (restart.json keeps it on disk).
     restart: Option<u64>,
     /// What an undo of the last "Start again" puts back: the earlier restart point, counts and

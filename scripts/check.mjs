@@ -65,6 +65,8 @@ const steps = [
   ["TypeScript", "npx tsc -b", root],
   ["Vitest (incl. axe)", "npx vitest run", root],
   ["npm audit (shipped deps)", "npm audit --omit=dev --audit-level=high", root],
+  // Settings > About's licence list; the release refuses one that's out of date.
+  ["Licence list current", "node scripts/attributions.mjs --check", root],
   ["cargo fmt", "cargo fmt --all --check", tauriDir],
   ["cargo clippy", "cargo clippy --workspace --all-targets --locked -- -D warnings", tauriDir],
   ["cargo test", "cargo test --workspace --locked", tauriDir],

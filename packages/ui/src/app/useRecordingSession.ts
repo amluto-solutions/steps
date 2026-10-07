@@ -342,7 +342,6 @@ export function useRecordingSession(context: RecordingSessionContext) {
 
   // ----- Starting a recording -----
 
-  const hasPending = snapshot.sessionId !== null;
   const recording = snapshot.state !== "idle";
 
   // The start shortcut fires once per press, so a double press would start twice: the second
@@ -526,7 +525,6 @@ export function useRecordingSession(context: RecordingSessionContext) {
     setSnapshot,
     monitors,
     recording,
-    hasPending,
     pending,
     fatal,
     refreshRecoveries,

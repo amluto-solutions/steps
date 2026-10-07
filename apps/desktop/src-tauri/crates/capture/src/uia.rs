@@ -505,12 +505,7 @@ fn facts_from_cached(element: &UIElement, extra_terms: &[String]) -> ElementFact
     let bounds = element
         .get_cached_bounding_rectangle()
         .ok()
-        .map(|rect| PxRect {
-            left: rect.get_left(),
-            top: rect.get_top(),
-            right: rect.get_right(),
-            bottom: rect.get_bottom(),
-        });
+        .map(|rect| px_rect(&rect));
     let labeled_by = element
         .get_cached_labeled_by()
         .ok()
@@ -821,35 +816,58 @@ fn element_at(
     Ok((facts, retried))
 }
 
-/// How many cells `grid_cell_at` steps across before it gives up.
-const GRID_STEPS: usize = 60;
+/// How many cells `grid_cell_at` steps across, and for how long, before it gives up: the whole
+/// lookup has 350 ms, and the walk down from the window still follows if this finds nothing.
+const GRID_STEPS: usize = 40;
+const GRID_TIME: Duration = Duration::from_millis(120);
+
+/// A UI Automation rectangle as the recorder's pixel rectangle.
+fn px_rect(rect: &uiautomation::types::Rect) -> PxRect {
+    PxRect {
+        left: rect.get_left(),
+        top: rect.get_top(),
+        right: rect.get_right(),
+        bottom: rect.get_bottom(),
+    }
+}
+
+/// A cell's place in a grid, or a grid's size in cells.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Cell {
+    row: i32,
+    column: i32,
+}
 
 /// The grid cell under a point, found by stepping from `cell` (a cell of the same grid, not
 /// under it) towards the point (`grid_step`). `None` when `cell` isn't a grid item, or the point
-/// isn't reached.
+/// isn't reached within `GRID_STEPS` and `GRID_TIME`.
 fn grid_cell_at(cell: &UIElement, x: i32, y: i32) -> Option<UIElement> {
+    let started = Instant::now();
     let item = cell.get_pattern::<UIGridItemPattern>().ok()?;
     let grid = item
         .get_containing_grid()
         .ok()?
         .get_pattern::<UIGridPattern>()
         .ok()?;
-    let size = (grid.get_row_count().ok()?, grid.get_column_count().ok()?);
-    let mut at = (item.get_row().ok()?, item.get_column().ok()?);
+    let size = Cell {
+        row: grid.get_row_count().ok()?,
+        column: grid.get_column_count().ok()?,
+    };
+    let mut at = Cell {
+        row: item.get_row().ok()?,
+        column: item.get_column().ok()?,
+    };
     let mut current = cell.clone();
     for _ in 0..GRID_STEPS {
-        let rect = current.get_bounding_rectangle().ok()?;
-        let bounds = PxRect {
-            left: rect.get_left(),
-            top: rect.get_top(),
-            right: rect.get_right(),
-            bottom: rect.get_bottom(),
-        };
+        if started.elapsed() > GRID_TIME {
+            return None;
+        }
+        let bounds = px_rect(&current.get_bounding_rectangle().ok()?);
         match grid_step(&bounds, at, size, x, y)? {
             GridStep::Here => return Some(current),
             GridStep::To(next) => {
                 at = next;
-                current = grid.get_item(at.0, at.1).ok()?;
+                current = grid.get_item(at.row, at.column).ok()?;
             }
         }
     }
@@ -861,21 +879,13 @@ fn grid_cell_at(cell: &UIElement, x: i32, y: i32) -> Option<UIElement> {
 enum GridStep {
     /// The point is in this cell.
     Here,
-    /// The next cell to look at, as (row, column).
-    To((i32, i32)),
+    /// The next cell to look at.
+    To(Cell),
 }
 
-/// One step across a grid of `size` (rows, columns) from the cell at `at` with `bounds`: a column
-/// and a row nearer the point, or `Here` when the cell holds it. `None` when the step would
-/// leave the grid.
-fn grid_step(
-    bounds: &PxRect,
-    at: (i32, i32),
-    size: (i32, i32),
-    x: i32,
-    y: i32,
-) -> Option<GridStep> {
-    let (row, column) = at;
+/// One step across a grid of `size` from the cell at `at` with `bounds`: a column and a row
+/// nearer the point, or `Here` when the cell holds it. `None` when the step would leave the grid.
+fn grid_step(bounds: &PxRect, at: Cell, size: Cell, x: i32, y: i32) -> Option<GridStep> {
     let toward = |point: i32, low: i32, high: i32, index: i32| {
         if point < low {
             index - 1
@@ -886,19 +896,25 @@ fn grid_step(
         }
     };
     // Excel's hit test leaves out how far the sheet is scrolled, so the cell it names can be one
-    // scrolled out of view, with no bounds: the cells in view are further down and right.
+    // scrolled out of view, with no bounds: the cells in view are further down and right. Which
+    // of the two is out of view can't be told from an empty rectangle, so both are stepped, and
+    // the steps after correct whichever was already in view.
     let next = if bounds.right <= bounds.left || bounds.bottom <= bounds.top {
-        (row + 1, column + 1)
+        Cell {
+            row: at.row + 1,
+            column: at.column + 1,
+        }
     } else {
-        (
-            toward(y, bounds.top, bounds.bottom, row),
-            toward(x, bounds.left, bounds.right, column),
-        )
+        Cell {
+            row: toward(y, bounds.top, bounds.bottom, at.row),
+            column: toward(x, bounds.left, bounds.right, at.column),
+        }
     };
     if next == at {
         return Some(GridStep::Here);
     }
-    ((0..size.0).contains(&next.0) && (0..size.1).contains(&next.1)).then_some(GridStep::To(next))
+    ((0..size.row).contains(&next.row) && (0..size.column).contains(&next.column))
+        .then_some(GridStep::To(next))
 }
 
 /// The element's parents, nearest first, up to the window, the page or four
@@ -1172,6 +1188,10 @@ fn register_focus_handler(
 mod tests {
     use super::*;
 
+    fn cell_at(row: i32, column: i32) -> Cell {
+        Cell { row, column }
+    }
+
     fn cell(left: i32, top: i32, right: i32, bottom: i32) -> PxRect {
         PxRect {
             left,
@@ -1185,25 +1205,25 @@ mod tests {
     fn a_grid_step_moves_a_column_and_a_row_towards_the_point() {
         let e3 = cell(100, 100, 200, 150);
         assert_eq!(
-            grid_step(&e3, (2, 4), (30, 17), 150, 120),
+            grid_step(&e3, cell_at(2, 4), cell_at(30, 17), 150, 120),
             Some(GridStep::Here)
         );
         assert_eq!(
-            grid_step(&e3, (2, 4), (30, 17), 450, 170),
-            Some(GridStep::To((3, 5)))
+            grid_step(&e3, cell_at(2, 4), cell_at(30, 17), 450, 170),
+            Some(GridStep::To(cell_at(3, 5)))
         );
         assert_eq!(
-            grid_step(&e3, (2, 4), (30, 17), 50, 120),
-            Some(GridStep::To((2, 3)))
+            grid_step(&e3, cell_at(2, 4), cell_at(30, 17), 50, 120),
+            Some(GridStep::To(cell_at(2, 3)))
         );
         assert_eq!(
-            grid_step(&e3, (2, 4), (30, 17), 150, 99),
-            Some(GridStep::To((1, 4)))
+            grid_step(&e3, cell_at(2, 4), cell_at(30, 17), 150, 99),
+            Some(GridStep::To(cell_at(1, 4)))
         );
         // The right and bottom edges belong to the next cell, as the hit test has them.
         assert_eq!(
-            grid_step(&e3, (2, 4), (30, 17), 200, 150),
-            Some(GridStep::To((3, 5)))
+            grid_step(&e3, cell_at(2, 4), cell_at(30, 17), 200, 150),
+            Some(GridStep::To(cell_at(3, 5)))
         );
     }
 
@@ -1212,16 +1232,22 @@ mod tests {
         // Excel named D3, scrolled out of view, for a click in H4 (07/10/2026).
         let hidden = cell(0, 0, 0, 0);
         assert_eq!(
-            grid_step(&hidden, (2, 3), (30, 17), -1251, 924),
-            Some(GridStep::To((3, 4)))
+            grid_step(&hidden, cell_at(2, 3), cell_at(30, 17), -1251, 924),
+            Some(GridStep::To(cell_at(3, 4)))
         );
     }
 
     #[test]
     fn a_grid_step_never_leaves_the_grid() {
         let corner = cell(100, 100, 200, 150);
-        assert_eq!(grid_step(&corner, (0, 0), (30, 17), 50, 50), None);
-        assert_eq!(grid_step(&cell(0, 0, 0, 0), (29, 3), (30, 17), 0, 0), None);
+        assert_eq!(
+            grid_step(&corner, cell_at(0, 0), cell_at(30, 17), 50, 50),
+            None
+        );
+        assert_eq!(
+            grid_step(&cell(0, 0, 0, 0), cell_at(29, 3), cell_at(30, 17), 0, 0),
+            None
+        );
     }
 
     /// Live check: prints what Steps reads from the address bar of every open Firefox, Chrome and

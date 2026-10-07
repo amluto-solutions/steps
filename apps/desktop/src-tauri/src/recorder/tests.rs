@@ -131,6 +131,7 @@ fn published_guide_can_finish_cleanup_after_the_whole_journal_folder_is_removed(
         directory: root.path().join("recordings/session-1"),
         sequence: Arc::new(AtomicU64::new(1)),
         gap: Arc::default(),
+        backlog: Arc::default(),
         restart: None,
         undo_restart: None,
     });
@@ -448,6 +449,7 @@ fn a_stopped_recording_waiting_as_a_draft_doesnt_hold_the_settings() {
         directory: root.path().join("recordings/session-1"),
         sequence: Arc::new(AtomicU64::new(1)),
         gap: Arc::default(),
+        backlog: Arc::default(),
         restart: None,
         undo_restart: None,
     });

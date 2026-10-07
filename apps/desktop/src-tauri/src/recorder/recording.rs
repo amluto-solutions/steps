@@ -33,7 +33,7 @@ use super::{
     nothing_to_undo, publish_state, safe_executable_name, snapshot_locked,
     spawn_indicator_watchdog, storage_error, unique_id, unix_millis,
 };
-use capture::queued_sink::QueuedSink;
+use capture::queued_sink::{Backlog, QueuedSink};
 
 /// After this many capture-worker panics in one recording, it is stopped rather than restarted.
 const MAX_WORKER_RESTARTS: u32 = 5;
@@ -410,6 +410,8 @@ impl RecorderService {
         let stop = Arc::new(AtomicBool::new(false));
         let sequence = Arc::new(AtomicU64::new(0));
         let gap = Arc::new(JournalGap::default());
+        let backlog = Arc::new(Backlog::default());
+        let backlog_for_worker = Arc::clone(&backlog);
         shared.enabled.store(true, Ordering::SeqCst);
 
         let machine_for_worker = Arc::clone(&machine);
@@ -438,7 +440,7 @@ impl RecorderService {
                     sequence_for_worker,
                     gap_for_worker,
                     source_for_worker,
-                ));
+                ), backlog_for_worker);
                 let config = PipelineConfig {
                     mode: capture_mode_for_worker,
                     target_monitor: target_monitor_for_worker,
@@ -506,6 +508,12 @@ impl RecorderService {
                 // Everything is in the journal before the recording is marked stopped.
                 if let Some(mut journal) = sink.finish() {
                     journal.flush_unsaved();
+                } else {
+                    // Only if the writer thread itself failed: steps after that point are lost,
+                    // so the recording says so rather than stopping as if all were saved.
+                    log::error!("The journal writer stopped; later steps were not saved.");
+                    lock(&machine_for_worker)
+                        .mark_degraded(capture::state_machine::DegradedReason::StorageWriteFailed);
                 }
                 {
                     let mut state = lock(&machine_for_worker);
@@ -575,6 +583,7 @@ impl RecorderService {
             directory: session_dir,
             sequence,
             gap,
+            backlog,
             restart: None,
             undo_restart: None,
         });

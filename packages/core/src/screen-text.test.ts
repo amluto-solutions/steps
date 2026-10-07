@@ -99,6 +99,14 @@ describe("naming a click from the screenshot's words", () => {
     expect(textAtPoint(menu, 14.18, 38.84, { x: 7, y: 35.4, w: 22.3, h: 5.5 })).toBe("Forwarders");
   });
 
+  it("doesn't take a word far from the click when the outline is the whole window or a pane", () => {
+    // A click UI Automation named only after its window (Windows Settings, F016) has the window
+    // as its outline: the nearest word in all of it isn't the clicked thing's name.
+    const far = [{ words: [{ text: "Bluetooth", x: 70, y: 12, w: 6, h: 1.8 }] }];
+    expect(textAtPoint(far, 30, 60, { x: 0, y: 0, w: 100, h: 100 })).toBeNull();
+    expect(textAtPoint(far, 30, 60, { x: 25, y: 5, w: 60, h: 90 })).toBeNull();
+  });
+
   it("says nothing when there's no word near, or only a number", () => {
     expect(textAtPoint(settings, 40, 80)).toBeNull();
     expect(textAtPoint([line("42", 10, 10)], 10.5, 10.5)).toBeNull();

@@ -397,6 +397,7 @@ impl RecorderService {
             directory,
             sequence: Arc::new(AtomicU64::new(0)),
             gap: Arc::default(),
+            backlog: Arc::default(),
             restart,
             undo_restart: None,
         });

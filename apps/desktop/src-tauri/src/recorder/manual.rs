@@ -15,6 +15,9 @@ use tauri::{AppHandle, Manager};
 use super::journal::JournalSink;
 use super::{CommandError, RecorderService, lock, manual_media_id};
 
+/// How long Capture now and Add shortcut wait for earlier clicks to be journalled.
+const MANUAL_WAITS_FOR_CLICKS: std::time::Duration = std::time::Duration::from_secs(5);
+
 impl RecorderService {
     #[allow(
         clippy::too_many_lines,
@@ -31,6 +34,7 @@ impl RecorderService {
             machine,
             sequence,
             gap,
+            backlog,
             input_source,
             capture_mode,
             target_monitor,
@@ -45,6 +49,7 @@ impl RecorderService {
                 Arc::clone(&inner.machine),
                 Arc::clone(&session.sequence),
                 Arc::clone(&session.gap),
+                Arc::clone(&session.backlog),
                 inner.input_source,
                 inner.capture_mode,
                 inner.target_monitor,
@@ -148,6 +153,10 @@ impl RecorderService {
         if purpose == "captureNow" {
             lock(&machine).note_auxiliary_step();
         }
+        // Clicks made before this step may still be waiting for the capture worker's writer: they
+        // are journalled first, so this step isn't numbered before them (07/10/2026). A writer
+        // that takes longer than this still gets the step saved, a little out of place.
+        let _ = backlog.wait_until_written(MANUAL_WAITS_FOR_CLICKS);
         let mut sink = JournalSink::new(
             app.clone(),
             session_id,

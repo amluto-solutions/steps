@@ -10,7 +10,7 @@
   "dependencies": {
     "@fontsource/inter": "^5.3.0",
     "@fontsource/jost": "^5.3.0",
-    "docx": "^9.7.2",
+    "docx": "^9.8.1",
     "pdfmake": "^0.3.11"
   },
   "devDependencies": {

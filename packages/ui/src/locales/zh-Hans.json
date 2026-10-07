@@ -1344,7 +1344,6 @@
     "originalsLeft": "模糊已合并到截图中，但由于其他程序（通常是 OneDrive）正在使用部分未模糊的原图，因此暂时无法删除它们。请稍后再次使用“永久应用模糊”来完成。",
     "outsideTargetMonitor": "请先将指针移到所选显示器上。",
     "ownWindow": "请切换到要捕获的应用，然后再次按快捷键。",
-    "pendingReview": "请先保存或放弃上一次录制，然后再开始新的录制。",
     "recorderBarUnavailable": "录制栏不可用。",
     "barCapture": "无法在截图中隐藏录制栏。",
     "barMove": "无法移动录制栏。你可以改为拖动它的手柄。",

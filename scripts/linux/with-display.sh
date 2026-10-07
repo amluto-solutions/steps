@@ -15,7 +15,10 @@ mkdir -p "$logs"
 
 Xvfb ":$number" -screen 0 "${screen}x24" -nolisten tcp +extension RANDR >"$logs/xvfb.log" 2>&1 &
 xvfb=$!
-trap 'kill "$xvfb" 2>/dev/null || true' EXIT
+# Waits for Xvfb to be gone, not only told to go: the next run takes the same display, and one
+# started while this one was still closing stopped a release ("Server is already active for
+# display 99", 07/10/2026).
+trap 'kill "$xvfb" 2>/dev/null || true; wait "$xvfb" 2>/dev/null || true' EXIT
 
 export DISPLAY=":$number"
 unset WAYLAND_DISPLAY

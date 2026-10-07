@@ -20,3 +20,4 @@ cargo +nightly fuzz run import fuzz/corpus/import fuzz/seeds -- -max_total_time=
 
 29/09/2026: 61,844 runs in ten minutes, 457 inputs in the corpus, no crash.
 02/10/2026 (1.0.0): 53,304 runs in ten minutes, 508 inputs in the corpus, no crash.
+07/10/2026 (1.0.0 rebuilt): 54,853 runs in ten minutes, 524 inputs in the corpus, no crash.

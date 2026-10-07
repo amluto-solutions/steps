@@ -660,6 +660,41 @@
       "text": "Click in \"Settings\""
     },
     {
+      "case": "screen words: an icon's own label under its outline wins over a button on its row",
+      "from": "SiteGround's side rail in Chrome, 07/10/2026 (#24): a click on the Email icon read \"CREATE\", a button on its row. Words, click and outline are the recording's",
+      "evidence": {
+        "element": null,
+        "window": { "title": "Site Tools - Google Chrome", "exe": "chrome.exe", "shell": false },
+        "screen": {
+          "lines": [
+            { "words": [{ "text": "CREATE", "x": 11.18, "y": 73.89, "w": 3.82, "h": 2.22 }] },
+            { "words": [{ "text": "Email", "x": 2.24, "y": 76.5, "w": 2.21, "h": 1.76 }] }
+          ],
+          "x": 2.969,
+          "y": 73.551,
+          "element": { "x": 1.25, "y": 70.725, "w": 3.867, "h": 4.348 }
+        }
+      },
+      "naming": { "name": "Email", "kind": "other", "source": "screen", "needsReview": true },
+      "text": "Click \"Email\""
+    },
+    {
+      "case": "screen words: a whole-window outline doesn't reach a word far from the click",
+      "from": "made up, after code review (07/10/2026): a click named only by its window has the window as its outline",
+      "evidence": {
+        "element": null,
+        "window": { "title": "Settings", "exe": "SystemSettings.exe", "shell": false },
+        "screen": {
+          "lines": [{ "words": [{ "text": "Bluetooth", "x": 70, "y": 12, "w": 6, "h": 1.8 }] }],
+          "x": 30,
+          "y": 60,
+          "element": { "x": 0, "y": 0, "w": 100, "h": 100 }
+        }
+      },
+      "naming": { "name": "Settings", "kind": "other", "source": "window", "needsReview": true },
+      "text": "Click in \"Settings\""
+    },
+    {
       "case": "a page's button named by its text",
       "from": "Steps for Chrome's end-to-end invoice page (tools/chrome-e2e): an icon inside the button, which counts as the button",
       "evidence": {

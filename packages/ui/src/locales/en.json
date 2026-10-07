@@ -1413,7 +1413,6 @@
     "originalsLeft": "The blur is burned into the screenshots, but some unblurred originals couldn’t be deleted yet because another program (often OneDrive) has them open. Apply blur permanently again in a moment to finish.",
     "outsideTargetMonitor": "Move the pointer onto the chosen monitor first.",
     "ownWindow": "Move to the app you want to capture, then press the shortcut again.",
-    "pendingReview": "Save or discard the last recording before starting another.",
     "recorderBarUnavailable": "The recording bar isn’t available.",
     "barCapture": "The recording bar couldn’t be hidden from screenshots.",
     "barMove": "The recording bar couldn’t be moved. You can drag it by its handle instead.",

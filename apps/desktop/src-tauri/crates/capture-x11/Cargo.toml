@@ -14,6 +14,8 @@ publish.workspace = true
 crossbeam-queue = "0.3.14"
 image = { version = "0.25.10", default-features = false, features = ["png"] }
 thiserror = "2.0.21"
+# Not 0.14 (07/10/2026): it can't connect to an X server that only takes local connections
+# (`Xvfb -nolisten tcp`, as Ubuntu's X11 sessions run), so recording said "X11 session only".
 x11rb = { version = "0.13.2", features = ["xinput", "randr", "screensaver"] }
 xkeysym = "0.2.1"
 
