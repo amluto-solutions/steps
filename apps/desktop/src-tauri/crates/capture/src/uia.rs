@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 
 use uiautomation::core::UICacheRequest;
 use uiautomation::events::{CustomFocusChangedEventHandlerFn, UIFocusChangedEventHandler};
-use uiautomation::patterns::UIValuePattern;
+use uiautomation::patterns::{UIGridItemPattern, UIGridPattern, UIValuePattern};
 use uiautomation::types::{Handle, Point, TreeScope, UIProperty};
 use uiautomation::variants::Variant;
 use uiautomation::{UIAutomation, UIElement};
@@ -22,7 +22,7 @@ use uiautomation::{UIAutomation, UIElement};
 use crate::platform::window::WindowInfo;
 
 use crate::coords::PxRect;
-use crate::facts::{ElementFacts, InputRecord, ParentFacts};
+use crate::facts::{AncestorFacts, ElementFacts, InputRecord};
 pub use crate::lookup::{FocusOptions, Lookup};
 use crate::lookup::{
     Replies, Reply, await_worker_ready, fingerprint, fit_value, is_editable, origin_from_address,
@@ -207,7 +207,7 @@ fn worker(
         let request = match requests.recv_timeout(CHROME_WARM_EVERY) {
             Ok(request) => request,
             Err(RecvTimeoutError::Timeout) => {
-                warm_chrome(&automation, &mut warmth);
+                warm_chrome(&automation, &cache, &mut warmth);
                 continue;
             }
             Err(RecvTimeoutError::Disconnected) => break,
@@ -222,7 +222,12 @@ fn worker(
                     crate::platform::window::root_window_at(x, y).map(|window| window.hwnd)
                         == Some(hwnd)
                 };
-                let result = if still_there() {
+                let warmed = warmth.answer_for(x, y);
+                let result = if let Some(facts) = warmed
+                    && still_there()
+                {
+                    Ok((facts, false))
+                } else if still_there() {
                     element_at(&automation, &cache, x, y).and_then(|found| {
                         if still_there() {
                             Ok(found)
@@ -527,7 +532,7 @@ fn facts_from_cached(element: &UIElement, extra_terms: &[String]) -> ElementFact
         is_password,
         labeled_by,
         bounds,
-        parent: None,
+        ancestors: Vec::new(),
         sensitive: false,
     };
     facts.sensitive = is_password
@@ -564,8 +569,26 @@ fn is_container(facts: &ElementFacts) -> bool {
 /// it. A click that opens a menu is often read after the menu has opened, and then lands on this
 /// layer, named "Close": Notepad's Edit menu was recorded as `Click "Close"`.
 fn is_light_dismiss(automation_id: &str) -> bool {
-    automation_id == "Light Dismiss"
+    LIGHT_DISMISS_IDS.contains(&automation_id)
 }
+
+/// The light-dismiss layer's automation ids. The TypeScript naming takes its "Close" off by the
+/// same list; `packages/core/test-vectors/click-naming.json` holds both to it.
+const LIGHT_DISMISS_IDS: &[&str] = &["Light Dismiss"];
+
+/// A UI framework's names for its own hosts, squashed as `framework_name` compares them. The
+/// TypeScript naming (`uia-adapter.ts`) takes the same names off an element; the shared test
+/// vector `click-naming.json` holds both lists to it, so they can't drift apart.
+const FRAMEWORK_NAMES: &[&str] = &[
+    "popuphost",
+    "desktopwindowxamlsource",
+    "xamlexplorerhostislandwindow",
+    "chrome_widgetwin_0",
+    "chrome_widgetwin_1",
+    "chromelegacywindow",
+    "intermediated3dwindow",
+    "windowsuicorecorewindow",
+];
 
 /// Names that are a UI framework's, not the app's: `PopupHost`, `Pop-upHost`,
 /// `DesktopWindowXamlSource`, `Chrome_WidgetWin_1`, or a name that is just the class name.
@@ -575,17 +598,8 @@ fn framework_name(name: &str, class_name: &str) -> bool {
         .filter(|c| c.is_alphanumeric() || *c == '_')
         .collect::<String>()
         .to_lowercase();
-    matches!(
-        squashed.as_str(),
-        "popuphost"
-            | "desktopwindowxamlsource"
-            | "xamlexplorerhostislandwindow"
-            | "chrome_widgetwin_0"
-            | "chrome_widgetwin_1"
-            | "chromelegacywindow"
-            | "intermediated3dwindow"
-            | "windowsuicorecorewindow"
-    ) || (!name.is_empty() && name == class_name && name.contains('_'))
+    FRAMEWORK_NAMES.contains(&squashed.as_str())
+        || (!name.is_empty() && name == class_name && name.contains('_'))
 }
 
 /// The deepest element under a point, walking down from `element`'s top-level window: at each
@@ -649,14 +663,18 @@ fn descend(
 /// the element its previous hit test found, when the point is inside that one's bounds, or else a
 /// guess from the boxes in its tree that knows nothing of what's on top. It asks the page for the
 /// real answer in the background. So a click got the previous click's button, the whole page, or
-/// a tile under an open drop-down list (a hosting control panel, 05/10/2026). Looking again later
-/// is no cure: by then the click has done its work and the page shows a loading screen. Instead
-/// the worker asks about the point under the pointer while it rests (`warm_chrome`), so Chrome's
-/// answer for the click is ready before the click.
+/// a tile under an open drop-down list (a hosting control panel, 05/10/2026). Asking after the
+/// click is no cure: pages change as the button goes down, and the answer was the loading screen
+/// the click brought up (the overlay test page, 06/10/2026). So the element is worked out before
+/// the click: while the pointer rests over a Chromium window the worker asks twice (the first
+/// question starts Chrome's real hit test, the second gets its answer), and a click on that very
+/// pixel soon after is named from it (`Warmth`).
 const CHROME_WARM_EVERY: Duration = Duration::from_millis(40);
-/// A pointer resting in one place is asked about again this often, for a page that changes under
-/// it (a menu opening).
+/// A resting pointer's element is worked out again this often, for a page that changes under it
+/// (a menu opening).
 const CHROME_REWARM: Duration = Duration::from_millis(250);
+/// How old the answer for a resting pointer may be and still name a click there.
+const CHROME_WARM_KEPT: Duration = Duration::from_secs(3);
 
 /// The browsers built on Chromium, whose hit test works this way.
 fn is_chromium(exe_name: Option<&str>) -> bool {
@@ -674,32 +692,57 @@ fn is_chromium(exe_name: Option<&str>) -> bool {
     })
 }
 
-/// Where the worker last asked Chrome about the pointer, and when.
+/// What the worker knows about the element under a resting pointer in a Chromium window.
 #[derive(Default)]
 struct Warmth {
+    /// Where the pointer was last asked about, and when.
     at: Option<(i32, i32)>,
     when: Option<Instant>,
+    /// Chrome's settled answer there, once asked twice.
+    facts: Option<(ElementFacts, Instant)>,
 }
 
-/// Asks Chrome what is under a resting pointer, so its answer is in hand when the click comes.
-/// Only a Chromium window under the pointer is asked; other apps are left alone.
-fn warm_chrome(automation: &UIAutomation, warmth: &mut Warmth) {
+impl Warmth {
+    /// The element under `(x, y)` worked out before a click there, while it's recent.
+    fn answer_for(&self, x: i32, y: i32) -> Option<ElementFacts> {
+        let (facts, when) = self.facts.as_ref()?;
+        (self.at == Some((x, y)) && when.elapsed() < CHROME_WARM_KEPT).then(|| facts.clone())
+    }
+}
+
+/// Works out the element under a resting pointer in a Chromium window, so a click there is named
+/// from what it was before the click. Other apps are left alone: their hit test answers truly.
+fn warm_chrome(automation: &UIAutomation, cache: &UICacheRequest, warmth: &mut Warmth) {
     let Some(point) = crate::platform::display::cursor_pos() else {
         return;
     };
-    let fresh = warmth
-        .when
-        .is_some_and(|when| when.elapsed() < CHROME_REWARM);
-    if warmth.at == Some(point) && fresh {
+    let moved = warmth.at != Some(point);
+    if moved {
+        warmth.facts = None;
+    } else if warmth.facts.is_some()
+        && warmth
+            .when
+            .is_some_and(|when| when.elapsed() < CHROME_REWARM)
+    {
         return;
-    }
-    let chromium = crate::platform::window::root_window_at(point.0, point.1)
-        .is_some_and(|window| is_chromium(window.exe_name()));
-    if chromium {
-        let _ = automation.element_from_point(Point::new(point.0, point.1));
     }
     warmth.at = Some(point);
     warmth.when = Some(Instant::now());
+    let chromium = crate::platform::window::root_window_at(point.0, point.1)
+        .is_some_and(|window| is_chromium(window.exe_name()));
+    if !chromium {
+        return;
+    }
+    if moved {
+        // The first question only starts Chrome's real hit test; its answer is a guess.
+        let _ = automation.element_from_point(Point::new(point.0, point.1));
+        return;
+    }
+    if let Ok((facts, _)) = element_at(automation, cache, point.0, point.1)
+        && !chrome_guess(&facts, point.0, point.1)
+    {
+        warmth.facts = Some((facts, Instant::now()));
+    }
 }
 
 /// A first answer from Chrome that is only its guess: the page, a pane, or nothing under the click.
@@ -743,6 +786,20 @@ fn element_at(
         }
         retried = true;
     }
+    // Excel's hit test, in a sheet with a table and frozen panes, names a cell a few columns or
+    // rows from the one clicked (E3 for a click in I4). Walking down from the window to find it
+    // lists the table's hundreds of cells and took 250 ms, past the lookup's deadline, so those
+    // clicks were named from the words on the screen (07/10/2026). Stepping across the grid from
+    // the cell it named finds the right one in a few calls.
+    if !contains(facts.bounds.as_ref(), x, y)
+        && let Some(found) = grid_cell_at(&element, x, y)
+        && let Ok(found) = found.build_updated_cache(cache)
+    {
+        let better = facts_from_cached(&found, &[]);
+        if contains(better.bounds.as_ref(), x, y) {
+            (element, facts) = (found, better);
+        }
+    }
     // Windows' hit test can answer with the wrong element: a click on Notepad's or File Explorer's
     // menu named "Close" (the title bar's button) (F015, F070), and in Settings only the window
     // (F016). When the answer isn't under the click, is only a window or pane, or carries a
@@ -758,24 +815,122 @@ fn element_at(
             (element, facts) = (found, better);
         }
     }
-    // A framework's name for what was clicked says nothing to a reader: the nearest named
-    // element above it speaks for it.
-    if framework_name(&facts.name, &facts.class_name) || is_light_dismiss(&facts.automation_id) {
-        facts.name = String::new();
-    }
+    // What the element is called, a framework's name or the light-dismiss layer's "Close"
+    // included, is decided in TypeScript from these facts (docs/spec/02-capture.md#click-naming).
+    facts.ancestors = parents_of(automation, cache, &element);
+    Ok((facts, retried))
+}
 
-    if let Ok(walker) = automation.get_control_view_walker()
-        && let Ok(parent) = walker.get_parent(&element)
-    {
-        facts.parent = Some(ParentFacts {
-            control_type: parent
-                .get_control_type()
+/// How many cells `grid_cell_at` steps across before it gives up.
+const GRID_STEPS: usize = 60;
+
+/// The grid cell under a point, found by stepping from `cell` (a cell of the same grid, not
+/// under it) towards the point (`grid_step`). `None` when `cell` isn't a grid item, or the point
+/// isn't reached.
+fn grid_cell_at(cell: &UIElement, x: i32, y: i32) -> Option<UIElement> {
+    let item = cell.get_pattern::<UIGridItemPattern>().ok()?;
+    let grid = item
+        .get_containing_grid()
+        .ok()?
+        .get_pattern::<UIGridPattern>()
+        .ok()?;
+    let size = (grid.get_row_count().ok()?, grid.get_column_count().ok()?);
+    let mut at = (item.get_row().ok()?, item.get_column().ok()?);
+    let mut current = cell.clone();
+    for _ in 0..GRID_STEPS {
+        let rect = current.get_bounding_rectangle().ok()?;
+        let bounds = PxRect {
+            left: rect.get_left(),
+            top: rect.get_top(),
+            right: rect.get_right(),
+            bottom: rect.get_bottom(),
+        };
+        match grid_step(&bounds, at, size, x, y)? {
+            GridStep::Here => return Some(current),
+            GridStep::To(next) => {
+                at = next;
+                current = grid.get_item(at.0, at.1).ok()?;
+            }
+        }
+    }
+    None
+}
+
+/// Where `grid_cell_at` goes from a cell.
+#[derive(Debug, PartialEq, Eq)]
+enum GridStep {
+    /// The point is in this cell.
+    Here,
+    /// The next cell to look at, as (row, column).
+    To((i32, i32)),
+}
+
+/// One step across a grid of `size` (rows, columns) from the cell at `at` with `bounds`: a column
+/// and a row nearer the point, or `Here` when the cell holds it. `None` when the step would
+/// leave the grid.
+fn grid_step(
+    bounds: &PxRect,
+    at: (i32, i32),
+    size: (i32, i32),
+    x: i32,
+    y: i32,
+) -> Option<GridStep> {
+    let (row, column) = at;
+    let toward = |point: i32, low: i32, high: i32, index: i32| {
+        if point < low {
+            index - 1
+        } else if point >= high {
+            index + 1
+        } else {
+            index
+        }
+    };
+    // Excel's hit test leaves out how far the sheet is scrolled, so the cell it names can be one
+    // scrolled out of view, with no bounds: the cells in view are further down and right.
+    let next = if bounds.right <= bounds.left || bounds.bottom <= bounds.top {
+        (row + 1, column + 1)
+    } else {
+        (
+            toward(y, bounds.top, bounds.bottom, row),
+            toward(x, bounds.left, bounds.right, column),
+        )
+    };
+    if next == at {
+        return Some(GridStep::Here);
+    }
+    ((0..size.0).contains(&next.0) && (0..size.1).contains(&next.1)).then_some(GridStep::To(next))
+}
+
+/// The element's parents, nearest first, up to the window, the page or four
+/// (`lookup::ancestors`), each read with its properties in one call.
+fn parents_of(
+    automation: &UIAutomation,
+    cache: &UICacheRequest,
+    element: &UIElement,
+) -> Vec<AncestorFacts> {
+    let (Ok(walker), Ok(root)) = (
+        automation.get_control_view_walker(),
+        automation.get_root_element(),
+    ) else {
+        return Vec::new();
+    };
+    let mut current = element.clone();
+    let parents = std::iter::from_fn(|| {
+        let parent = walker.get_parent_build_cache(&current, cache).ok()?;
+        // The desktop is above every window: never part of an app.
+        if automation.compare_elements(&parent, &root).unwrap_or(true) {
+            return None;
+        }
+        current = parent;
+        Some(AncestorFacts {
+            control_type: current
+                .get_cached_control_type()
                 .map(|control| format!("{control:?}"))
                 .unwrap_or_default(),
-            name: parent.get_name().unwrap_or_default(),
-        });
-    }
-    Ok((facts, retried))
+            name: current.get_cached_name().unwrap_or_default(),
+        })
+    });
+    crate::lookup::ancestors(parents)
 }
 
 // ---------- focus-leave field values ----------
@@ -1017,6 +1172,58 @@ fn register_focus_handler(
 mod tests {
     use super::*;
 
+    fn cell(left: i32, top: i32, right: i32, bottom: i32) -> PxRect {
+        PxRect {
+            left,
+            top,
+            right,
+            bottom,
+        }
+    }
+
+    #[test]
+    fn a_grid_step_moves_a_column_and_a_row_towards_the_point() {
+        let e3 = cell(100, 100, 200, 150);
+        assert_eq!(
+            grid_step(&e3, (2, 4), (30, 17), 150, 120),
+            Some(GridStep::Here)
+        );
+        assert_eq!(
+            grid_step(&e3, (2, 4), (30, 17), 450, 170),
+            Some(GridStep::To((3, 5)))
+        );
+        assert_eq!(
+            grid_step(&e3, (2, 4), (30, 17), 50, 120),
+            Some(GridStep::To((2, 3)))
+        );
+        assert_eq!(
+            grid_step(&e3, (2, 4), (30, 17), 150, 99),
+            Some(GridStep::To((1, 4)))
+        );
+        // The right and bottom edges belong to the next cell, as the hit test has them.
+        assert_eq!(
+            grid_step(&e3, (2, 4), (30, 17), 200, 150),
+            Some(GridStep::To((3, 5)))
+        );
+    }
+
+    #[test]
+    fn a_cell_scrolled_out_of_view_steps_down_and_right_into_it() {
+        // Excel named D3, scrolled out of view, for a click in H4 (07/10/2026).
+        let hidden = cell(0, 0, 0, 0);
+        assert_eq!(
+            grid_step(&hidden, (2, 3), (30, 17), -1251, 924),
+            Some(GridStep::To((3, 4)))
+        );
+    }
+
+    #[test]
+    fn a_grid_step_never_leaves_the_grid() {
+        let corner = cell(100, 100, 200, 150);
+        assert_eq!(grid_step(&corner, (0, 0), (30, 17), 50, 50), None);
+        assert_eq!(grid_step(&cell(0, 0, 0, 0), (29, 3), (30, 17), 0, 0), None);
+    }
+
     /// Live check: prints what Steps reads from the address bar of every open Firefox, Chrome and
     /// Edge window. `cargo test -p capture reads_open_browsers_address_bars -- --ignored
     /// --nocapture`, with a browser open on a web page.
@@ -1047,6 +1254,51 @@ mod tests {
             found += usize::from(read.origin.is_some() || read.focused);
         }
         assert!(found > 0, "no browser address bar was read");
+    }
+
+    /// `packages/core/test-vectors/click-naming.json`: what the TypeScript naming shares.
+    fn shared_naming() -> serde_json::Value {
+        serde_json::from_str(include_str!(
+            "../../../../../../packages/core/test-vectors/click-naming.json"
+        ))
+        .unwrap()
+    }
+
+    fn strings(value: &serde_json::Value) -> Vec<&str> {
+        value
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|item| item.as_str().unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn framework_names_and_light_dismiss_are_the_namings() {
+        let shared = shared_naming();
+        assert_eq!(strings(&shared["frameworkNames"]), FRAMEWORK_NAMES);
+        assert_eq!(
+            strings(&shared["lightDismissAutomationIds"]),
+            LIGHT_DISMISS_IDS
+        );
+        for id in LIGHT_DISMISS_IDS {
+            assert!(is_light_dismiss(id));
+        }
+        assert!(!is_light_dismiss("Close"));
+    }
+
+    #[test]
+    fn framework_names_are_told_apart_as_the_naming_tells_them() {
+        let shared = shared_naming();
+        for case in shared["frameworkNameCases"].as_array().unwrap() {
+            let name = case["name"].as_str().unwrap();
+            let class_name = case["className"].as_str().unwrap();
+            assert_eq!(
+                framework_name(name, class_name),
+                case["framework"].as_bool().unwrap(),
+                "{name:?} (class {class_name:?})"
+            );
+        }
     }
 
     #[test]

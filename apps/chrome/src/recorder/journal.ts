@@ -1,4 +1,4 @@
-import type { RecordedStep, RecordingFact } from "@amluto-steps/core";
+import type { RecordedStep, RecordingFact, RecordingSettings } from "@amluto-steps/core";
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
 
 import type { Json } from "../library/db";
@@ -21,6 +21,8 @@ export interface StoredSession {
   stopped: boolean;
   /** Facts at or before this sequence were dropped by "Start again". */
   restartAfter: number | null;
+  /** The settings its steps are built with, from when it started; absent in older recordings. */
+  settings?: RecordingSettings;
 }
 
 export interface RecoverySession {

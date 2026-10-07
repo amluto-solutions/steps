@@ -28,7 +28,6 @@
     "settings": "Parametrai",
     "guides": "Instrukcijos",
     "recordingNow": "Vyksta įrašymas",
-    "saveFirst": "Pirmiausia išsaugokite arba atmeskite paskutinį įrašą",
     "needsReview": "Reikia peržiūrėti"
   },
   "dates": {
@@ -302,10 +301,10 @@
     "drawing": "Ruošiama…",
     "checklist": "Kontrolinis sąrašas",
     "personalData": "Prieš bendrindami patikrinkite, ar ekrano kopijose nėra asmens duomenų. Automatiniai pasiūlymai gali ką nors praleisti.",
-    "flagged_one": "{{count}} žingsnį reikia patikrinti: nepavadintas spustelėjimas, praleisti spustelėjimai, galimai neatitinkantis įvestas tekstas arba tikrintina ekrano kopija.",
-    "flagged_few": "{{count}} žingsnius reikia patikrinti: nepavadinti spustelėjimai, praleisti spustelėjimai, galimai neatitinkantis įvestas tekstas arba tikrintinos ekrano kopijos.",
-    "flagged_many": "{{count}} žingsnių reikia patikrinti: nepavadinti spustelėjimai, praleisti spustelėjimai, galimai neatitinkantis įvestas tekstas arba tikrintinos ekrano kopijos.",
-    "flagged_other": "{{count}} žingsnių reikia patikrinti: nepavadinti spustelėjimai, praleisti spustelėjimai, galimai neatitinkantis įvestas tekstas arba tikrintinos ekrano kopijos.",
+    "flagged_one": "{{count}} žingsnį reikia patikrinti: nepavadintas spustelėjimas, iš ekrano kopijos nuskaitytas pavadinimas, praleisti spustelėjimai, galimai neatitinkantis įvestas tekstas arba tikrintina ekrano kopija.",
+    "flagged_few": "{{count}} žingsnius reikia patikrinti: nepavadinti spustelėjimai, iš ekrano kopijų nuskaityti pavadinimai, praleisti spustelėjimai, galimai neatitinkantis įvestas tekstas arba tikrintinos ekrano kopijos.",
+    "flagged_many": "{{count}} žingsnių reikia patikrinti: nepavadinti spustelėjimai, iš ekrano kopijų nuskaityti pavadinimai, praleisti spustelėjimai, galimai neatitinkantis įvestas tekstas arba tikrintinos ekrano kopijos.",
+    "flagged_other": "{{count}} žingsnių reikia patikrinti: nepavadinti spustelėjimai, iš ekrano kopijų nuskaityti pavadinimai, praleisti spustelėjimai, galimai neatitinkantis įvestas tekstas arba tikrintinos ekrano kopijos.",
     "noFlagged": "Nėra žingsnių, pažymėtų patikrinti.",
     "stepNumber": "{{number}} žingsnis",
     "quickEdit": {
@@ -588,6 +587,7 @@
     "reviewRequired": "Patikrinkite šį žingsnį: įrašant nepavyko nustatyti, kas buvo spustelėta, čia buvo praleista spustelėjimų, įvestas tekstas gali tiksliai nesutapti arba ekrano kopijoje nepavyko rasti slaptos informacijos, kurią reikia sulieti.",
     "review": {
       "unnamed": "Patikrinkite šį žingsnį: įrašant nepavyko nustatyti, kas buvo spustelėta. Parašykite, kas tai buvo, arba pasirinkite „Atrodo gerai“.",
+      "checkName": "Patikrinkite šį pavadinimą: jis nuskaitytas iš ekrano kopijos.",
       "missed": "Patikrinkite šį žingsnį: čia buvo praleista spustelėjimų.",
       "typing": "Patikrinkite šį žingsnį: įvestas tekstas gali tiksliai nesutapti.",
       "code": "Patikrinkite šį žingsnį: jame esančios slaptos informacijos nepavyko rasti ekrano kopijoje, kad ją būtų galima sulieti, arba tekstas gali tiksliai nesutapti.",
@@ -885,6 +885,7 @@
       "managed": "Šiuos parametrus valdo jūsų organizacija, todėl importavimas išjungtas.",
       "tour": "Rodyti mokomąją apžvalgą",
       "tourHelp": "Trumpa pagrindinio lango apžvalga, kai langas yra bent 1024 pikselių pločio.",
+      "tourNarrow": "Trumpa pagrindinio lango apžvalga. Šis langas tam per siauras: padarykite jį bent 1024 pikselių pločio ir apžvalga pasirodys.",
       "tourStartAgain": "Pradėti iš naujo",
       "tourContinue": "Tęsti apžvalgą ({{progress}})"
     },
@@ -1358,6 +1359,7 @@
   "privacy": {
     "intro": "Steps nuskaito tekstą jūsų ekrano kopijose šiame kompiuteryje (naudodama įtaisytąjį Windows teksto atpažinimą, veikiantį neprisijungus), kad pasiūlytų, ką sulieti. Niekas niekur nesiunčiama.",
     "introLinux": "Steps nuskaito tekstą jūsų ekrano kopijose šiame kompiuteryje (naudodama Tesseract, jei ji įdiegta), kad pasiūlytų, ką sulieti. Niekas niekur nesiunčiama.",
+    "introPage": "Steps nuskaito tekstą jūsų įrašomuose puslapiuose, kaip jį rodo naršyklė, kad pasiūlytų, ką sulieti. Niekas niekur nesiunčiama.",
     "strength": "Suliejimo pasiūlymai",
     "strengths": {
       "light": "Lengvi",

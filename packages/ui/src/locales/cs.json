@@ -28,7 +28,6 @@
     "settings": "Nastavení",
     "guides": "Návody",
     "recordingNow": "Probíhá nahrávání",
-    "saveFirst": "Nejdřív uložte nebo zahoďte poslední záznam",
     "needsReview": "Ke kontrole"
   },
   "dates": {
@@ -302,10 +301,10 @@
     "drawing": "Příprava…",
     "checklist": "Kontrolní seznam",
     "personalData": "Než návod nasdílíte, zkontrolujte na každém snímku obrazovky osobní údaje. Automatické návrhy můžou něco přehlédnout.",
-    "flagged_one": "{{count}} krok je potřeba zkontrolovat: nepojmenované kliknutí, vynechaná kliknutí, psaní, které nemusí odpovídat, nebo snímek obrazovky ke kontrole.",
-    "flagged_few": "{{count}} kroky je potřeba zkontrolovat: nepojmenovaná kliknutí, vynechaná kliknutí, psaní, které nemusí odpovídat, nebo snímky obrazovky ke kontrole.",
-    "flagged_many": "{{count}} kroků je potřeba zkontrolovat: nepojmenovaná kliknutí, vynechaná kliknutí, psaní, které nemusí odpovídat, nebo snímky obrazovky ke kontrole.",
-    "flagged_other": "{{count}} kroků je potřeba zkontrolovat: nepojmenovaná kliknutí, vynechaná kliknutí, psaní, které nemusí odpovídat, nebo snímky obrazovky ke kontrole.",
+    "flagged_one": "{{count}} krok je potřeba zkontrolovat: nepojmenované kliknutí, název přečtený ze snímku obrazovky, vynechaná kliknutí, psaní, které nemusí odpovídat, nebo snímek obrazovky ke kontrole.",
+    "flagged_few": "{{count}} kroky je potřeba zkontrolovat: nepojmenovaná kliknutí, názvy přečtené ze snímků obrazovky, vynechaná kliknutí, psaní, které nemusí odpovídat, nebo snímky obrazovky ke kontrole.",
+    "flagged_many": "{{count}} kroků je potřeba zkontrolovat: nepojmenovaná kliknutí, názvy přečtené ze snímků obrazovky, vynechaná kliknutí, psaní, které nemusí odpovídat, nebo snímky obrazovky ke kontrole.",
+    "flagged_other": "{{count}} kroků je potřeba zkontrolovat: nepojmenovaná kliknutí, názvy přečtené ze snímků obrazovky, vynechaná kliknutí, psaní, které nemusí odpovídat, nebo snímky obrazovky ke kontrole.",
     "noFlagged": "Žádné kroky nejsou označené ke kontrole.",
     "stepNumber": "Krok {{number}}",
     "quickEdit": {
@@ -588,6 +587,7 @@
     "reviewRequired": "Zkontrolujte tento krok: záznam nedokázal pojmenovat, na co se kliklo, některá kliknutí tu byla vynechána, psaní nemusí přesně odpovídat nebo se na snímku obrazovky nepodařilo najít tajný údaj k rozmazání.",
     "review": {
       "unnamed": "Zkontrolujte tento krok: záznam nedokázal pojmenovat, na co se kliklo. Napište, co to bylo, nebo zvolte V pořádku.",
+      "checkName": "Zkontrolujte tento název: byl přečten ze snímku obrazovky.",
       "missed": "Zkontrolujte tento krok: některá kliknutí tu byla vynechána.",
       "typing": "Zkontrolujte tento krok: psaní nemusí přesně odpovídat.",
       "code": "Zkontrolujte tento krok: na snímku obrazovky se nepodařilo najít tajný údaj k rozmazání, nebo text nemusí přesně odpovídat.",
@@ -885,6 +885,7 @@
       "managed": "Tato nastavení spravuje vaše organizace, proto je import vypnutý.",
       "tour": "Zobrazit prohlídku aplikace",
       "tourHelp": "Krátká prohlídka hlavního okna v oknech širokých aspoň 1024 pixelů.",
+      "tourNarrow": "Krátká prohlídka hlavního okna. Toto okno je na ni příliš úzké: roztáhněte ho na šířku aspoň 1024 pixelů a prohlídka se zobrazí.",
       "tourStartAgain": "Začít znovu",
       "tourContinue": "Pokračovat v prohlídce ({{progress}})"
     },
@@ -1358,6 +1359,7 @@
   "privacy": {
     "intro": "Steps čte text na vašich snímcích obrazovky v tomto počítači (pomocí offline rozpoznávání textu přímo ve Windows) a navrhuje, co rozmazat. Nic se nikam neodesílá.",
     "introLinux": "Steps čte text na vašich snímcích obrazovky v tomto počítači (pomocí programu Tesseract, pokud je nainstalovaný) a navrhuje, co rozmazat. Nic se nikam neodesílá.",
+    "introPage": "Steps čte text na stránkách, které nahráváte, tak, jak ho zobrazuje prohlížeč, a navrhuje, co rozmazat. Nic se nikam neodesílá.",
     "strength": "Návrhy rozmazání",
     "strengths": {
       "light": "Lehké",

@@ -11,7 +11,7 @@ import {
 
 import type { ToastMessage } from "../components/Toast";
 import { ModalDialog } from "../ModalDialog";
-import type { RecorderBridge } from "../recorder-bridge";
+import type { Fonts, LocalFonts } from "../bridge/fonts";
 import { logoSource, readLogo } from "./brands";
 
 type Logo = BrandProfile["coverLogo"];
@@ -138,7 +138,7 @@ function LogoField({
         {label}
       </span>
       <span className="text-xs text-secondary">{help}</span>
-      <div role="group" className="flex items-center gap-3" aria-labelledby={id}>
+      <div role="group" className="flex flex-wrap items-center gap-3" aria-labelledby={id}>
         <span className="flex h-12 w-36 items-center justify-center overflow-hidden rounded-lg border border-panel bg-white p-1">
           {source ? (
             <img
@@ -180,7 +180,7 @@ function LogoField({
  * Steps for Chrome: installed fonts go into PDFs once Chrome lets Steps read them. Asked once,
  * from a click, and Chrome remembers the answer.
  */
-function LocalFontsNote({ access }: { access: NonNullable<RecorderBridge["localFonts"]> }) {
+function LocalFontsNote({ access }: { access: LocalFonts }) {
   const { t } = useTranslation();
   const [state, setState] = useState<Awaited<ReturnType<typeof access.state>> | null>(null);
   useEffect(() => {
@@ -229,7 +229,7 @@ function FontField({
   label: string;
   value: BrandFont | null;
   onChange: (value: BrandFont | null) => void;
-  recorder: RecorderBridge | undefined;
+  recorder: Fonts | undefined;
   notify: (toast: Omit<ToastMessage, "id">) => void;
 }) {
   const { t } = useTranslation();
@@ -375,7 +375,7 @@ export function BrandEditor({
   onSave,
 }: {
   initial: BrandProfile;
-  recorder: RecorderBridge | undefined;
+  recorder: Fonts | undefined;
   notify: (toast: Omit<ToastMessage, "id">) => void;
   onCancel: () => void;
   onSave: (profile: BrandProfile) => void;
@@ -394,7 +394,8 @@ export function BrandEditor({
     });
 
   // A dialog the size of the window (28/09/2026: squeezed into the settings column, the
-  // editor and its preview were a thin strip), with the preview beside the choices it shows.
+  // editor and its preview were a thin strip), with the preview beside the choices it shows,
+  // and under them in a window too narrow for both (06/10/2026: it sat over the logo buttons).
   return (
     <div className="fixed inset-0 z-[800] grid place-items-center bg-scrim/50 p-4">
       <ModalDialog
@@ -418,7 +419,7 @@ export function BrandEditor({
               ? t("brands.newTitle")
               : t("brands.editTitle", { name: initial.name })}
           </h2>
-          <div className="grid min-h-0 flex-1 gap-6 overflow-y-auto px-6 py-5 md:grid-cols-[minmax(0,1fr)_minmax(280px,380px)]">
+          <div className="grid min-h-0 flex-1 gap-6 overflow-y-auto px-6 py-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)]">
             <div className="flex min-w-0 flex-col gap-4">
               <label className="flex flex-col gap-1 text-sm font-semibold text-navy">
                 {t("brands.name")}
@@ -592,7 +593,7 @@ export function BrandEditor({
                 </div>
               </details>
             </div>
-            <div className="md:sticky md:top-0 md:self-start">
+            <div className="lg:sticky lg:top-0 lg:self-start">
               <Preview profile={profile} />
             </div>
           </div>

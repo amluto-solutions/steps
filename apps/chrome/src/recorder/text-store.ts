@@ -1,12 +1,14 @@
 import type { OcrLine } from "@amluto-steps/core";
+import type { Words } from "@amluto-steps/ui";
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
 
 /**
  * The words each screenshot showed, kept in this browser only, the Chrome edition's version of
  * the desktop's OCR cache (docs/spec/03-data-and-sharing.md#ocr-cache). An entry is found by the
- * screenshot's SHA-256, so a guide's screenshot finds its words wherever it's stored; one changed
- * by a burned-in blur or a crop has other bytes, and no words. Text under a blur is dropped for
- * good, and an entry not used for 30 days is deleted.
+ * screenshot's SHA-256, so a guide's screenshot finds its words wherever it's stored. One changed
+ * by a burned-in blur or a crop has other bytes, and its words are unavailable: never read, so
+ * never checked for personal data, which isn't the same as a page with no words. Text under a
+ * blur is dropped for good, and an entry not used for 30 days is deleted.
  */
 
 interface TextDb extends DBSchema {
@@ -59,17 +61,19 @@ export async function imageKey(image: Blob | Uint8Array): Promise<string> {
 
 export function textStore(db: TextDatabase, now: () => number = Date.now) {
   return {
-    /** The words a screenshot showed as it was taken. */
+    /** The words a screenshot showed as it was taken (none is an answer too, and is kept). */
     async keep(image: Blob, lines: OcrLine[]) {
-      if (lines.length === 0) return;
       await db.put("texts", { key: await imageKey(image), lines, usedAt: now() });
     },
 
-    /** A screenshot's words, less any under `blurred` (which are then dropped for good). */
-    async read(image: Uint8Array, blurred: readonly Area[] = []): Promise<OcrLine[]> {
+    /**
+     * A screenshot's words, less any under `blurred` (which are then dropped for good), or
+     * "unavailable" for a screenshot this browser kept none for.
+     */
+    async read(image: Uint8Array, blurred: readonly Area[] = []): Promise<Words> {
       const key = await imageKey(image);
       const found = await db.get("texts", key);
-      if (!found) return [];
+      if (!found) return "unavailable";
       const lines = withoutBlurred(found.lines, blurred);
       await db.put("texts", { key, lines, usedAt: now() });
       return lines;

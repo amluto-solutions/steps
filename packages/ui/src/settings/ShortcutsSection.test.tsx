@@ -2,8 +2,9 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { HotkeyBinding, Hotkeys } from "../bridge/hotkeys";
+import { fakeHotkeys } from "../bridge/hotkeys-fake";
 import { initI18n } from "../i18n";
-import type { HotkeyBinding, RecorderBridge } from "../recorder-bridge";
 import { ShortcutsSection } from "./ShortcutsSection";
 
 initI18n();
@@ -18,19 +19,21 @@ describe("keyboard shortcuts", () => {
       { action: "togglePause", keys: "ctrl+alt+shift+r", registered: false },
     ];
     let suspended = false;
-    const recorder = {
-      getHotkeys: vi.fn(async () =>
-        held.map((binding) => ({ ...binding, registered: binding.registered || suspended })),
-      ),
-      suspendHotkeys: vi.fn(async (on: boolean) => {
+    const listed = () =>
+      held.map((binding) => ({ ...binding, registered: binding.registered || suspended }));
+    const recorder: Hotkeys = {
+      ...fakeHotkeys(held),
+      getHotkeys: async () => listed(),
+      suspendHotkeys: async (on) => {
         suspended = on;
-      }),
-      setHotkey: vi.fn(async (action: string, keys: string | null) => {
+        return listed();
+      },
+      setHotkey: async (action, keys) => {
         const binding = held.find((each) => each.action === action);
         if (binding) binding.keys = keys;
         return held.map((each) => ({ ...each, registered: true }));
-      }),
-    } as unknown as RecorderBridge;
+      },
+    };
     render(<ShortcutsSection recorder={recorder} notify={vi.fn()} />);
     const warning = "Another app already uses this, so it doesn't work right now.";
     expect(await screen.findByText(warning)).toBeTruthy();

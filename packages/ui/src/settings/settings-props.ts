@@ -1,7 +1,8 @@
 import type { Link } from "../app/useLink";
+import type { Capabilities } from "../capabilities";
 import type { Updates } from "../app/useUpdates";
 import type { ToastMessage } from "../components/Toast";
-import type { LibraryBridge, LibraryInfo, StorageUse } from "../library-bridge";
+import type { FileDialogs, Libraries, LibraryInfo, StorageUse } from "../library-bridge";
 import type { CaptureMonitor, RecorderBridge } from "../recorder-bridge";
 import type { BrandProfile } from "@amluto-steps/core";
 import type { RecordingChoices, Theme } from "./preferences";
@@ -21,7 +22,9 @@ export type SettingsSection =
 
 export interface SettingsProps {
   recorder: RecorderBridge | undefined;
-  library: LibraryBridge | undefined;
+  /** What this copy of Steps has: each section shows only what it can do. */
+  capabilities: Capabilities;
+  library: (Libraries & FileDialogs) | undefined;
   section: SettingsSection;
   onSection: (section: SettingsSection) => void;
   onBack: () => void;

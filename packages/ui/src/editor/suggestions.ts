@@ -1,9 +1,10 @@
 import { findSensitive, type Finding, type GuideStep, type OcrLine } from "@amluto-steps/core";
 import type { TFunction } from "i18next";
 
+import type { ScreenWords } from "../screen-words";
 import type { Change, Edit, EditorDoc } from "./document";
 import type { Stamp } from "./edits";
-import { readBlurStrength, readSafeTerms } from "../settings/preferences";
+import type { FindingSettings } from "../settings/preferences";
 
 const TERMS_KEY = "amluto-steps-blur-terms";
 
@@ -39,14 +40,6 @@ export function saveBlurTerms(terms: string[]) {
     // Kept for this session.
   }
 }
-
-/** A data URL's bytes, for sending a screenshot to OCR. */
-export const dataUrlBytes = (dataUrl: string): Uint8Array => {
-  const binary = atob(dataUrl.slice(dataUrl.indexOf(",") + 1));
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-  return bytes;
-};
 
 type Rect = Finding["rect"];
 
@@ -95,8 +88,13 @@ export const setPeopleNames = (names: string[]) => {
   people = names.filter((name) => name.trim().length >= 3);
 };
 
-export function openFindings(step: GuideStep, lines: OcrLine[], terms: string[]): Finding[] {
-  const options = { strength: readBlurStrength(), people, safe: readSafeTerms() };
+export function openFindings(
+  step: GuideStep,
+  lines: OcrLine[],
+  terms: string[],
+  settings: FindingSettings,
+): Finding[] {
+  const options = { strength: settings.strength, people, safe: settings.safe };
   return findSensitive(lines, terms, options).filter((finding) => {
     if (finding.rect.w <= 0 || finding.rect.h <= 0) return false;
     const visible = step.crop ? overlap(finding.rect, step.crop) > 0 : true;
@@ -180,19 +178,20 @@ export const notPersonalEdit =
  */
 export async function findOpenInGuide(
   steps: GuideStep[],
-  linesFor: (step: GuideStep) => Promise<OcrLine[]>,
+  words: ScreenWords,
   terms: string[],
+  settings: FindingSettings,
   onProgress?: (done: number, total: number) => void,
 ): Promise<{ found: FoundInStep[]; unread: number }> {
   const withImages = steps.filter((step) => step.media?.id);
   const found: FoundInStep[] = [];
   let unread = 0;
   for (const [index, step] of withImages.entries()) {
-    try {
-      const findings = openFindings(step, await linesFor(step), terms);
+    const lines = await words.wordsOf(step);
+    if (lines === "unavailable") unread += 1;
+    else {
+      const findings = openFindings(step, lines, terms, settings);
       if (findings.length) found.push({ stepId: step.id, findings });
-    } catch {
-      unread += 1;
     }
     onProgress?.(index + 1, withImages.length);
   }

@@ -28,7 +28,6 @@
     "settings": "Impostazioni",
     "guides": "Guide",
     "recordingNow": "È in corso una registrazione",
-    "saveFirst": "Prima salva o scarta l'ultima registrazione",
     "needsReview": "Da rivedere"
   },
   "dates": {
@@ -280,9 +279,9 @@
     "drawing": "Preparazione…",
     "checklist": "Elenco di controllo",
     "personalData": "Controlla che nessuno screenshot contenga dati personali prima di condividere la guida. I suggerimenti automatici possono non accorgersi di tutto.",
-    "flagged_one": "{{count}} passaggio va controllato: un clic senza nome, clic persi, testo digitato che potrebbe non corrispondere o uno screenshot da controllare.",
-    "flagged_many": "{{count}} passaggi vanno controllati: clic senza nome, clic persi, testo digitato che potrebbe non corrispondere o screenshot da controllare.",
-    "flagged_other": "{{count}} passaggi vanno controllati: clic senza nome, clic persi, testo digitato che potrebbe non corrispondere o screenshot da controllare.",
+    "flagged_one": "{{count}} passaggio va controllato: un clic senza nome, un nome letto dallo screenshot, clic persi, testo digitato che potrebbe non corrispondere o uno screenshot da controllare.",
+    "flagged_many": "{{count}} passaggi vanno controllati: clic senza nome, nomi letti dagli screenshot, clic persi, testo digitato che potrebbe non corrispondere o screenshot da controllare.",
+    "flagged_other": "{{count}} passaggi vanno controllati: clic senza nome, nomi letti dagli screenshot, clic persi, testo digitato che potrebbe non corrispondere o screenshot da controllare.",
     "noFlagged": "Nessun passaggio è segnalato da controllare.",
     "stepNumber": "Passaggio {{number}}",
     "quickEdit": {
@@ -545,6 +544,7 @@
     "reviewRequired": "Controlla questo passaggio: la registrazione non è riuscita a dare un nome all'elemento su cui si è fatto clic, qui sono stati persi alcuni clic, il testo digitato potrebbe non corrispondere esattamente oppure nello screenshot non è stato trovato un dato riservato da sfocare.",
     "review": {
       "unnamed": "Controlla questo passaggio: la registrazione non è riuscita a dare un nome all'elemento su cui si è fatto clic. Scrivi cos'era oppure scegli “Va bene”.",
+      "checkName": "Controlla questo nome: è stato letto dallo screenshot.",
       "missed": "Controlla questo passaggio: qui sono stati persi alcuni clic.",
       "typing": "Controlla questo passaggio: il testo digitato potrebbe non corrispondere esattamente.",
       "code": "Controlla questo passaggio: un segreto non è stato trovato nello screenshot per sfocarlo, oppure il testo potrebbe non corrispondere esattamente.",
@@ -838,6 +838,7 @@
       "managed": "La tua organizzazione gestisce queste impostazioni, quindi l'importazione è disattivata.",
       "tour": "Mostra il tutorial",
       "tourHelp": "Un breve tour della finestra principale, in finestre larghe almeno 1024 pixel.",
+      "tourNarrow": "Un breve tour della finestra principale. Questa finestra è troppo stretta per mostrarlo: allargala ad almeno 1024 pixel e il tour apparirà.",
       "tourStartAgain": "Ricomincia",
       "tourContinue": "Continua il tour ({{progress}})"
     },
@@ -1299,6 +1300,7 @@
   "privacy": {
     "intro": "Steps legge il testo degli screenshot su questo PC (con il riconoscimento del testo offline di Windows) per suggerire cosa sfocare. Non viene inviato nulla da nessuna parte.",
     "introLinux": "Steps legge il testo degli screenshot su questo computer (con Tesseract, se è installato) per suggerire cosa sfocare. Non viene inviato nulla da nessuna parte.",
+    "introPage": "Steps legge il testo delle pagine registrate, così come lo mostra il browser, per suggerire cosa sfocare. Non viene inviato nulla da nessuna parte.",
     "strength": "Suggerimenti di sfocatura",
     "strengths": {
       "light": "Leggera",

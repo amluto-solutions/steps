@@ -7,6 +7,8 @@ import {
   wordStepIn,
   type RecordedStep,
   type RecordingFact,
+  type RecordingSettings,
+  type StepWording,
 } from "@amluto-steps/core";
 import {
   captureSequenceOf,
@@ -23,11 +25,17 @@ import {
 } from "./recorded-step";
 
 const wording = ENGLISH;
+/** A recording's settings as they start: typing into something unnamed keeps its text out. */
+const settings: RecordingSettings = { showUnnamedTyping: false };
 
 /** Every step these tests make, to check below that each words itself again from its facts. */
 const made: RecordedStep[] = [];
-const factToStep = (...args: Parameters<typeof makeStep>) => {
-  const step = makeStep(...args);
+const factToStep = (
+  fact: RecordingFact,
+  words: StepWording,
+  recording: RecordingSettings = settings,
+) => {
+  const step = makeStep(fact, words, recording);
   if (step) made.push(step);
   return step;
 };
@@ -177,7 +185,7 @@ describe("steps fit the step format however long the recorded text", () => {
       isPassword: false,
       labeledBy: null,
       bounds: null,
-      parent: null,
+      ancestors: [],
       sensitive: false,
     };
     const step = factToStep(
@@ -214,7 +222,7 @@ describe("steps fit the step format however long the recorded text", () => {
       isPassword: false,
       labeledBy: null,
       bounds: null,
-      parent: null,
+      ancestors: [],
       sensitive: false,
     };
     const step = factToStep(
@@ -290,7 +298,7 @@ describe("steps written after the click they belong before", () => {
     isPassword: false,
     labeledBy: null as string | null,
     bounds: null,
-    parent: null,
+    ancestors: [],
     sensitive: false,
   };
   const typed = (sequence: number, tickMs: number) =>
@@ -526,6 +534,46 @@ describe("steps written after the click they belong before", () => {
     expect(unnamed?.actionText).toBe('Click in "Invoices - Microsoft Edge"');
     expect(unnamed?.reviewRequired).toBe(true);
   });
+
+  it("keeps what each click is called with its step (06/10/2026)", () => {
+    const window = edge("Site Tools > Dashboard - Google Chrome");
+    const inside = {
+      ...field,
+      controlType: "Group",
+      name: "",
+      automationId: "",
+      ancestors: [{ controlType: "ListItem", name: "Forwarders" }],
+    } as unknown as typeof field;
+    const step = factToStep(click(1, 1_000, window, inside), wording) as RecordedStep;
+    expect(step.actionText).toBe('Click "Forwarders"');
+    expect(step.naming).toEqual({
+      name: "Forwarders",
+      kind: "listItem",
+      source: "ancestor",
+      needsReview: false,
+    });
+    expect(parseStep(step).naming).toEqual(step.naming);
+
+    const pane = { ...field, controlType: "Pane", name: "", automationId: "" };
+    const unnamed = factToStep(click(2, 1_000, window, pane), wording);
+    expect(unnamed?.naming).toEqual({
+      name: "Site Tools > Dashboard - Google Chrome",
+      kind: "other",
+      source: "window",
+      needsReview: true,
+    });
+    expect(unnamed?.reviewRequired).toBe(true);
+  });
+
+  it("keeps a UI framework's name out of the step, as the recorder no longer does (06/10/2026)", () => {
+    const window = edge("Untitled - Notepad");
+    const host = { ...field, controlType: "Pane", name: "PopupHost", automationId: "" };
+    const step = factToStep(click(1, 1_000, window, host), wording) as RecordedStep;
+    expect(step.actionText).toBe('Click in "Untitled - Notepad"');
+    // As for any unnamed click, the window's title.
+    expect(step.textParts.target).toBe("Untitled - Notepad");
+    expect(JSON.stringify(step.target)).not.toContain("PopupHost");
+  });
 });
 
 describe("what's typed becomes steps (docs/spec/02-capture.md#keys)", () => {
@@ -618,9 +666,21 @@ describe("what's typed becomes steps (docs/spec/02-capture.md#keys)", () => {
     expect(unnamed?.actionText).toBe("Type");
     expect(unnamed?.textParts.value).toBe("Dear Sam");
     expect(unnamed?.showValue).toBe(false);
+    expect(
+      factToStep(typing("text", "Dear Sam"), wording, { showUnnamedTyping: true })?.actionText,
+    ).toBe('Type "Dear Sam"');
+  });
+
+  it("follows the recording's own settings, never what Settings says now", () => {
+    // Switched on in Settings mid-recording: this recording started with it off.
     window.localStorage.setItem("amluto-steps-show-unnamed-typing", "true");
-    expect(factToStep(typing("text", "Dear Sam"), wording)?.actionText).toBe('Type "Dear Sam"');
-    window.localStorage.removeItem("amluto-steps-show-unnamed-typing");
+    try {
+      const step = factToStep(typing("text", "Dear Sam"), wording, { showUnnamedTyping: false });
+      expect(step?.actionText).toBe("Type");
+      expect(step?.showValue).toBe(false);
+    } finally {
+      window.localStorage.removeItem("amluto-steps-show-unnamed-typing");
+    }
   });
 
   it("flags typing that may not match, and screenshots that need checking", () => {
@@ -679,6 +739,15 @@ describe("every recorded step words itself again from its facts", () => {
         id: step.id,
         words: step.actionText,
       });
+  });
+
+  it("gives back the same words as 1.0.0 saved it, without its naming", () => {
+    expect(made.some((step) => step.naming)).toBe(true);
+    for (const step of made)
+      expect({
+        id: step.id,
+        words: wordStepIn({ ...step, naming: undefined }, "en", "casual"),
+      }).toEqual({ id: step.id, words: step.actionText });
   });
 });
 

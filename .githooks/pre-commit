@@ -1,0 +1,9 @@
+#!/bin/sh
+# Names and private paths are caught here, in a second, rather than at the end of the gate
+# (06/10/2026: a person's name in two comments was only found at push). Only in the private
+# repository, where the check lives.
+[ -f scripts/public-snapshot.mjs ] || exit 0
+node scripts/public-snapshot.mjs --check >/dev/null || {
+  node scripts/public-snapshot.mjs --check
+  exit 1
+}

@@ -1,0 +1,857 @@
+{
+  "_comment": "Clicks and what they're called (packages/core/src/step-text/click-naming.ts). Each case is evidence from a real recording, with anything personal taken out, and the naming it must give; a past bug becomes one line here. Element fields left out are UI Automation's blanks.",
+  "cases": [
+    {
+      "case": "an unnamed inside of a named list item reads as the item",
+      "from": "SiteGround Site Tools in Chrome, 05/10/2026: read \"Click in Site Tools\"",
+      "evidence": {
+        "element": {
+          "controlType": "Group",
+          "localizedControlType": "group",
+          "ariaRole": "group",
+          "className": "sg-nav-list-item__content",
+          "frameworkId": "Chrome",
+          "bounds": { "left": 180, "top": 489, "right": 750, "bottom": 565 },
+          "ancestors": [{ "controlType": "ListItem", "name": "Forwarders" }]
+        },
+        "window": {
+          "title": "Site Tools > Dashboard - Google Chrome",
+          "exe": "chrome.exe",
+          "shell": false
+        }
+      },
+      "naming": {
+        "name": "Forwarders",
+        "kind": "listItem",
+        "source": "ancestor",
+        "needsReview": false
+      },
+      "text": "Click \"Forwarders\""
+    },
+    {
+      "case": "a nameless group under a named list item two levels up reads as the item",
+      "from": "the SiteGround list item above with one more wrapper inside it, as nested web layouts have (spec #15); built from it, not recorded",
+      "evidence": {
+        "element": {
+          "controlType": "Group",
+          "localizedControlType": "group",
+          "className": "sg-nav-list-item__label",
+          "frameworkId": "Chrome",
+          "bounds": { "left": 236, "top": 509, "right": 420, "bottom": 545 },
+          "ancestors": [
+            { "controlType": "Group", "name": "" },
+            { "controlType": "ListItem", "name": "Forwarders" },
+            { "controlType": "List", "name": "" }
+          ]
+        },
+        "window": {
+          "title": "Site Tools > Dashboard - Google Chrome",
+          "exe": "chrome.exe",
+          "shell": false
+        }
+      },
+      "naming": {
+        "name": "Forwarders",
+        "kind": "listItem",
+        "source": "ancestor",
+        "needsReview": false
+      },
+      "text": "Click \"Forwarders\""
+    },
+    {
+      "case": "an icon three levels inside a named link reads as the link",
+      "from": "made up, after a card link on a web page whose picture is wrapped twice (spec #15)",
+      "evidence": {
+        "element": {
+          "controlType": "Image",
+          "localizedControlType": "image",
+          "frameworkId": "Chrome",
+          "bounds": { "left": 610, "top": 400, "right": 642, "bottom": 432 },
+          "ancestors": [
+            { "controlType": "Group", "name": "" },
+            { "controlType": "Group", "name": "" },
+            { "controlType": "Hyperlink", "name": "Pricing" },
+            { "controlType": "Group", "name": "" }
+          ]
+        },
+        "window": { "title": "Plans - Microsoft Edge", "exe": "msedge.exe", "shell": false }
+      },
+      "naming": { "name": "Pricing", "kind": "link", "source": "ancestor", "needsReview": false },
+      "text": "Click \"Pricing\""
+    },
+    {
+      "case": "a named panel between stops the climb: the panel isn't the thing clicked",
+      "from": "made up, after the SiteGround create forward rule form (spec #15)",
+      "evidence": {
+        "element": {
+          "controlType": "Group",
+          "localizedControlType": "group",
+          "frameworkId": "Chrome",
+          "ancestors": [
+            { "controlType": "Group", "name": "Create New Rule" },
+            { "controlType": "ListItem", "name": "Forwarders" }
+          ]
+        },
+        "window": {
+          "title": "Site Tools > Email Forwarders - Google Chrome",
+          "exe": "chrome.exe",
+          "shell": false
+        }
+      },
+      "naming": {
+        "name": "Site Tools > Email Forwarders - Google Chrome",
+        "kind": "other",
+        "source": "window",
+        "needsReview": true
+      },
+      "text": "Click in \"Site Tools > Email Forwarders - Google Chrome\""
+    },
+    {
+      "case": "an icon in an unnamed button inside a list item isn't the item",
+      "from": "made up, after a list item's own \"more\" button (spec #15)",
+      "evidence": {
+        "element": {
+          "controlType": "Image",
+          "localizedControlType": "image",
+          "frameworkId": "Chrome",
+          "ancestors": [
+            { "controlType": "Button", "name": "" },
+            { "controlType": "ListItem", "name": "Forwarders" }
+          ]
+        },
+        "window": {
+          "title": "Site Tools > Dashboard - Google Chrome",
+          "exe": "chrome.exe",
+          "shell": false
+        }
+      },
+      "naming": {
+        "name": "Site Tools > Dashboard - Google Chrome",
+        "kind": "other",
+        "source": "window",
+        "needsReview": true
+      },
+      "text": "Click in \"Site Tools > Dashboard - Google Chrome\""
+    },
+    {
+      "case": "a choice's text in an open drop-down reads as the choice",
+      "from": "SiteGround site switcher in Chrome, 05/10/2026",
+      "evidence": {
+        "element": {
+          "controlType": "Text",
+          "localizedControlType": "text",
+          "name": "example.co.uk",
+          "ariaRole": "description",
+          "frameworkId": "Chrome",
+          "bounds": { "left": 280, "top": 225, "right": 366, "bottom": 242 },
+          "ancestors": [{ "controlType": "ListItem", "name": "example.co.uk" }]
+        },
+        "window": {
+          "title": "Site Tools > Dashboard - Google Chrome",
+          "exe": "chrome.exe",
+          "shell": false
+        }
+      },
+      "naming": {
+        "name": "example.co.uk",
+        "kind": "listItem",
+        "source": "ancestor",
+        "needsReview": false
+      },
+      "text": "Click \"example.co.uk\""
+    },
+    {
+      "case": "a named button in a table row keeps its own name (web pages aren't promoted to the row)",
+      "from": "SiteGround websites list in Chrome, 05/10/2026",
+      "evidence": {
+        "element": {
+          "controlType": "Button",
+          "localizedControlType": "button",
+          "name": "SITE TOOLS",
+          "ariaRole": "button",
+          "className": "sg-button-base sg-button-base--color-secondary sg-button-base--type-contained sg-button sg-button--small",
+          "frameworkId": "Chrome",
+          "bounds": { "left": 1832, "top": 834, "right": 1944, "bottom": 874 },
+          "ancestors": [
+            { "controlType": "DataItem", "name": "WORDPRESS ADMIN SITE TOOLS Settings" }
+          ]
+        },
+        "window": {
+          "title": "My SiteGround Account > Websites - Google Chrome",
+          "exe": "chrome.exe",
+          "shell": false
+        }
+      },
+      "naming": {
+        "name": "SITE TOOLS",
+        "kind": "button",
+        "source": "element",
+        "needsReview": false
+      },
+      "text": "Click \"SITE TOOLS\""
+    },
+    {
+      "case": "an icon button named by its label",
+      "from": "SiteGround email forwarders in Chrome, 05/10/2026",
+      "evidence": {
+        "element": {
+          "controlType": "Button",
+          "localizedControlType": "button",
+          "name": "Edit",
+          "ariaRole": "button",
+          "className": "sg-button-base sg-button-base--color-primary sg-button-base--type-ghost sg-icon-button sg-icon-button--shape-circle sg-icon-button--medium",
+          "frameworkId": "Chrome",
+          "bounds": { "left": 2007, "top": 1100, "right": 2063, "bottom": 1156 },
+          "ancestors": [{ "controlType": "DataItem", "name": "Edit Delete" }]
+        },
+        "window": {
+          "title": "Site Tools > Email Forwarders - Google Chrome",
+          "exe": "chrome.exe",
+          "shell": false
+        }
+      },
+      "naming": { "name": "Edit", "kind": "button", "source": "element", "needsReview": false },
+      "text": "Click \"Edit\""
+    },
+    {
+      "case": "a button in a named group keeps its own name",
+      "from": "SiteGround create forward rule in Chrome, 05/10/2026",
+      "evidence": {
+        "element": {
+          "controlType": "Button",
+          "localizedControlType": "button",
+          "name": "CREATE",
+          "ariaRole": "button",
+          "className": "sg-button-base sg-button-base--color-primary sg-button-base--type-contained sg-button sg-button--medium",
+          "frameworkId": "Chrome",
+          "bounds": { "left": 544, "top": 915, "right": 661, "bottom": 971 },
+          "ancestors": [{ "controlType": "Group", "name": "Create New Rule" }]
+        },
+        "window": {
+          "title": "Site Tools > Email Forwarders - Google Chrome",
+          "exe": "chrome.exe",
+          "shell": false
+        }
+      },
+      "naming": { "name": "CREATE", "kind": "button", "source": "element", "needsReview": false },
+      "text": "Click \"CREATE\""
+    },
+    {
+      "case": "a link",
+      "from": "SiteGround home page in Chrome, 05/10/2026",
+      "evidence": {
+        "element": {
+          "controlType": "Hyperlink",
+          "localizedControlType": "link",
+          "name": "Login",
+          "helpText": "Login to Site Area",
+          "ariaRole": "link",
+          "className": "header-help__channel__tab",
+          "frameworkId": "Chrome",
+          "bounds": { "left": 2390, "top": 176, "right": 2451, "bottom": 226 },
+          "ancestors": [{ "controlType": "ListItem", "name": "Login" }]
+        },
+        "window": {
+          "title": "Web Hosting Done Right - SiteGround UK - Google Chrome",
+          "exe": "chrome.exe",
+          "shell": false
+        }
+      },
+      "naming": { "name": "Login", "kind": "link", "source": "element", "needsReview": false },
+      "text": "Click \"Login\""
+    },
+    {
+      "case": "a text box named by its label",
+      "from": "SiteGround sign-in in Chrome, 05/10/2026",
+      "evidence": {
+        "element": {
+          "controlType": "Edit",
+          "localizedControlType": "edit",
+          "name": "Verification Code",
+          "ariaRole": "textbox",
+          "className": "sg-input sg-field",
+          "frameworkId": "Chrome",
+          "labeledBy": "Verification Code",
+          "bounds": { "left": 1698, "top": 712, "right": 2152, "bottom": 773 },
+          "ancestors": [{ "controlType": "Group", "name": "" }],
+          "sensitive": true
+        },
+        "window": {
+          "title": "SiteGround Login - Google Chrome",
+          "exe": "chrome.exe",
+          "shell": false
+        }
+      },
+      "naming": {
+        "name": "Verification Code",
+        "kind": "field",
+        "source": "element",
+        "needsReview": false
+      },
+      "text": "Click \"Verification Code\" field"
+    },
+    {
+      "case": "a tile that's a radio button",
+      "from": "SiteGround Site Tools dashboard in Chrome, 05/10/2026",
+      "evidence": {
+        "element": {
+          "controlType": "RadioButton",
+          "localizedControlType": "radio button",
+          "name": "File Manager",
+          "ariaRole": "radio",
+          "className": "sg-select-box dashboard-tile__content",
+          "frameworkId": "Chrome",
+          "bounds": { "left": 421, "top": 318, "right": 594, "bottom": 494 },
+          "ancestors": [{ "controlType": "Group", "name": "" }]
+        },
+        "window": {
+          "title": "Site Tools > Dashboard - Google Chrome",
+          "exe": "chrome.exe",
+          "shell": false
+        }
+      },
+      "naming": {
+        "name": "File Manager",
+        "kind": "radio",
+        "source": "element",
+        "needsReview": false
+      },
+      "text": "Click \"File Manager\""
+    },
+    {
+      "case": "plain text in an unnamed group is named by its own words",
+      "from": "SiteGround Site Tools menu in Chrome, 05/10/2026",
+      "evidence": {
+        "element": {
+          "controlType": "Text",
+          "localizedControlType": "text",
+          "name": "Forwarders",
+          "ariaRole": "description",
+          "frameworkId": "Chrome",
+          "bounds": { "left": 156, "top": 409, "right": 271, "bottom": 435 },
+          "ancestors": [{ "controlType": "Group", "name": "" }]
+        },
+        "window": {
+          "title": "Site Tools > Email Autoresponders - Google Chrome",
+          "exe": "chrome.exe",
+          "shell": false
+        }
+      },
+      "naming": {
+        "name": "Forwarders",
+        "kind": "other",
+        "source": "element",
+        "needsReview": false
+      },
+      "text": "Click \"Forwarders\""
+    },
+    {
+      "case": "a browser tab-strip button",
+      "from": "Chrome, 05/10/2026",
+      "evidence": {
+        "element": {
+          "controlType": "Button",
+          "localizedControlType": "button",
+          "name": "New tab",
+          "ariaRole": "button",
+          "className": "TabStripControlButton",
+          "frameworkId": "Chrome",
+          "bounds": { "left": 1230, "top": 0, "right": 1258, "bottom": 41 },
+          "ancestors": [{ "controlType": "Pane", "name": "" }]
+        },
+        "window": {
+          "title": "Steps by Amluto: step-by-step guides from a single run-through - Google Chrome",
+          "exe": "chrome.exe",
+          "shell": false
+        }
+      },
+      "naming": { "name": "New tab", "kind": "button", "source": "element", "needsReview": false },
+      "text": "Click \"New tab\""
+    },
+    {
+      "case": "an unnamed button is named by its window and needs review",
+      "from": "SiteGround Site Tools side rail in Chrome, 05/10/2026",
+      "evidence": {
+        "element": {
+          "controlType": "Button",
+          "localizedControlType": "button",
+          "ariaRole": "button",
+          "className": "sg-button-base sg-button-base--color-secondary sg-button-base--type-ghost sg-navigation-rail-item__button",
+          "frameworkId": "Chrome",
+          "bounds": { "left": 24, "top": 811, "right": 96, "bottom": 855 },
+          "ancestors": [{ "controlType": "Group", "name": "" }]
+        },
+        "window": {
+          "title": "Site Tools > Dashboard - Google Chrome",
+          "exe": "chrome.exe",
+          "shell": false
+        }
+      },
+      "naming": {
+        "name": "Site Tools > Dashboard - Google Chrome",
+        "kind": "other",
+        "source": "window",
+        "needsReview": true
+      },
+      "text": "Click in \"Site Tools > Dashboard - Google Chrome\""
+    },
+    {
+      "case": "an unnamed pane in the browser's own frame needs review",
+      "from": "Chrome's new tab page, 05/10/2026",
+      "evidence": {
+        "element": {
+          "controlType": "Pane",
+          "localizedControlType": "region",
+          "ariaRole": "region",
+          "className": "TopBackgroundView",
+          "frameworkId": "Chrome",
+          "bounds": { "left": 196, "top": 58, "right": 2027, "bottom": 101 },
+          "ancestors": [{ "controlType": "Pane", "name": "" }]
+        },
+        "window": { "title": "New tab - Google Chrome", "exe": "chrome.exe", "shell": false }
+      },
+      "naming": {
+        "name": "New tab - Google Chrome",
+        "kind": "other",
+        "source": "window",
+        "needsReview": true
+      },
+      "text": "Click in \"New tab - Google Chrome\""
+    },
+    {
+      "case": "a taskbar button is named by its app",
+      "from": "Windows taskbar, 04/10/2026: one taskbar click made four steps",
+      "evidence": {
+        "element": {
+          "controlType": "Button",
+          "name": "New tab and 6 more pages - Work - Microsoft​ Edge - 1 running window",
+          "frameworkId": "XAML"
+        },
+        "window": { "title": "", "exe": "explorer.exe", "shell": true }
+      },
+      "naming": {
+        "name": "Microsoft Edge",
+        "kind": "button",
+        "source": "taskbar",
+        "needsReview": false
+      },
+      "text": "Click \"Microsoft Edge\" on the taskbar"
+    },
+    {
+      "case": "a pinned taskbar button that isn't running",
+      "from": "Windows taskbar, 04/10/2026: read Click \"1 running window pinned\"",
+      "evidence": {
+        "element": {
+          "controlType": "Button",
+          "name": "Google Chrome pinned",
+          "frameworkId": "XAML"
+        },
+        "window": { "title": "", "exe": "explorer.exe", "shell": true }
+      },
+      "naming": {
+        "name": "Google Chrome",
+        "kind": "button",
+        "source": "taskbar",
+        "needsReview": false
+      },
+      "text": "Click \"Google Chrome\" on the taskbar"
+    },
+    {
+      "case": "a cell in a desktop list row reads as the row",
+      "from": "File Explorer details view, Phase 1 prototype",
+      "evidence": {
+        "element": {
+          "controlType": "Edit",
+          "name": "Date modified",
+          "className": "UIProperty",
+          "frameworkId": "DirectUI",
+          "ancestors": [{ "controlType": "ListItem", "name": "Q3 report.txt" }]
+        },
+        "window": { "title": "amluto-proto-files", "exe": "explorer.exe", "shell": false }
+      },
+      "naming": {
+        "name": "Q3 report.txt",
+        "kind": "listItem",
+        "source": "ancestor",
+        "needsReview": false
+      },
+      "text": "Click \"Q3 report.txt\""
+    },
+    {
+      "case": "a lookup that reached only the window is named by the window, not as a control",
+      "from": "made up, after Chrome on Linux, which keeps pages off the accessibility bus (Phase 10)",
+      "evidence": {
+        "element": { "controlType": "Window", "name": "Invoices - Google Chrome" },
+        "window": { "title": "Invoices - Google Chrome", "exe": "chrome", "shell": false }
+      },
+      "naming": {
+        "name": "Invoices - Google Chrome",
+        "kind": "other",
+        "source": "window",
+        "needsReview": true
+      },
+      "text": "Click in \"Invoices - Google Chrome\""
+    },
+    {
+      "case": "a lookup that timed out is named by the window",
+      "from": "made up: a lookup past its 350 ms limit",
+      "evidence": {
+        "element": null,
+        "window": { "title": "Budget.xlsx - Excel", "exe": "EXCEL.EXE", "shell": false }
+      },
+      "naming": {
+        "name": "Budget.xlsx - Excel",
+        "kind": "other",
+        "source": "window",
+        "needsReview": true
+      },
+      "text": "Click in \"Budget.xlsx - Excel\""
+    },
+    {
+      "case": "nothing at all to name it by",
+      "from": "made up: no element and an untitled window",
+      "evidence": { "element": null, "window": { "title": "", "exe": null, "shell": false } },
+      "naming": { "name": "", "kind": "other", "source": "window", "needsReview": true },
+      "text": "Click"
+    },
+    {
+      "case": "a UI framework's name is no name: the window names it",
+      "from": "made up, after XAML menus in Windows 11's Notepad and File Explorer (F015, F070); the rule was in the Windows recorder until 06/10/2026",
+      "evidence": {
+        "element": {
+          "controlType": "Pane",
+          "name": "PopupHost",
+          "className": "Popup",
+          "frameworkId": "XAML",
+          "ancestors": [{ "controlType": "Pane", "name": "" }]
+        },
+        "window": { "title": "Untitled - Notepad", "exe": "Notepad.exe", "shell": false }
+      },
+      "naming": {
+        "name": "Untitled - Notepad",
+        "kind": "other",
+        "source": "window",
+        "needsReview": true
+      },
+      "text": "Click in \"Untitled - Notepad\""
+    },
+    {
+      "case": "a window class standing in for a name is no name either",
+      "from": "made up, after Chrome's page host window",
+      "evidence": {
+        "element": {
+          "controlType": "Pane",
+          "name": "Chrome_RenderWidgetHostHWND",
+          "className": "Chrome_RenderWidgetHostHWND",
+          "frameworkId": "Win32"
+        },
+        "window": { "title": "Invoices - Google Chrome", "exe": "chrome.exe", "shell": false }
+      },
+      "naming": {
+        "name": "Invoices - Google Chrome",
+        "kind": "other",
+        "source": "window",
+        "needsReview": true
+      },
+      "text": "Click in \"Invoices - Google Chrome\""
+    },
+    {
+      "case": "a framework-named part of a named menu item reads as the item",
+      "from": "made up, after XAML menus (F015, F070)",
+      "evidence": {
+        "element": {
+          "controlType": "Pane",
+          "name": "DesktopWindowXamlSource",
+          "className": "Windows.UI.Composition.DesktopWindowContentBridge",
+          "frameworkId": "Win32",
+          "ancestors": [{ "controlType": "MenuItem", "name": "Edit" }]
+        },
+        "window": { "title": "Untitled - Notepad", "exe": "Notepad.exe", "shell": false }
+      },
+      "naming": { "name": "Edit", "kind": "menuItem", "source": "ancestor", "needsReview": false },
+      "text": "Click \"Edit\""
+    },
+    {
+      "case": "the layer a menu lays over its window to close it is no \"Close\" button",
+      "from": "Notepad's Edit menu, 02/10/2026: read \"Click \\\"Close\\\"\"; the rule was in the Windows recorder until 06/10/2026",
+      "evidence": {
+        "element": {
+          "controlType": "Button",
+          "name": "Close",
+          "automationId": "Light Dismiss",
+          "frameworkId": "XAML"
+        },
+        "window": { "title": "Untitled - Notepad", "exe": "Notepad.exe", "shell": false }
+      },
+      "naming": {
+        "name": "Untitled - Notepad",
+        "kind": "other",
+        "source": "window",
+        "needsReview": true
+      },
+      "text": "Click in \"Untitled - Notepad\""
+    },
+    {
+      "case": "Steps for Chrome's page facts name a click UI Automation saw only the icon of",
+      "from": "made up, after Edge with Steps for Chrome linked",
+      "evidence": {
+        "element": { "controlType": "Image", "frameworkId": "Chrome" },
+        "window": { "title": "Invoices - Microsoft Edge", "exe": "msedge.exe", "shell": false },
+        "page": { "tagName": "BUTTON", "innerText": "Approve invoice" }
+      },
+      "naming": {
+        "name": "Approve invoice",
+        "kind": "button",
+        "source": "page",
+        "needsReview": false
+      },
+      "text": "Click \"Approve invoice\""
+    },
+    {
+      "case": "screen words: the label on the clicked row wins over the item underneath",
+      "from": "SiteGround's Email menu in Chrome, 05/10/2026: a click just past \"Forwarders\" read \"Autoresponders\", the item underneath. The words are the screenshot's; nothing else named the click",
+      "evidence": {
+        "element": null,
+        "window": {
+          "title": "Site Tools > Email Forwarders - Google Chrome",
+          "exe": "chrome.exe",
+          "shell": false
+        },
+        "screen": {
+          "lines": [
+            { "words": [{ "text": "Forwarders", "x": 7.6, "y": 37.4, "w": 5.5, "h": 1.6 }] },
+            { "words": [{ "text": "Autoresponders", "x": 7.6, "y": 43.4, "w": 7.9, "h": 1.6 }] }
+          ],
+          "x": 14.18,
+          "y": 38.84
+        }
+      },
+      "naming": { "name": "Forwarders", "kind": "other", "source": "screen", "needsReview": true },
+      "text": "Click \"Forwarders\""
+    },
+    {
+      "case": "screen words never replace a name the element gave",
+      "from": "made up: a named button over a screenshot that reads otherwise",
+      "evidence": {
+        "element": { "controlType": "Button", "localizedControlType": "button", "name": "Save" },
+        "window": { "title": "Suppliers", "exe": "suppliers.exe", "shell": false },
+        "screen": {
+          "lines": [{ "words": [{ "text": "Cancel", "x": 10, "y": 10, "w": 6, "h": 2 }] }],
+          "x": 12,
+          "y": 11
+        }
+      },
+      "naming": { "name": "Save", "kind": "button", "source": "element", "needsReview": false },
+      "text": "Click \"Save\""
+    },
+    {
+      "case": "screen words with nothing near the click leave it named by the window",
+      "from": "made up: a click on an empty part of Windows Settings",
+      "evidence": {
+        "element": null,
+        "window": { "title": "Settings", "exe": "SystemSettings.exe", "shell": false },
+        "screen": {
+          "lines": [{ "words": [{ "text": "System", "x": 8, "y": 25, "w": 6, "h": 2 }] }],
+          "x": 40,
+          "y": 80
+        }
+      },
+      "naming": { "name": "Settings", "kind": "other", "source": "window", "needsReview": true },
+      "text": "Click in \"Settings\""
+    },
+    {
+      "case": "a page's button named by its text",
+      "from": "Steps for Chrome's end-to-end invoice page (tools/chrome-e2e): an icon inside the button, which counts as the button",
+      "evidence": {
+        "element": null,
+        "window": { "title": "Invoices - Finance portal", "exe": null, "shell": false },
+        "page": { "tagName": "BUTTON", "innerText": "Approve invoice" }
+      },
+      "naming": {
+        "name": "Approve invoice",
+        "kind": "button",
+        "source": "page",
+        "needsReview": false
+      },
+      "text": "Click \"Approve invoice\""
+    },
+    {
+      "case": "a page's link",
+      "from": "Steps for Chrome's end-to-end invoice page (tools/chrome-e2e)",
+      "evidence": {
+        "element": null,
+        "window": { "title": "Invoices - Finance portal", "exe": null, "shell": false },
+        "page": { "tagName": "A", "innerText": "Bank" }
+      },
+      "naming": { "name": "Bank", "kind": "link", "source": "page", "needsReview": false },
+      "text": "Click \"Bank\""
+    },
+    {
+      "case": "a page's text box named by its label",
+      "from": "Steps for Chrome's end-to-end invoice page (tools/chrome-e2e)",
+      "evidence": {
+        "element": null,
+        "window": { "title": "Invoices - Finance portal", "exe": null, "shell": false },
+        "page": { "tagName": "INPUT", "elementType": "text", "labelText": "Supplier" }
+      },
+      "naming": { "name": "Supplier", "kind": "field", "source": "page", "needsReview": false },
+      "text": "Click \"Supplier\" field"
+    },
+    {
+      "case": "a page's submit button named by its value",
+      "from": "made up, after a sign-in form",
+      "evidence": {
+        "element": null,
+        "window": { "title": "Sign in - Finance portal", "exe": null, "shell": false },
+        "page": { "tagName": "INPUT", "elementType": "submit", "value": "Sign in" }
+      },
+      "naming": { "name": "Sign in", "kind": "button", "source": "page", "needsReview": false },
+      "text": "Click \"Sign in\""
+    },
+    {
+      "case": "a page's rich-text editor named by its accessible name, never its words",
+      "from": "Steps for Chrome's end-to-end reply editor (tools/chrome-e2e)",
+      "evidence": {
+        "element": null,
+        "window": { "title": "Invoices - Finance portal", "exe": null, "shell": false },
+        "page": { "tagName": "DIV", "ariaLabel": "Reply" }
+      },
+      "naming": { "name": "Reply", "kind": "other", "source": "page", "needsReview": false },
+      "text": "Click \"Reply\""
+    },
+    {
+      "case": "a page click nothing names reads as the tab's title and needs review",
+      "from": "made up: a click on a page's empty background",
+      "evidence": {
+        "element": null,
+        "window": { "title": "Invoices - Finance portal", "exe": null, "shell": false },
+        "page": { "tagName": "DIV" }
+      },
+      "naming": {
+        "name": "Invoices - Finance portal",
+        "kind": "other",
+        "source": "window",
+        "needsReview": true
+      },
+      "text": "Click in \"Invoices - Finance portal\""
+    },
+    {
+      "case": "a loading overlay over the page isn't what was clicked: the window names it, flagged",
+      "from": "SiteGround Site Tools in Chrome, 05/10/2026: read Click \"loading\" (the forwarders recording, click 16)",
+      "evidence": {
+        "element": {
+          "controlType": "Group",
+          "localizedControlType": "group",
+          "name": "loading",
+          "ariaRole": "group",
+          "ariaProperties": "busy=true;live=polite",
+          "className": "sg-loader sg-loader--density-medium sg-loader--position-absolute",
+          "frameworkId": "Chrome",
+          "bounds": {
+            "left": 0,
+            "top": 151,
+            "right": 2560,
+            "bottom": 1380
+          },
+          "ancestors": [
+            {
+              "controlType": "Group",
+              "name": ""
+            }
+          ]
+        },
+        "window": {
+          "title": "Site Tools > Dashboard - Google Chrome",
+          "exe": "chrome.exe",
+          "shell": false
+        }
+      },
+      "naming": {
+        "name": "Site Tools > Dashboard - Google Chrome",
+        "kind": "other",
+        "source": "window",
+        "needsReview": true
+      },
+      "text": "Click in \"Site Tools > Dashboard - Google Chrome\""
+    },
+    {
+      "case": "a progress bar with a name of its own isn't what was clicked either",
+      "from": "made up, after the SiteGround loader: a spinner announced as a progress bar",
+      "evidence": {
+        "element": {
+          "controlType": "ProgressBar",
+          "localizedControlType": "progress bar",
+          "name": "Please wait",
+          "ariaRole": "progressbar",
+          "frameworkId": "Chrome",
+          "ancestors": [
+            {
+              "controlType": "ListItem",
+              "name": "Forwarders"
+            }
+          ]
+        },
+        "window": {
+          "title": "Site Tools > Dashboard - Google Chrome",
+          "exe": "chrome.exe",
+          "shell": false
+        }
+      },
+      "naming": {
+        "name": "Site Tools > Dashboard - Google Chrome",
+        "kind": "other",
+        "source": "window",
+        "needsReview": true
+      },
+      "text": "Click in \"Site Tools > Dashboard - Google Chrome\""
+    },
+    {
+      "case": "a page's loading overlay isn't what was clicked, as the desktop's isn't",
+      "from": "the SiteGround loader as Steps for Chrome's page facts would give it; built from it, not recorded",
+      "evidence": {
+        "element": null,
+        "window": {
+          "title": "Site Tools > Dashboard - Google Chrome",
+          "exe": "chrome.exe",
+          "shell": false
+        },
+        "page": {
+          "tagName": "DIV",
+          "role": "progressbar",
+          "ariaLabel": "Loading"
+        }
+      },
+      "naming": {
+        "name": "Site Tools > Dashboard - Google Chrome",
+        "kind": "other",
+        "source": "window",
+        "needsReview": true
+      },
+      "text": "Click in \"Site Tools > Dashboard - Google Chrome\""
+    },
+    {
+      "case": "a button that only mentions loading is still named by itself",
+      "from": "made up: the rule is for overlays, not for every word \"loading\"",
+      "evidence": {
+        "element": {
+          "controlType": "Button",
+          "localizedControlType": "button",
+          "name": "Loading bay bookings",
+          "frameworkId": "Chrome"
+        },
+        "window": {
+          "title": "Site Tools > Dashboard - Google Chrome",
+          "exe": "chrome.exe",
+          "shell": false
+        }
+      },
+      "naming": {
+        "name": "Loading bay bookings",
+        "kind": "button",
+        "source": "element",
+        "needsReview": false
+      },
+      "text": "Click \"Loading bay bookings\""
+    }
+  ]
+}

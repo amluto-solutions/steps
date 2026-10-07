@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { RecordingFact } from "@amluto-steps/core";
-import type { RecorderBridge } from "./recorder-bridge";
 import { shortcutKeyName, ShortcutPopup } from "./App";
+import { fakeRecorder } from "./bridge/recorder-fake";
 import { initI18n } from "./i18n";
 
 initI18n();
@@ -41,17 +41,16 @@ const shortcutFact: RecordingFact = {
   },
 };
 
-function renderPopup() {
-  const recorder = {
-    onFact: vi.fn((listener: (fact: RecordingFact) => void) => {
-      listener(shortcutFact);
-      return Promise.resolve(() => undefined);
-    }),
-    appendStep: vi.fn().mockResolvedValue(undefined),
-    closeShortcutPopup: vi.fn().mockResolvedValue(undefined),
-  } as unknown as RecorderBridge;
+/** The popup, once the recorder has told it about the shortcut's screenshot. */
+async function renderPopup() {
+  const recorder = fakeRecorder();
+  recorder.addSession("session-1");
+  const appendStep = vi.spyOn(recorder, "appendStep");
+  const onFact = vi.spyOn(recorder, "onFact");
   render(<ShortcutPopup recorder={recorder} />);
-  return recorder;
+  await waitFor(() => expect(onFact).toHaveBeenCalled());
+  act(() => recorder.fire.fact(shortcutFact));
+  return { appendStep };
 }
 
 describe("shortcutKeyName", () => {
@@ -66,35 +65,32 @@ describe("shortcutKeyName", () => {
 
 describe("ShortcutPopup", () => {
   it("records the combination by physical key", async () => {
-    const recorder = renderPopup();
-    await waitFor(() => expect(recorder.onFact).toHaveBeenCalled());
+    const { appendStep } = await renderPopup();
     fireEvent.keyDown(window, { key: "!", code: "Digit1", ctrlKey: true, shiftKey: true });
-    await waitFor(() => expect(recorder.appendStep).toHaveBeenCalledOnce());
-    const step = vi.mocked(recorder.appendStep).mock.calls[0]?.[1];
+    await waitFor(() => expect(appendStep).toHaveBeenCalledOnce());
+    const step = vi.mocked(appendStep).mock.calls[0]?.[1];
     expect(step?.actionText).toContain("Ctrl + Shift + 1");
   });
 
   it("waits for the rest when a modifier is pressed on its own", async () => {
-    const recorder = renderPopup();
-    await waitFor(() => expect(recorder.onFact).toHaveBeenCalled());
+    const { appendStep } = await renderPopup();
     // Pressing Alt used to save "Alt + Alt".
     fireEvent.keyDown(window, { key: "Alt", code: "AltLeft", altKey: true });
     fireEvent.keyDown(window, { key: "Control", code: "ControlLeft", ctrlKey: true });
-    expect(recorder.appendStep).not.toHaveBeenCalled();
+    expect(appendStep).not.toHaveBeenCalled();
     fireEvent.keyDown(window, { key: "s", code: "KeyS", ctrlKey: true, altKey: true });
-    await waitFor(() => expect(recorder.appendStep).toHaveBeenCalledOnce());
-    const step = vi.mocked(recorder.appendStep).mock.calls[0]?.[1];
+    await waitFor(() => expect(appendStep).toHaveBeenCalledOnce());
+    const step = vi.mocked(appendStep).mock.calls[0]?.[1];
     expect(step?.actionText).toContain("Ctrl + Alt + S");
   });
 
   it("lets Tab move between its buttons and Enter press them", async () => {
-    const recorder = renderPopup();
-    await waitFor(() => expect(recorder.onFact).toHaveBeenCalled());
+    const { appendStep } = await renderPopup();
     // Not prevented: the browser moves focus as usual.
     expect(fireEvent.keyDown(window, { key: "Tab", code: "Tab" })).toBe(true);
     const cancel = screen.getByRole("button", { name: "Cancel" });
     cancel.focus();
     expect(fireEvent.keyDown(cancel, { key: "Enter", code: "Enter" })).toBe(true);
-    expect(recorder.appendStep).not.toHaveBeenCalled();
+    expect(appendStep).not.toHaveBeenCalled();
   });
 });

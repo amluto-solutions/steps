@@ -24,7 +24,15 @@ export function folderBytes(folder) {
   for (const entry of entries) {
     const path = join(folder, entry.name);
     if (entry.isDirectory()) total += folderBytes(path);
-    else if (entry.isFile()) total += statSync(path).size;
+    else if (entry.isFile()) {
+      // A build running beside this (the dev app rebuilding) can delete a file between the
+      // listing and this look at it (06/10/2026: the gate stopped on one).
+      try {
+        total += statSync(path).size;
+      } catch {
+        // gone: nothing to count
+      }
+    }
   }
   return total;
 }

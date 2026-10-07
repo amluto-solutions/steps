@@ -139,7 +139,6 @@ beforeEach(async () => {
 describe("the libraries", () => {
   it("lists the browser's own library and the folders, and makes a folder a library", async () => {
     const library = router("Robin Hale", "robin");
-    expect(library.folderLibraries).toBe(true);
     const id = await addFolder(library, "Shared", shared);
     const [own, folder] = await library.listLibraries();
     expect(own).toMatchObject({ id: BROWSER, isDefault: true, builtIn: true });

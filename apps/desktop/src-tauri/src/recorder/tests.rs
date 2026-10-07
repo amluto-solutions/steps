@@ -9,6 +9,7 @@ use super::files::{
     write_new_bytes_atomic, write_new_file, write_restart,
 };
 use super::preferences::{read_preferences, validate_preferences};
+use super::recording::{RecordingSettings, session_metadata};
 use super::*;
 
 /// Makes the clean-up of a recording's journal fail while it's held, as a sync client holding a
@@ -436,6 +437,30 @@ fn invalid_paths_and_active_recordings_cannot_change_preferences() {
 }
 
 #[test]
+fn a_stopped_recording_waiting_as_a_draft_doesnt_hold_the_settings() {
+    // 07/10/2026: a recording keeps the settings it started with, so one waiting to be saved
+    // or discarded no longer locks them, as one left from an earlier run never did.
+    let root = tempfile::tempdir().unwrap();
+    let service = RecorderService::default();
+    lock(&service.inner).app_data = Some(root.path().to_path_buf());
+    lock(&service.inner).session = Some(Session {
+        id: "session-1".into(),
+        directory: root.path().join("recordings/session-1"),
+        sequence: Arc::new(AtomicU64::new(1)),
+        gap: Arc::default(),
+        restart: None,
+        undo_restart: None,
+    });
+    service
+        .set_preferences(RecorderPreferences {
+            display_name: "Robin".into(),
+            library_folder: root.path().join("library"),
+        })
+        .unwrap();
+    assert!(root.path().join("library").exists());
+}
+
+#[test]
 fn recovered_steps_and_guides_keep_the_original_recording_author() {
     let root = tempfile::tempdir().unwrap();
     let service = RecorderService::default();
@@ -667,6 +692,49 @@ fn steps_from_before_start_again_are_not_published_without_a_draft() {
     assert!(guide.join("steps/capture-3.json").is_file());
     assert!(!guide.join("media/click-1.webp").exists());
     assert!(guide.join("media/click-3.webp").is_file());
+}
+
+#[test]
+fn a_recording_keeps_the_settings_it_started_with() {
+    let root = tempfile::tempdir().unwrap();
+    let (service, _library, session) = draft_test_service(root.path());
+    // Recorded before settings were saved with recordings: none to give.
+    assert_eq!(service.recording_settings("session-1").unwrap(), None);
+
+    // As the window sends them at Record, wording and all.
+    let sent = json!({
+        "showUnnamedTyping": true,
+        "wording": { "language": "de", "tone": "formal" },
+    });
+    let settings: RecordingSettings = serde_json::from_value(sent.clone()).unwrap();
+    let metadata = session_metadata("session-1", "Letter", "Robin", 1, settings.clone());
+    fs::write(
+        session.join("session.json"),
+        serde_json::to_vec(&metadata).unwrap(),
+    )
+    .unwrap();
+    let kept = service.recording_settings("session-1").unwrap();
+    assert_eq!(kept, Some(settings));
+    assert_eq!(serde_json::to_value(kept).unwrap(), sent);
+    assert!(service.recording_settings("no-such-session").is_err());
+}
+
+#[test]
+fn it_policy_decides_a_recordings_settings_where_it_sets_them() {
+    let chosen = RecordingSettings {
+        show_unnamed_typing: true,
+        wording: None,
+    };
+    let mut policy = crate::policy::Policy::default();
+    assert_eq!(chosen.clone().under(&policy), chosen);
+    policy.show_unnamed_typing = Some(false);
+    assert_eq!(
+        chosen.under(&policy),
+        RecordingSettings {
+            show_unnamed_typing: false,
+            wording: None,
+        }
+    );
 }
 
 #[test]

@@ -8,12 +8,15 @@ import {
   siteName,
   type BlurStrength,
   type LanguageCode,
+  type RecordingSettings,
+  type StepWording,
   type Tone,
   keyCapName,
 } from "@amluto-steps/core";
 import { z } from "zod";
 
 import type { CaptureMonitor, HotkeyAction } from "../recorder-bridge";
+import { readDefaultBrand } from "./brands";
 import { isLocked, policy } from "./policy";
 
 /**
@@ -144,6 +147,20 @@ export function readBlurStrength(): BlurStrength {
   return policy().blurStrength ?? (isBlurStrength(stored) ? stored : "standard");
 }
 
+/**
+ * Settings > Privacy as the check for personal data uses them: how much it looks for, and the
+ * words never suggested. Passed in as a value, so the check itself reads no settings.
+ */
+export interface FindingSettings {
+  strength: BlurStrength;
+  safe: string[];
+}
+
+export const readFindingSettings = (): FindingSettings => ({
+  strength: readBlurStrength(),
+  safe: readSafeTerms(),
+});
+
 export function saveBlurStrength(strength: BlurStrength) {
   write(BLUR_STRENGTH_KEY, strength);
 }
@@ -152,6 +169,15 @@ export function readStepTone(): Tone {
   const stored = read(STEP_TONE_KEY);
   return policyTone() ?? (isTone(stored) ? stored : DEFAULT_TONE);
 }
+
+/**
+ * How new steps are worded (docs/spec/02-capture.md#step-wording), as one value: `language` (the
+ * app's) where Steps has it, else English, and the tone IT or Settings chose.
+ */
+export const readWording = (language: string): StepWording => ({
+  language: matchLanguage(language) ?? DEFAULT_LANGUAGE,
+  tone: readStepTone(),
+});
 
 export function saveStepTone(tone: Tone) {
   write(STEP_TONE_KEY, tone);
@@ -300,6 +326,18 @@ export function readShowUnnamedTyping(): boolean {
   return policy().showUnnamedTyping ?? read(KEYS.showUnnamedTyping) === "true";
 }
 
+/**
+ * The settings a recording's steps are built with, IT policy applied: read once when it starts
+ * and saved with it, never while its steps are built (docs/spec/02-capture.md#recording-settings).
+ * Given the app's language, they include the wording too, for a recording about to start.
+ */
+export function readRecordingSettings(language?: string): RecordingSettings {
+  return {
+    showUnnamedTyping: readShowUnnamedTyping(),
+    ...(language === undefined ? {} : { wording: readWording(language) }),
+  };
+}
+
 export function saveChoices(choices: RecordingChoices) {
   write(KEYS.outputSettleMs, String(fitSettleMs(choices.outputSettleMs)));
   write(KEYS.captureMode, choices.captureMode);
@@ -386,6 +424,30 @@ export function readExportPreferences(): ExportPreferences {
     optimiseForSharing: read("amluto-steps-export-optimise") !== "false",
   };
 }
+
+/**
+ * Everything an export uses from Settings and IT policy, read once as the export starts and passed
+ * on as a value: a setting changed while the review is open applies to the next export, and nothing
+ * reads settings partway through one (docs/spec/05-export.md#review-before-export).
+ */
+export interface ExportChoices extends ExportPreferences {
+  /** Settings > General, "Made with Steps on exports". */
+  madeWith: boolean;
+  /** IT keeps unblurred originals out of `.amlsteps` files (the `IncludeOriginals` lock). */
+  originalsLocked: boolean;
+  /** The brand a guide without one of its own exports in: IT's, else the person's. */
+  defaultBrand: string;
+  /** How the review looks for personal data. */
+  findings: FindingSettings;
+}
+
+export const readExportChoices = (): ExportChoices => ({
+  ...readExportPreferences(),
+  madeWith: readMadeWith(),
+  originalsLocked: isLocked("IncludeOriginals"),
+  defaultBrand: readDefaultBrand(),
+  findings: readFindingSettings(),
+});
 
 export function saveExportPreferences(preferences: ExportPreferences) {
   if (preferences.folder) write("amluto-steps-export-folder", preferences.folder);

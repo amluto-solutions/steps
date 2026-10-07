@@ -1,6 +1,7 @@
 import type { Guide, GuideStep, GuideText, RichText, StepText } from "./guide.ts";
 import { DEFAULT_LANGUAGE } from "./languages.ts";
-import { DEFAULT_TONE, wordStepIn, type Tone } from "./step-text/phrase.ts";
+import { DEFAULT_TONE, type Tone } from "./step-text/phrase.ts";
+import { wordStepIn } from "./step-text/reword.ts";
 
 /**
  * A guide in any of Steps' languages (docs/spec/03-data-and-sharing.md#languages,

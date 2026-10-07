@@ -13,6 +13,9 @@ use tauri::AppHandle;
 
 use crate::recorder::CommandError;
 
+mod closer;
+use closer::{Focus, Look};
+
 /// Unused cache files are removed after 30 days.
 const KEEP_FOR: Duration = Duration::from_hours(30 * 24);
 const MAX_IMAGE_BYTES: usize = 60 * 1024 * 1024;
@@ -67,6 +70,16 @@ fn without_blurred(lines: Vec<OcrLine>, areas: &[Area]) -> Vec<OcrLine> {
         .collect()
 }
 
+/// The click a reading looks closer round, when the request names one inside the image.
+fn focus_point(request: &tauri::ipc::Request<'_>) -> Option<Focus> {
+    request
+        .headers()
+        .get("x-focus")
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| serde_json::from_str::<Focus>(value).ok())
+        .filter(|Focus { x, y }| (0.0..=100.0).contains(x) && (0.0..=100.0).contains(y))
+}
+
 fn blur_areas(request: &tauri::ipc::Request<'_>) -> Vec<Area> {
     request
         .headers()
@@ -88,11 +101,27 @@ pub fn forget_images(app: &AppHandle, files: &[PathBuf]) {
 }
 
 fn forget_in(folder: &Path, files: &[PathBuf]) {
-    for file in files {
-        if let Ok(bytes) = fs::read(file)
-            && bytes.len() <= MAX_IMAGE_BYTES
-        {
-            let _ = fs::remove_file(folder.join(format!("{}.json", key(&bytes))));
+    let keys: Vec<String> = files
+        .iter()
+        .filter_map(|file| fs::read(file).ok())
+        .filter(|bytes| bytes.len() <= MAX_IMAGE_BYTES)
+        .map(|bytes| key(&bytes))
+        .collect();
+    if keys.is_empty() {
+        return;
+    }
+    // The whole screenshot's entry and those of its closer looks (`<key>-at-…`).
+    let Ok(entries) = fs::read_dir(folder) else {
+        return;
+    };
+    for entry in entries.filter_map(Result::ok) {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let of_these = keys.iter().any(|key| {
+            name.strip_prefix(key.as_str())
+                .is_some_and(|rest| rest == ".json" || rest.starts_with("-at-"))
+        });
+        if of_these {
+            let _ = fs::remove_file(entry.path());
         }
     }
 }
@@ -111,6 +140,15 @@ fn key(bytes: &[u8]) -> String {
         hash = hash.wrapping_mul(0x0100_0000_01b3);
     }
     format!("v2-{hash:016x}-{}", bytes.len())
+}
+
+/// The cache file for an image's words, read with a closer look round `focus` when given: a
+/// screenshot's words read round one click differ from those read round another.
+fn file_name(bytes: &[u8], focus: Option<Focus>) -> String {
+    match focus {
+        Some(Focus { x, y }) => format!("{}-at-{x:.1}-{y:.1}.json", key(bytes)),
+        None => format!("{}.json", key(bytes)),
+    }
 }
 
 fn to_percent(lines: Vec<capture::platform::ocr::Line>, width: u32, height: u32) -> Vec<OcrLine> {
@@ -137,7 +175,16 @@ fn to_percent(lines: Vec<capture::platform::ocr::Line>, width: u32, height: u32)
         .collect()
 }
 
-fn read_image(bytes: &[u8]) -> Result<Vec<OcrLine>, CommandError> {
+/// Top-down BGRA pixels, as the OCR engines take them.
+fn bgra(image: image::RgbaImage) -> Vec<u8> {
+    let mut pixels = image.into_raw();
+    for pixel in pixels.as_chunks_mut::<4>().0 {
+        pixel.swap(0, 2);
+    }
+    pixels
+}
+
+fn read_image(bytes: &[u8], focus: Option<Focus>) -> Result<Vec<OcrLine>, CommandError> {
     if bytes.len() > MAX_IMAGE_BYTES {
         return Err(CommandError::new(
             "tooLarge",
@@ -165,19 +212,31 @@ fn read_image(bytes: &[u8]) -> Result<Vec<OcrLine>, CommandError> {
         .map_err(|error| CommandError::new("unsupportedImage", error.to_string()))?
         .to_rgba8();
     let (width, height) = image.dimensions();
-    let mut bgra = image.into_raw();
-    for pixel in bgra.as_chunks_mut::<4>().0 {
-        pixel.swap(0, 2);
-    }
+    let look = focus.and_then(|focus| Look::round(&image, focus));
+    let pixels = bgra(image);
     // Its own thread, so the WinRT apartment belongs to OCR alone.
-    let lines = std::thread::Builder::new()
+    let (lines, near) = std::thread::Builder::new()
         .name("amluto-ocr".into())
-        .spawn(move || capture::platform::ocr::recognize(&bgra, width, height))
+        .spawn(move || {
+            let lines = capture::platform::ocr::recognize(&pixels, width, height)?;
+            // A closer look that can't be read leaves the first reading as it is.
+            let near = look.and_then(|look| {
+                let (look_width, look_height) = look.size();
+                capture::platform::ocr::recognize(look.pixels(), look_width, look_height)
+                    .ok()
+                    .map(|near| (look, near))
+            });
+            Ok::<_, capture::platform::Error>((lines, near))
+        })
         .map_err(|error| CommandError::new("ocrFailed", error.to_string()))?
         .join()
         .map_err(|_| CommandError::new("ocrFailed", "OCR stopped unexpectedly."))?
         .map_err(|error| CommandError::new("ocrFailed", error.to_string()))?;
-    Ok(to_percent(lines, width, height))
+    let lines = to_percent(lines, width, height);
+    Ok(match near {
+        Some((look, near)) => look.merged(lines, near, width, height),
+        None => lines,
+    })
 }
 
 /// What the cache holds for one screenshot: its words, less any under the blur areas listed.
@@ -195,9 +254,10 @@ fn lines_for(
     folder: Option<&Path>,
     bytes: &[u8],
     areas: &[Area],
-    read: impl FnOnce(&[u8]) -> Result<Vec<OcrLine>, CommandError>,
+    focus: Option<Focus>,
+    read: impl FnOnce(&[u8], Option<Focus>) -> Result<Vec<OcrLine>, CommandError>,
 ) -> Result<Vec<OcrLine>, CommandError> {
-    let path = folder.map(|folder| folder.join(format!("{}.json", key(bytes))));
+    let path = folder.map(|folder| folder.join(file_name(bytes, focus)));
     let reusable = path
         .as_ref()
         .and_then(|path| fs::read(path).ok())
@@ -214,7 +274,7 @@ fn lines_for(
             }
             (entry.lines, false)
         }
-        None => (read(bytes)?, true),
+        None => (read(bytes, focus)?, true),
     };
     let kept = without_blurred(lines.clone(), areas);
     if (fresh || kept != lines)
@@ -254,6 +314,8 @@ fn purge(folder: &Path, everything: bool) {
 /// The words in a screenshot (sent as the raw request body: PNG, JPEG or WebP). The step's blur
 /// areas come in the `x-areas` header: words under them are left out of the answer and removed
 /// from the cache, so text someone chose to blur isn't kept (docs/spec/03-data-and-sharing.md).
+/// The step's click, when it has one, comes in `x-focus`: the words round it are read again,
+/// enlarged and with their contrast raised.
 #[tauri::command(async)]
 pub fn privacy_ocr(
     app: AppHandle,
@@ -269,7 +331,13 @@ pub fn privacy_ocr(
     if let Some(folder) = &folder {
         purge(folder, false);
     }
-    lines_for(folder.as_deref(), bytes, &blur_areas(&request), read_image)
+    lines_for(
+        folder.as_deref(),
+        bytes,
+        &blur_areas(&request),
+        focus_point(&request),
+        read_image,
+    )
 }
 
 /// Settings → "Clear OCR cache".
@@ -398,10 +466,12 @@ mod tests {
         let folder = tempfile::tempdir().expect("temp dir");
         let bytes = b"not really an image";
         let stored = vec![line("Name:", 5.0)];
-        let first = lines_for(Some(folder.path()), bytes, &[], |_| Ok(stored.clone()));
+        let first = lines_for(Some(folder.path()), bytes, &[], None, |_, _| {
+            Ok(stored.clone())
+        });
         assert_eq!(first.expect("read"), stored);
         // Read once: the second answer comes from the cache.
-        let second = lines_for(Some(folder.path()), bytes, &[], |_| {
+        let second = lines_for(Some(folder.path()), bytes, &[], None, |_, _| {
             Err(CommandError::new("ocrFailed", "should not read again"))
         });
         assert_eq!(second.expect("cached"), stored);
@@ -414,7 +484,7 @@ mod tests {
         let folder = tempfile::tempdir().expect("temp dir");
         let bytes = b"a screenshot";
         let all = vec![line("Name:", 5.0), line("jane@acme.com", 20.0)];
-        let blurred = lines_for(Some(folder.path()), bytes, &[EMAIL_BLUR], |_| {
+        let blurred = lines_for(Some(folder.path()), bytes, &[EMAIL_BLUR], None, |_, _| {
             Ok(all.clone())
         })
         .expect("read");
@@ -425,9 +495,64 @@ mod tests {
 
         // The same screenshot with the blur taken off (or a copy with less blur): read again,
         // so the address is found rather than the trimmed answer reused.
-        let unblurred =
-            lines_for(Some(folder.path()), bytes, &[], |_| Ok(all.clone())).expect("read again");
+        let unblurred = lines_for(
+            Some(folder.path()),
+            bytes,
+            &[],
+            None,
+            |_, _| Ok(all.clone()),
+        )
+        .expect("read again");
         assert_eq!(unblurred, all);
+    }
+
+    #[test]
+    fn a_reading_round_a_click_is_kept_apart_from_others_of_the_same_screenshot() {
+        let folder = tempfile::tempdir().expect("temp dir");
+        let bytes = b"a screenshot";
+        let menu = Focus { x: 18.0, y: 14.0 };
+        let plain = vec![line("exa4nple.co.uk", 5.0)];
+        let closer = vec![line("example.co.uk", 5.0)];
+        lines_for(Some(folder.path()), bytes, &[], None, |_, _| {
+            Ok(plain.clone())
+        })
+        .expect("read");
+        let read = lines_for(Some(folder.path()), bytes, &[], Some(menu), |_, focus| {
+            assert_eq!(focus, Some(menu));
+            Ok(closer.clone())
+        });
+        assert_eq!(read.expect("read closer"), closer);
+        // Both are kept: asking again reads neither.
+        let unread = |_: &[u8], _: Option<Focus>| -> Result<Vec<OcrLine>, CommandError> {
+            Err(CommandError::new("ocrFailed", "should not read again"))
+        };
+        assert_eq!(
+            lines_for(Some(folder.path()), bytes, &[], None, unread).expect("cached"),
+            plain
+        );
+        assert_eq!(
+            lines_for(Some(folder.path()), bytes, &[], Some(menu), unread).expect("cached"),
+            closer
+        );
+        // A guide going to the Bin takes both with it.
+        let shot = folder.path().join("media-1.webp");
+        fs::write(&shot, bytes).expect("write");
+        let cache = folder.path().join("ocr");
+        fs::create_dir_all(&cache).expect("dir");
+        for entry in fs::read_dir(folder.path())
+            .expect("dir")
+            .filter_map(Result::ok)
+        {
+            if entry
+                .path()
+                .extension()
+                .is_some_and(|extension| extension == "json")
+            {
+                fs::rename(entry.path(), cache.join(entry.file_name())).expect("move");
+            }
+        }
+        forget_in(&cache, &[shot]);
+        assert_eq!(fs::read_dir(&cache).expect("dir").count(), 0);
     }
 
     #[test]
@@ -437,11 +562,25 @@ mod tests {
     }
 
     /// A live check against Windows OCR: `AMLUTO_OCR_SAMPLE=<png> cargo test -- --ignored ocr`.
+    /// It prints the words as JSON after `OCR_JSON:` and the time taken after `OCR_MS:`, for
+    /// measuring readings on real screenshots without committing them.
     #[test]
     #[ignore = "needs Windows OCR and a sample image"]
     fn reads_a_sample_image() {
         let path = std::env::var("AMLUTO_OCR_SAMPLE").expect("set AMLUTO_OCR_SAMPLE");
-        let lines = read_image(&fs::read(path).expect("read")).expect("ocr");
+        let bytes = fs::read(path).expect("read");
+        // `AMLUTO_OCR_AT=x,y` (percentages): read with a closer look round that point.
+        let focus = std::env::var("AMLUTO_OCR_AT").ok().map(|at| {
+            let (x, y) = at.split_once(',').expect("x,y");
+            Focus {
+                x: x.trim().parse().expect("x"),
+                y: y.trim().parse().expect("y"),
+            }
+        });
+        let started = std::time::Instant::now();
+        let lines = read_image(&bytes, focus).expect("ocr");
+        println!("OCR_MS:{}", started.elapsed().as_millis());
+        println!("OCR_JSON:{}", serde_json::to_string(&lines).expect("json"));
         let text: Vec<String> = lines
             .iter()
             .map(|line| {

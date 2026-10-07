@@ -9,7 +9,12 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { describeClick, describeInput } from "../../packages/core/src/step-text/index.ts";
+import {
+  clickPhrase,
+  describeInput,
+  nameClick,
+  renderPhrase,
+} from "../../packages/core/src/step-text/index.ts";
 
 const dir = process.argv[2];
 if (!dir) {
@@ -34,9 +39,9 @@ const doubleOf = new Set(events.filter((e) => e.kind === "double").map((e) => e.
 
 // ---------- wording ----------
 for (const click of clicks) {
-  const wording = describeClick(click.element, click.window.title);
-  click.wording = wording.text;
-  click.unnamed = wording.unnamed;
+  const naming = nameClick({ element: click.element, window: click.window });
+  click.wording = renderPhrase(clickPhrase(naming), "en", "casual");
+  click.unnamed = naming.needsReview;
 }
 for (const input of inputs) {
   input.wording = describeInput(input.element, input.value ?? undefined);

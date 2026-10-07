@@ -1,6 +1,8 @@
 // Publishes a built release on GitHub Releases (docs/release-runbook.md#publishing):
 //
-//   node scripts/publish-github.mjs 1.2.3
+//   node scripts/publish-github.mjs 1.2.3            a new release
+//   node scripts/publish-github.mjs 1.2.3 --replace  the same version rebuilt: its files replaced
+//                                                    in place and its notes refreshed
 //
 // The tag v1.2.3 must already be pushed to the public repository. It creates the release with the
 // version's CHANGELOG.md entry as its notes, attaches every file in release-out/<version>/download/
@@ -8,8 +10,8 @@
 // from GitHub, as a visitor would, and checks its SHA-256 against SHA256SUMS.txt. Only then may the
 // update manifest that points at them go to steps.amluto.com.
 //
-// It runs `gh` as whichever account is signed in for it; set GH_TOKEN to publish as another
-// (GH_TOKEN="$(gh auth token --user amluto-solutions)").
+// It publishes as the amluto-solutions account (gh's token for it), or as whichever account
+// GH_TOKEN names.
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -21,8 +23,9 @@ import { changelogNotes } from "./lib/update.mjs";
 
 const repo = join(import.meta.dirname, "..");
 const version = process.argv[2]?.replace(/^v/, "");
+const replace = process.argv.includes("--replace");
 if (!version || !/^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$/.test(version)) {
-  console.error("Usage: node scripts/publish-github.mjs <version>");
+  console.error("Usage: node scripts/publish-github.mjs <version> [--replace]");
   process.exit(1);
 }
 const folder = join(repo, "release-out", version, "download");
@@ -37,6 +40,20 @@ const gh = (args) => {
     throw new Error(`gh ${args[0]} ${args[1] ?? ""}: ${result.stderr.trim()}`);
   return result.stdout;
 };
+
+// The amluto-solutions account's token, unless GH_TOKEN names one: the release lives on its
+// repository, and a plain `node scripts/publish-github.mjs` is easier to allow than an export.
+if (!process.env.GH_TOKEN) {
+  const token = spawnSync("gh", ["auth", "token", "--user", "amluto-solutions"], {
+    encoding: "utf8",
+    shell: false,
+  });
+  if (token.status !== 0 || !token.stdout.trim()) {
+    console.error("Sign gh in as amluto-solutions first (gh auth login), or set GH_TOKEN.");
+    process.exit(1);
+  }
+  process.env.GH_TOKEN = token.stdout.trim();
+}
 
 // The expected files and their hashes, from the release's own list.
 const sums = new Map(
@@ -59,21 +76,44 @@ writeFileSync(
   notesFile,
   `${notes ?? ""}\n\nEach file's SHA-256 is in SHA256SUMS.txt. Steps is free software under the GNU GPL, version 3 or later.\n`,
 );
+const exists =
+  spawnSync("gh", ["release", "view", `v${version}`, "--repo", REPOSITORY], { shell: false })
+    .status === 0;
+if (exists !== replace)
+  throw new Error(
+    exists
+      ? `v${version} is already released: add --replace to put this build's files in its place`
+      : `v${version} has no release to replace: leave out --replace`,
+  );
 try {
-  gh([
-    "release",
-    "create",
-    `v${version}`,
-    "--repo",
-    REPOSITORY,
-    "--verify-tag",
-    "--title",
-    `Steps ${version}`,
-    "--notes-file",
-    notesFile,
-    ...(version.includes("-") ? ["--prerelease"] : []),
-    ...files.map((name) => join(folder, name)),
-  ]);
+  if (replace) {
+    // A rebuild of a version not yet announced (05/10/2026: 1.0.0 was rebuilt three times):
+    // the same names, so the download page and the update manifest still point at them.
+    gh(["release", "edit", `v${version}`, "--repo", REPOSITORY, "--notes-file", notesFile]);
+    gh([
+      "release",
+      "upload",
+      `v${version}`,
+      "--repo",
+      REPOSITORY,
+      "--clobber",
+      ...files.map((name) => join(folder, name)),
+    ]);
+  } else
+    gh([
+      "release",
+      "create",
+      `v${version}`,
+      "--repo",
+      REPOSITORY,
+      "--verify-tag",
+      "--title",
+      `Steps ${version}`,
+      "--notes-file",
+      notesFile,
+      ...(version.includes("-") ? ["--prerelease"] : []),
+      ...files.map((name) => join(folder, name)),
+    ]);
 } finally {
   rmSync(notesFile, { force: true });
 }
@@ -89,4 +129,4 @@ for (const [name, hash] of sums) {
   console.log(`✔ ${name}`);
 }
 console.log(`\nPublished: ${releasePage(version)}`);
-console.log("Next: SHA256SUMS.txt to steps.amluto.com/download, then the update manifest.");
+console.log(`Next: node scripts/publish-site.mjs ${version}`);

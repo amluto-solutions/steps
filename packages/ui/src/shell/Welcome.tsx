@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Icon } from "../components/icons";
+import type { Capabilities } from "../capabilities";
 import { StepsLogo } from "./StepsLogo";
 
 export interface WelcomeChoices {
@@ -12,10 +13,8 @@ export interface WelcomeChoices {
 }
 
 interface WelcomeProps {
-  /** Steps for Chrome: no folder to choose, nothing to start with Windows. */
-  browser?: boolean | undefined;
-  /** The desktop app on Linux: it starts at sign-in, not with Windows. */
-  linux?: boolean | undefined;
+  /** What this copy has: a folder for "My guides" to choose, and starting with the computer. */
+  capabilities: Pick<Capabilities, "defaultLibrary" | "autoStart">;
   defaultFolder: string;
   pickFolder: (() => Promise<string | null>) | null;
   managed: boolean;
@@ -79,46 +78,50 @@ export function Welcome(props: WelcomeProps) {
             {t("settings.general.nameHelp")}
           </span>
         </div>
-        {/* One library in the browser, and nothing to start with Windows. */}
-        {!props.browser && (
-          <>
-            <div className="flex flex-col gap-1.5">
-              <span id="welcome-folder" className="text-sm font-semibold text-navy">
-                {t("welcome.folder")}
-              </span>
-              <div className="flex gap-2">
-                <div
-                  aria-labelledby="welcome-folder"
-                  className="flex h-[42px] min-w-0 flex-1 items-center gap-2 rounded-lg border border-panel bg-subtle px-3 text-sm"
-                >
-                  <Icon name="folder" className="shrink-0 text-blue" />
-                  <span className="truncate" title={folder ?? props.defaultFolder}>
-                    {folder ?? props.defaultFolder}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  className="btn h-[42px]"
-                  disabled={!props.pickFolder}
-                  onClick={() =>
-                    void props.pickFolder?.().then((chosen) => chosen && setFolder(chosen))
-                  }
-                >
-                  {t("welcome.browse")}
-                </button>
+        {/* In the browser "My guides" is its own storage, and nothing starts it. */}
+        {props.capabilities.defaultLibrary === "folder" && (
+          <div className="flex flex-col gap-1.5">
+            <span id="welcome-folder" className="text-sm font-semibold text-navy">
+              {t("welcome.folder")}
+            </span>
+            <div className="flex gap-2">
+              <div
+                aria-labelledby="welcome-folder"
+                className="flex h-[42px] min-w-0 flex-1 items-center gap-2 rounded-lg border border-panel bg-subtle px-3 text-sm"
+              >
+                <Icon name="folder" className="shrink-0 text-blue" />
+                <span className="truncate" title={folder ?? props.defaultFolder}>
+                  {folder ?? props.defaultFolder}
+                </span>
               </div>
-              <span className="text-[13px] text-secondary">{t("welcome.folderHelp")}</span>
+              <button
+                type="button"
+                className="btn h-[42px]"
+                disabled={!props.pickFolder}
+                onClick={() =>
+                  void props.pickFolder?.().then((chosen) => chosen && setFolder(chosen))
+                }
+              >
+                {t("welcome.browse")}
+              </button>
             </div>
-            <label className="flex items-center gap-2.5 text-sm">
-              <input
-                type="checkbox"
-                checked={autoStart}
-                onChange={(event) => setAutoStart(event.currentTarget.checked)}
-                className="size-[18px] accent-blue"
-              />
-              {t(props.linux ? "settings.general.autoStartLinux" : "settings.general.autoStart")}
-            </label>
-          </>
+            <span className="text-[13px] text-secondary">{t("welcome.folderHelp")}</span>
+          </div>
+        )}
+        {props.capabilities.autoStart && (
+          <label className="flex items-center gap-2.5 text-sm">
+            <input
+              type="checkbox"
+              checked={autoStart}
+              onChange={(event) => setAutoStart(event.currentTarget.checked)}
+              className="size-[18px] accent-blue"
+            />
+            {t(
+              props.capabilities.autoStart === "signIn"
+                ? "settings.general.autoStartLinux"
+                : "settings.general.autoStart",
+            )}
+          </label>
         )}
         {props.error && (
           <p role="alert" className="text-sm text-recording">

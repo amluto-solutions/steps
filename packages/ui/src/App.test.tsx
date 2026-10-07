@@ -1,15 +1,25 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { newBrandProfile, type RecordedStep, type RecordingFact } from "@amluto-steps/core";
+import {
+  DEFAULT_RECORDING_SETTINGS,
+  newBrandProfile,
+  type RecordedStep,
+  type RecorderPreferences,
+  type RecordingFact,
+} from "@amluto-steps/core";
 import { ENGLISH } from "@amluto-steps/core";
 
 import { expectNoSeriousAxeViolations } from "../test/axe";
 import { App } from "./App";
+import { fakeCapabilities } from "./bridge/capabilities-fake";
 import { initI18n } from "./i18n";
 import type { LibraryBridge } from "./library-bridge";
+import { fakeLibrary, type FakeLibrary } from "./library-fake";
 import { factToStep } from "./recorded-step";
 import type { RecorderBridge, RecorderSnapshot } from "./recorder-bridge";
+import { fakeRecorder } from "./bridge/recorder-fake";
+import { fakeRecorderBridge } from "./bridge/recorder-bridge-fake";
 
 initI18n();
 beforeEach(() => window.localStorage.clear());
@@ -25,53 +35,28 @@ const idle: RecorderSnapshot = {
   keysRecorded: false,
 };
 
-const noListener = () => Promise.resolve(() => undefined);
+/**
+ * Steps for Windows' recorder bridge, every part a fake and every method watched, with
+ * `overrides` in their place. Its first recording is "session-9"; `unsaved` are recordings left
+ * from before. `fire` sends the recorder's events, the way the native side does during a
+ * recording.
+ */
+/** The bridge's methods, which the tests watch. */
+type Method = {
+  [K in keyof RecorderBridge]-?: RecorderBridge[K] extends (...args: never[]) => unknown
+    ? K
+    : never;
+}[keyof RecorderBridge];
 
-function makeRecorder(
-  overrides: Partial<Record<keyof RecorderBridge, unknown>> = {},
-): RecorderBridge {
-  return {
-    onState: noListener,
-    onFact: noListener,
-    onFinished: noListener,
-    onError: noListener,
-    onStepAdded: noListener,
-    onRestarted: noListener,
-    onStartRequested: noListener,
-    onHeartbeatRequest: noListener,
-    getState: vi.fn().mockResolvedValue(idle),
-    getPreferences: vi
-      .fn()
-      .mockResolvedValue({ displayName: "Robin", libraryFolder: "C:\\Guides" }),
-    setPreferences: vi.fn(async (preferences: unknown) => preferences),
-    isAutoStartEnabled: vi.fn().mockResolvedValue(false),
-    setAutoStartEnabled: vi.fn().mockResolvedValue(undefined),
-    getMonitors: vi.fn().mockResolvedValue([]),
-    getRecoveries: vi.fn().mockResolvedValue([]),
-    getRecoveryRecords: vi.fn().mockResolvedValue([]),
-    getSessionSteps: vi.fn().mockResolvedValue([]),
-    getRestartPoint: vi.fn().mockResolvedValue(null),
-    recoverSession: vi.fn(async (sessionId: string) => ({ ...idle, sessionId })),
-    loadDraft: vi.fn().mockResolvedValue(null),
-    saveDraft: vi.fn().mockResolvedValue(undefined),
-    saveDraftGuide: vi.fn().mockResolvedValue(undefined),
-    saveDraftStep: vi.fn().mockResolvedValue(undefined),
-    deleteDraftStep: vi.fn().mockResolvedValue(undefined),
-    finalize: vi.fn().mockResolvedValue(undefined),
-    discard: vi.fn().mockResolvedValue(idle),
-    appendStep: vi.fn().mockResolvedValue(undefined),
-    loadImage: vi.fn().mockResolvedValue("data:image/webp;base64,"),
-    showMain: vi.fn().mockResolvedValue(undefined),
-    minimizeMain: vi.fn().mockResolvedValue(undefined),
-    start: vi.fn(async () => ({ ...idle, state: "recording", sessionId: "session-9" })),
-    setCaptureMode: vi.fn().mockResolvedValue(undefined),
-    setBarHidden: vi.fn().mockResolvedValue(undefined),
-    setTargetMonitor: vi.fn().mockResolvedValue(undefined),
-    excludeApp: vi.fn().mockResolvedValue(idle),
-    includeApp: vi.fn().mockResolvedValue(idle),
-    getHotkeys: vi.fn().mockResolvedValue([]),
-    ...overrides,
-  } as unknown as RecorderBridge;
+function makeRecorder(overrides: Partial<RecorderBridge> = {}, unsaved: string[] = []) {
+  const live = fakeRecorder({ sessionIds: ["session-9"] });
+  for (const sessionId of unsaved) live.addSession(sessionId);
+  const recorder = fakeRecorderBridge({ ...live, ...overrides });
+  for (const key of Object.keys(recorder) as Method[]) {
+    const member = recorder[key];
+    if (typeof member === "function" && !vi.isMockFunction(member)) vi.spyOn(recorder, key);
+  }
+  return Object.assign(recorder, { fire: live.fire });
 }
 
 const guideFile = (id: string, title: string) => ({
@@ -116,65 +101,33 @@ const stepFile = (id: string, sortKey: string, actionText: string) => ({
   formatVersion: 1,
 });
 
-function makeLibrary(overrides: Partial<Record<keyof LibraryBridge, unknown>> = {}): LibraryBridge {
-  return {
-    listLibraries: vi.fn().mockResolvedValue([
-      {
-        id: "lib-1",
-        name: "My guides",
-        path: "C:\\Guides",
-        isDefault: true,
-        managed: false,
-        synced: false,
-        guideCount: 1,
-      },
-    ]),
-    listGuides: vi.fn().mockResolvedValue([
-      {
-        id: "guide-1",
-        title: "Add a supplier",
-        updatedAt: "2026-09-25T10:00:00.000Z",
-        stepCount: 2,
-        tags: ["Finance"],
-        owner: "Robin",
-        reviewBy: null,
-        thumbnailMediaId: null,
-      },
-    ]),
-    listTrash: vi.fn().mockResolvedValue([]),
-    loadGuide: vi.fn().mockResolvedValue({
-      guide: guideFile("guide-1", "Add a supplier"),
-      steps: [stepFile("s1", "a", "Click Contacts"), stepFile("s2", "b", "Click Save")],
+/**
+ * The UI package's fake library with one guide, "Add a supplier", every method spied on, and any
+ * given changed for the test. Pictures aren't kept: every one loads blank.
+ */
+function makeLibrary(overrides: Partial<LibraryBridge> = {}): FakeLibrary {
+  const library: FakeLibrary = {
+    ...fakeLibrary({
+      libraries: [
+        {
+          id: "lib-1",
+          name: "My guides",
+          path: "C:\\Guides",
+          guides: [
+            {
+              guide: guideFile("guide-1", "Add a supplier"),
+              steps: [stepFile("s1", "a", "Click Contacts"), stepFile("s2", "b", "Click Save")],
+            },
+          ],
+        },
+      ],
     }),
-    // Shared-library locks: nobody else is editing, and there are no drafts.
-    openForEditing: vi.fn().mockResolvedValue({ kind: "editing" }),
-    releaseLock: vi.fn().mockResolvedValue(undefined),
-    fingerprint: vi.fn().mockResolvedValue("same"),
-    guideFingerprint: vi.fn().mockResolvedValue("same"),
-    listConflicts: vi.fn().mockResolvedValue([]),
-    resolveConflict: vi.fn().mockResolvedValue(undefined),
-    listComments: vi.fn().mockResolvedValue([]),
-    addComment: vi.fn().mockResolvedValue("c9"),
-    resolveComment: vi.fn().mockResolvedValue(undefined),
-    deleteComment: vi.fn().mockResolvedValue(undefined),
-    onLockLost: vi.fn().mockResolvedValue(() => undefined),
-    listDrafts: vi.fn().mockResolvedValue([]),
-    saveDraft: vi.fn().mockResolvedValue(undefined),
-    discardDraft: vi.fn().mockResolvedValue(undefined),
-    saveGuide: vi.fn().mockResolvedValue(undefined),
-    saveStep: vi.fn().mockResolvedValue(undefined),
-    deleteStep: vi.fn().mockResolvedValue(undefined),
-    loadImage: vi.fn().mockResolvedValue("data:image/webp;base64,"),
-    importImage: vi.fn(),
-    trashGuide: vi.fn().mockResolvedValue({
-      trashId: "t1",
-      guideId: "guide-1",
-      title: "Add a supplier",
-      deletedAt: "",
-    }),
-    restoreGuide: vi.fn().mockResolvedValue(undefined),
+    loadImage: () => Promise.resolve("data:image/webp;base64,"),
     ...overrides,
-  } as unknown as LibraryBridge;
+  };
+  for (const name of Object.keys(library) as (keyof LibraryBridge)[])
+    if (typeof library[name] === "function") vi.spyOn(library, name);
+  return library;
 }
 
 const shortcutFact: RecordingFact = {
@@ -266,8 +219,35 @@ describe("App start-up", () => {
     ).toBeNull();
   });
 
+  it("asks on first run only what this copy has: a folder, and starting with the computer", async () => {
+    const firstRun = (capabilities: Parameters<typeof fakeCapabilities>[0]) =>
+      render(
+        <App
+          recorder={makeRecorder({
+            capabilities: fakeCapabilities(capabilities),
+            getPreferences: vi.fn().mockResolvedValue({ displayName: "", libraryFolder: "x" }),
+          })}
+          library={makeLibrary()}
+        />,
+      );
+    firstRun({});
+    expect(await screen.findByRole("button", { name: "Browse…" })).toBeDefined();
+    expect(screen.getByRole("checkbox", { name: "Start when Windows starts" })).toBeDefined();
+    cleanup();
+
+    firstRun({ autoStart: "signIn" });
+    expect(await screen.findByRole("checkbox", { name: "Start when you sign in" })).toBeDefined();
+    cleanup();
+
+    // Steps for Chrome: "My guides" is in the browser, which nothing starts.
+    firstRun({ defaultLibrary: "browser", autoStart: null });
+    expect(await screen.findByLabelText("Your name")).toBeDefined();
+    expect(screen.queryByRole("button", { name: "Browse…" })).toBeNull();
+    expect(screen.queryByRole("checkbox")).toBeNull();
+  });
+
   it("asks for a name on first run and saves it", async () => {
-    const setPreferences = vi.fn(async (preferences: unknown) => preferences);
+    const setPreferences = vi.fn(async (preferences: RecorderPreferences) => preferences);
     render(
       <App
         recorder={makeRecorder({
@@ -414,12 +394,13 @@ describe("App start-up", () => {
   });
 
   it("names an imported guide as imported when one with its title is already here (F045)", async () => {
-    const saveGuide = vi.fn().mockResolvedValue(undefined);
-    const library = makeLibrary({
-      pickFile: vi.fn().mockResolvedValue("C:/Downloads/supplier.amlsteps"),
-      importAmlsteps: vi.fn().mockResolvedValue({ id: "guide-9", title: "Add a supplier" }),
-      saveGuide,
+    const library = makeLibrary();
+    library.data.picks.file = "C:/Downloads/supplier.amlsteps";
+    library.data.files.set("C:/Downloads/supplier.amlsteps", {
+      guide: guideFile("guide-9", "Add a supplier"),
+      steps: [],
     });
+    const saveGuide = vi.mocked(library.saveGuide);
     render(<App recorder={makeRecorder()} library={library} />);
     fireEvent.click(await screen.findByRole("button", { name: "Import" }));
     await waitFor(() =>
@@ -488,25 +469,29 @@ describe("Unsaved recordings", () => {
         record: { ...shortcutFact.record, purpose: "captureNow" },
       } as RecordingFact,
       wording,
+      DEFAULT_RECORDING_SETTINGS,
     ) as RecordedStep;
     shortcutStep.action = "keypress";
     shortcutStep.actionText = 'Press "Ctrl + Shift + 1"';
     const saveDraft = vi.fn().mockResolvedValue(undefined);
-    const recorder = makeRecorder({
-      getState: vi.fn().mockResolvedValue({ ...idle, sessionId: "session-1" }),
-      getRecoveries: vi.fn().mockResolvedValue([
-        {
-          sessionId: "session-1",
-          title: "Recovered",
-          eventCount: 1,
-          stopped: true,
-          savedGuideId: null,
-        },
-      ]),
-      getRecoveryRecords: vi.fn().mockResolvedValue([shortcutFact]),
-      getSessionSteps: vi.fn().mockResolvedValue([shortcutStep]),
-      saveDraft,
-    });
+    const recorder = makeRecorder(
+      {
+        getState: vi.fn().mockResolvedValue({ ...idle, sessionId: "session-1" }),
+        getRecoveries: vi.fn().mockResolvedValue([
+          {
+            sessionId: "session-1",
+            title: "Recovered",
+            eventCount: 1,
+            stopped: true,
+            savedGuideId: null,
+          },
+        ]),
+        getRecoveryRecords: vi.fn().mockResolvedValue([shortcutFact]),
+        getSessionSteps: vi.fn().mockResolvedValue([shortcutStep]),
+        saveDraft,
+      },
+      ["session-1"],
+    );
     render(<App recorder={recorder} library={makeLibrary()} />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Review and save" }));
@@ -520,20 +505,23 @@ describe("Unsaved recordings", () => {
     const good = stepFile("capture-1", "0000000001", "Click Save");
     const tooLong = { ...stepFile("capture-2", "0000000002", "x".repeat(3_000)) };
     const saveDraft = vi.fn().mockResolvedValue(undefined);
-    const recorder = makeRecorder({
-      getState: vi.fn().mockResolvedValue({ ...idle, sessionId: "session-1" }),
-      getRecoveries: vi.fn().mockResolvedValue([
-        {
-          sessionId: "session-1",
-          title: "Old",
-          eventCount: 2,
-          stopped: true,
-          savedGuideId: null,
-        },
-      ]),
-      getSessionSteps: vi.fn().mockResolvedValue([good, tooLong]),
-      saveDraft,
-    });
+    const recorder = makeRecorder(
+      {
+        getState: vi.fn().mockResolvedValue({ ...idle, sessionId: "session-1" }),
+        getRecoveries: vi.fn().mockResolvedValue([
+          {
+            sessionId: "session-1",
+            title: "Old",
+            eventCount: 2,
+            stopped: true,
+            savedGuideId: null,
+          },
+        ]),
+        getSessionSteps: vi.fn().mockResolvedValue([good, tooLong]),
+        saveDraft,
+      },
+      ["session-1"],
+    );
     render(<App recorder={recorder} library={makeLibrary()} />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Review and save" }));
@@ -550,23 +538,26 @@ describe("Unsaved recordings", () => {
       .fn()
       .mockRejectedValueOnce({ code: "storage", message: "The disk is full." })
       .mockResolvedValue(undefined);
-    const recorder = makeRecorder({
-      getState: vi.fn().mockResolvedValue({ ...idle, sessionId: "session-1" }),
-      getRecoveries: vi.fn().mockResolvedValue([
-        {
-          sessionId: "session-1",
-          title: "Recovered",
-          eventCount: 1,
-          stopped: true,
-          savedGuideId: null,
-        },
-      ]),
-      loadDraft: vi.fn().mockResolvedValue({
-        guide: guideFile("session-1", "Recovered"),
-        steps: [stepFile("capture-1", "0000000001", "Click Save")],
-      }),
-      finalize,
-    });
+    const recorder = makeRecorder(
+      {
+        getState: vi.fn().mockResolvedValue({ ...idle, sessionId: "session-1" }),
+        getRecoveries: vi.fn().mockResolvedValue([
+          {
+            sessionId: "session-1",
+            title: "Recovered",
+            eventCount: 1,
+            stopped: true,
+            savedGuideId: null,
+          },
+        ]),
+        loadDraft: vi.fn().mockResolvedValue({
+          guide: guideFile("session-1", "Recovered"),
+          steps: [stepFile("capture-1", "0000000001", "Click Save")],
+        }),
+        finalize,
+      },
+      ["session-1"],
+    );
     render(<App recorder={recorder} library={makeLibrary()} />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Review and save" }));
@@ -626,9 +617,26 @@ describe("Recording", () => {
         settleMs: 1_500,
         appSwitchSteps: true,
         quality: "balanced",
+        settings: { showUnnamedTyping: false, wording: { language: "en", tone: "casual" } },
       }),
     );
     await waitFor(() => expect(recorder.minimizeMain).toHaveBeenCalled());
+  });
+
+  it("starts a new recording while a stopped one waits as a draft (07/10/2026)", async () => {
+    // A stopped recording not yet saved is one draft among others: it doesn't hold the button.
+    const recorder = makeRecorder({
+      getState: vi.fn().mockResolvedValue({ ...idle, sessionId: "session-1" }),
+    });
+    render(<App recorder={recorder} library={makeLibrary()} />);
+    const record = (await screen.findByRole("button", {
+      name: "New recording",
+    })) as HTMLButtonElement;
+    expect(record.disabled).toBe(false);
+    fireEvent.click(record);
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Start recording" }));
+    await waitFor(() => expect(recorder.start).toHaveBeenCalled());
   });
 
   it("records keys and output only when ticked for this recording", async () => {
@@ -651,6 +659,7 @@ describe("Recording", () => {
         settleMs: 1_500,
         appSwitchSteps: true,
         quality: "balanced",
+        settings: { showUnnamedTyping: false, wording: { language: "en", tone: "casual" } },
       }),
     );
   });
@@ -695,7 +704,7 @@ describe("Recording", () => {
       }),
       start: vi.fn(
         () =>
-          new Promise((resolve) => {
+          new Promise<RecorderSnapshot>((resolve) => {
             finishStart = () => resolve({ ...idle, state: "recording", sessionId: "session-9" });
           }),
       ),
@@ -739,25 +748,9 @@ describe("Recording", () => {
   });
 
   /** A recorder whose events the test fires, the way the native side does during a recording. */
-  function liveRecorder(overrides: Partial<Record<keyof RecorderBridge, unknown>> = {}) {
-    const fire: {
-      fact?: (fact: RecordingFact) => void;
-      finished?: (finished: { snapshot: RecorderSnapshot; title: string }) => void;
-      restarted?: (restarted: { sessionId: string; afterSequence: number | null }) => void;
-    } = {};
-    const listen =
-      <T,>(key: keyof typeof fire) =>
-      (handler: T) => {
-        (fire as Record<string, unknown>)[key] = handler;
-        return Promise.resolve(() => undefined);
-      };
-    const recorder = makeRecorder({
-      onFact: listen("fact"),
-      onFinished: listen("finished"),
-      onRestarted: listen("restarted"),
-      ...overrides,
-    });
-    return { recorder, fire };
+  function liveRecorder(overrides: Partial<RecorderBridge> = {}) {
+    const recorder = makeRecorder(overrides);
+    return { recorder, fire: recorder.fire };
   }
 
   const capture = (sequence: number, purpose: "captureNow" | "shortcut" = "captureNow") =>
@@ -766,6 +759,35 @@ describe("Recording", () => {
       sessionId: "session-9",
       sequence,
       record: { ...shortcutFact.record, id: 100 + sequence, purpose },
+    }) as RecordingFact;
+
+  // Typing into something unnamed, in Word's document.
+  const typing = (sequence: number, text: string) =>
+    ({
+      sessionId: "session-9",
+      recordedAt: 1_790_246_400_000 + sequence,
+      sequence,
+      record: {
+        kind: "typing",
+        id: 200 + sequence,
+        tickMs: 100 * sequence,
+        window: {
+          title: "Letter - Word",
+          exe: "WINWORD.EXE",
+          pid: 10,
+          frame: { left: 0, top: 0, right: 100, bottom: 100 },
+          elevation: "notElevated",
+          remoteSession: false,
+        },
+        capture: null,
+        element: null,
+        text,
+        form: "text",
+        language: "plain",
+        cell: null,
+        approximate: false,
+        checkScreenshot: false,
+      },
     }) as RecordingFact;
 
   const startFromTheSidebar = async (recorder: RecorderBridge, library = makeLibrary()) => {
@@ -781,7 +803,8 @@ describe("Recording", () => {
     const { recorder, fire } = liveRecorder();
     await startFromTheSidebar(recorder);
     act(() =>
-      fire.finished?.({
+      fire.finished({
+        sessionId: "session-9",
         snapshot: { ...idle, sessionId: "session-9", otherScreenClicks: 3 },
         title: "Tuesday",
       }),
@@ -798,16 +821,22 @@ describe("Recording", () => {
     await startFromTheSidebar(recorder);
 
     act(() => {
-      fire.fact?.(capture(1));
-      fire.fact?.(capture(2, "shortcut")); // the popup's own step arrives separately
-      fire.fact?.(capture(3));
-      fire.fact?.(capture(3)); // a repeat is ignored
+      fire.fact(capture(1));
+      fire.fact(capture(2, "shortcut")); // the popup's own step arrives separately
+      fire.fact(capture(3));
+      fire.fact(capture(3)); // a repeat is ignored
     });
     await waitFor(() => expect(recorder.appendStep).toHaveBeenCalledTimes(2));
     const appended = vi.mocked(recorder.appendStep).mock.calls.map(([, step]) => step.id);
     expect(appended).toEqual(["capture-1", "capture-3"]);
 
-    act(() => fire.finished?.({ snapshot: { ...idle, sessionId: "session-9" }, title: "Tuesday" }));
+    act(() =>
+      fire.finished({
+        sessionId: "session-9",
+        snapshot: { ...idle, sessionId: "session-9" },
+        title: "Tuesday",
+      }),
+    );
     await waitFor(() => expect(recorder.saveDraft).toHaveBeenCalledOnce());
     const [sessionId, guide, steps] = vi.mocked(recorder.saveDraft).mock.calls[0] as [
       string,
@@ -830,18 +859,20 @@ describe("Recording", () => {
 
   it("saves a recording to another library with Save as, once, leaving the default alone", async () => {
     const { recorder, fire } = liveRecorder();
-    const libraries = [
-      { id: "lib-1", name: "My guides", path: "C:\\Guides", isDefault: true },
-      { id: "lib-2", name: "Finance team", path: "S:\\Finance", isDefault: false },
-    ].map((item) => ({ ...item, managed: false, synced: false, guideCount: 1 }));
-    const library = makeLibrary({
-      listLibraries: vi.fn().mockResolvedValue(libraries),
-      setDefaultLibrary: vi.fn(),
-    });
+    const library = makeLibrary({ setDefaultLibrary: vi.fn() });
+    const team = await library.addLibrary("Finance team", "S:\\Finance");
+    // What the recorder's Save writes there, for the editor to open.
+    await library.createFromParts(team.id, guideFile("session-9", "Tuesday"), [], []);
     await startFromTheSidebar(recorder, library);
-    act(() => fire.fact?.(capture(1)));
+    act(() => fire.fact(capture(1)));
     await waitFor(() => expect(recorder.appendStep).toHaveBeenCalledOnce());
-    act(() => fire.finished?.({ snapshot: { ...idle, sessionId: "session-9" }, title: "Tuesday" }));
+    act(() =>
+      fire.finished({
+        sessionId: "session-9",
+        snapshot: { ...idle, sessionId: "session-9" },
+        title: "Tuesday",
+      }),
+    );
 
     fireEvent.click(await screen.findByRole("button", { name: "Save to another library" }));
     const menu = await screen.findByRole("menu");
@@ -853,7 +884,7 @@ describe("Recording", () => {
       expect(recorder.finalize).toHaveBeenCalledWith(
         "session-9",
         expect.objectContaining({ id: "session-9" }),
-        "lib-2",
+        team.id,
       ),
     );
     expect(await screen.findByText("Guide saved to “Finance team”.")).toBeDefined();
@@ -867,14 +898,20 @@ describe("Recording", () => {
     await startFromTheSidebar(recorder);
 
     act(() => {
-      fire.fact?.(capture(1));
-      fire.fact?.(capture(2));
-      fire.restarted?.({ sessionId: "session-9", afterSequence: 2 });
-      fire.fact?.(capture(2)); // late copies of dropped facts stay dropped
-      fire.fact?.(capture(3));
-      fire.restarted?.({ sessionId: "other-session", afterSequence: 3 }); // not this recording
+      fire.fact(capture(1));
+      fire.fact(capture(2));
+      fire.restarted({ sessionId: "session-9", afterSequence: 2 });
+      fire.fact(capture(2)); // late copies of dropped facts stay dropped
+      fire.fact(capture(3));
+      fire.restarted({ sessionId: "other-session", afterSequence: 3 }); // not this recording
     });
-    act(() => fire.finished?.({ snapshot: { ...idle, sessionId: "session-9" }, title: "Again" }));
+    act(() =>
+      fire.finished({
+        sessionId: "session-9",
+        snapshot: { ...idle, sessionId: "session-9" },
+        title: "Again",
+      }),
+    );
     await waitFor(() => expect(recorder.saveDraft).toHaveBeenCalledOnce());
     const [, , steps] = vi.mocked(recorder.saveDraft).mock.calls[0] as [
       string,
@@ -892,14 +929,19 @@ describe("Recording", () => {
     await startFromTheSidebar(recorder);
 
     act(() => {
-      fire.fact?.(capture(1));
-      fire.fact?.(capture(2));
-      fire.restarted?.({ sessionId: "session-9", afterSequence: 2 });
-      fire.restarted?.({ sessionId: "session-9", afterSequence: null });
+      fire.fact(capture(1));
+      fire.fact(capture(2));
+      fire.restarted({ sessionId: "session-9", afterSequence: 2 });
+      fire.restarted({ sessionId: "session-9", afterSequence: null });
     });
-    await waitFor(() => expect(recorder.getRecoveryRecords).toHaveBeenCalledWith("session-9"));
-    act(() => fire.fact?.(capture(3)));
-    act(() => fire.finished?.({ snapshot: { ...idle, sessionId: "session-9" }, title: "Undone" }));
+    act(() => fire.fact(capture(3)));
+    act(() =>
+      fire.finished({
+        sessionId: "session-9",
+        snapshot: { ...idle, sessionId: "session-9" },
+        title: "Undone",
+      }),
+    );
     await waitFor(() => expect(recorder.saveDraft).toHaveBeenCalledOnce());
     const [, , steps] = vi.mocked(recorder.saveDraft).mock.calls[0] as [
       string,
@@ -907,6 +949,177 @@ describe("Recording", () => {
       { id: string }[],
     ];
     expect(steps.map((step) => step.id)).toEqual(["capture-1", "capture-2", "capture-3"]);
+  });
+
+  it("builds the live steps and a rebuild from the journal with the settings and wording it started with", async () => {
+    const facts = [typing(1, "Dear Sam"), typing(2, "Kind regards")];
+
+    // Recorded with "Show typing into unnamed boxes" off, switched on halfway through.
+    const { recorder, fire } = liveRecorder();
+    await startFromTheSidebar(recorder);
+    const [, options] = vi.mocked(recorder.start).mock.calls[0] ?? [];
+    expect(options?.settings).toEqual({
+      showUnnamedTyping: false,
+      wording: { language: "en", tone: "casual" },
+    });
+    act(() => fire.fact(facts[0] as RecordingFact));
+    window.localStorage.setItem("amluto-steps-show-unnamed-typing", "true");
+    act(() => fire.fact(facts[1] as RecordingFact));
+    await waitFor(() => expect(recorder.appendStep).toHaveBeenCalledTimes(2));
+    const live = vi
+      .mocked(recorder.appendStep)
+      .mock.calls.map(([, step]) => [step.actionText, step.showValue]);
+    expect(live).toEqual([
+      ["Type", false],
+      ["Type", false],
+    ]);
+    cleanup();
+
+    // The app restarted before its steps were saved: the draft is rebuilt from the journal alone,
+    // with the setting still on, and the tone changed since.
+    window.localStorage.setItem("amluto-steps-step-tone", "formal");
+    const saveDraft = vi.fn().mockResolvedValue(undefined);
+    const rebuilt = makeRecorder(
+      {
+        getState: vi.fn().mockResolvedValue({ ...idle, sessionId: "session-9" }),
+        getRecoveries: vi.fn().mockResolvedValue([
+          {
+            sessionId: "session-9",
+            title: "Letter",
+            eventCount: 2,
+            stopped: true,
+            savedGuideId: null,
+          },
+        ]),
+        getRecoveryRecords: vi.fn().mockResolvedValue(facts),
+        getRecordingSettings: vi.fn().mockResolvedValue(options?.settings),
+        saveDraft,
+      },
+      ["session-9"],
+    );
+    render(<App recorder={rebuilt} library={makeLibrary()} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Review and save" }));
+    await waitFor(() => expect(saveDraft).toHaveBeenCalledOnce());
+    expect(rebuilt.getRecordingSettings).toHaveBeenCalledWith("session-9");
+    const [, guide, steps] = saveDraft.mock.calls[0] as [
+      string,
+      { language: string; tone: string },
+      { actionText: string; showValue: boolean }[],
+    ];
+    expect(steps.map((step) => [step.actionText, step.showValue])).toEqual(live);
+    expect(guide).toMatchObject({ language: "en", tone: "casual" });
+  });
+
+  it("opens the draft from every fact the window saw, as the steps shown live are made", async () => {
+    // A field read twice: the draft keeps the last read, as the live steps do.
+    const supplier = (sequence: number, value: string) =>
+      ({
+        sessionId: "session-9",
+        recordedAt: 1_790_246_400_000 + sequence,
+        sequence,
+        record: {
+          kind: "input",
+          tickMs: 100 * sequence,
+          element: {
+            controlType: "Edit",
+            localizedControlType: "edit",
+            name: "Supplier",
+            automationId: "supplier",
+            helpText: "",
+            ariaRole: "",
+            ariaProperties: "",
+            className: "",
+            frameworkId: "Win32",
+            isPassword: false,
+            labeledBy: null,
+            bounds: null,
+            ancestors: [],
+            sensitive: false,
+          },
+          value,
+          withheld: null,
+        },
+      }) as RecordingFact;
+    // The journal was read before the second read reached it.
+    const { recorder, fire } = liveRecorder({
+      getRecoveryRecords: vi.fn().mockResolvedValue([supplier(1, "Ac")]),
+    });
+    await startFromTheSidebar(recorder);
+    act(() => {
+      fire.fact(supplier(1, "Ac"));
+      fire.fact(supplier(2, "Acme"));
+    });
+    await waitFor(() => expect(recorder.appendStep).toHaveBeenCalledTimes(2));
+    act(() =>
+      fire.finished({
+        sessionId: "session-9",
+        snapshot: { ...idle, sessionId: "session-9" },
+        title: "Supplier",
+      }),
+    );
+    await waitFor(() => expect(recorder.saveDraft).toHaveBeenCalledOnce());
+    const [, , steps] = vi.mocked(recorder.saveDraft).mock.calls[0] as [
+      string,
+      unknown,
+      { id: string; actionText: string }[],
+    ];
+    expect(steps.map((step) => [step.id, step.actionText])).toEqual([
+      ["capture-2", 'Type "Acme" in "Supplier" field'],
+    ]);
+  });
+
+  /** The window opening while a recording runs (reloaded, or opened again): its facts go on. */
+  const reopenedDuring = (overrides: Partial<RecorderBridge> = {}) => {
+    const { recorder, fire } = liveRecorder({
+      getState: vi.fn().mockResolvedValue({ ...idle, state: "recording", sessionId: "session-9" }),
+      getRecoveries: vi.fn().mockResolvedValue([
+        {
+          sessionId: "session-9",
+          title: "Letter",
+          eventCount: 0,
+          stopped: false,
+          savedGuideId: null,
+        },
+      ]),
+      getSessionSteps: vi.fn().mockResolvedValue([]),
+      getRestartPoint: vi.fn().mockResolvedValue(null),
+      ...overrides,
+    });
+    render(<App recorder={recorder} library={makeLibrary()} />);
+    return { recorder, fire };
+  };
+  const journalled = (recorder: RecorderBridge) =>
+    vi.mocked(recorder.appendStep).mock.calls.map(([, step]) => [step.actionText, step.showValue]);
+
+  it("takes up a running recording's own settings when the window opens during it", async () => {
+    // Recorded with "Show typing into unnamed boxes" on; it's off in Settings now.
+    const { recorder, fire } = reopenedDuring({
+      getRecordingSettings: vi.fn().mockResolvedValue({
+        showUnnamedTyping: true,
+        wording: { language: "en", tone: "casual" },
+      }),
+    });
+    await waitFor(() => expect(recorder.getRecordingSettings).toHaveBeenCalledWith("session-9"));
+    await waitFor(() => expect(recorder.getMonitors).toHaveBeenCalled());
+    act(() => fire.fact(typing(1, "Dear Sam")));
+    await waitFor(() => expect(recorder.appendStep).toHaveBeenCalledOnce());
+    expect(journalled(recorder)).toEqual([['Type "Dear Sam"', true]]);
+  });
+
+  it("reads today's settings once for a running recording that saved none, not at each step", async () => {
+    const { recorder, fire } = reopenedDuring({
+      getRecordingSettings: vi.fn().mockResolvedValue(null),
+    });
+    await waitFor(() => expect(recorder.getMonitors).toHaveBeenCalled());
+    act(() => fire.fact(typing(1, "Dear Sam")));
+    // Switched on in Settings mid-recording: this recording goes on as it began.
+    window.localStorage.setItem("amluto-steps-show-unnamed-typing", "true");
+    act(() => fire.fact(typing(2, "Kind regards")));
+    await waitFor(() => expect(recorder.appendStep).toHaveBeenCalledTimes(2));
+    expect(journalled(recorder)).toEqual([
+      ["Type", false],
+      ["Type", false],
+    ]);
   });
 });
 
@@ -976,10 +1189,10 @@ describe("Editing a saved guide", () => {
         Promise.resolve(
           guideId === "g2"
             ? {
-                kind: "readOnly",
+                kind: "readOnly" as const,
                 lock: { name: "Sam Jones", pc: "SAMS-PC", session: "s", counter: 1, since: "" },
               }
-            : { kind: "editing" },
+            : { kind: "editing" as const },
         ),
       ),
       moveGuide: vi.fn((_from: string, guideId: string) =>

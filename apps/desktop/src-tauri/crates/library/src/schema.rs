@@ -86,6 +86,14 @@ pub(crate) struct StepV1 {
     pub format_version: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub review_required: Option<bool>,
+    /// What a click is called (`clickNamingSchema` in packages/core/src/guide.ts); absent on
+    /// steps saved before 06/10/2026, and on one whose naming this version can't read.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "readable_naming"
+    )]
+    pub naming: Option<Naming>,
     /// Its words in other languages (checked by `clean_translations`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub translations: Option<Value>,
@@ -104,6 +112,52 @@ pub(crate) struct Code {
 }
 
 const TONES: &[&str] = &["casual", "plain", "formal"];
+
+/// `naming` on a click step.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct Naming {
+    pub name: String,
+    pub kind: String,
+    pub source: String,
+    pub needs_review: bool,
+}
+
+/// The core's `ELEMENT_KINDS` and `NAMING_SOURCES` (packages/core/src/step-text), both held to
+/// `packages/core/test-vectors/click-naming.json` by a test on each side.
+const NAMING_KINDS: &[&str] = &[
+    "button",
+    "link",
+    "menuItem",
+    "tab",
+    "field",
+    "namedField",
+    "textArea",
+    "checkbox",
+    "radio",
+    "dropdown",
+    "switch",
+    "picture",
+    "listItem",
+    "other",
+];
+const NAMING_SOURCES: &[&str] = &["element", "ancestor", "page", "taskbar", "screen", "window"];
+
+/// A naming as the UI reads it: one with a kind or source from a newer version, or that isn't a
+/// naming at all, is left out rather than refusing the step, which then works its naming out
+/// from its other facts as a 1.0.0 step does.
+fn readable_naming<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<Naming>, D::Error> {
+    let value = Option::<Value>::deserialize(deserializer)?;
+    Ok(value
+        .and_then(|value| serde_json::from_value::<Naming>(value).ok())
+        .filter(|naming| {
+            !too_long(&naming.name, 2_000)
+                && NAMING_KINDS.contains(&naming.kind.as_str())
+                && NAMING_SOURCES.contains(&naming.source.as_str())
+        }))
+}
 
 fn known_tone<'de, D: serde::Deserializer<'de>>(
     deserializer: D,
@@ -804,6 +858,48 @@ pub(crate) mod tests {
                 .unwrap_err()
                 .contains("command output")
         );
+    }
+
+    #[test]
+    fn a_clicks_naming_round_trips_and_one_this_version_cant_read_is_left_out() {
+        let mut step = fixture_steps().remove(0);
+        step["action"] = json!("click");
+        step["naming"] = json!({
+            "name": "Forwarders", "kind": "listItem", "source": "ancestor", "needsReview": false
+        });
+        let typed = step_from_value(step.clone()).unwrap();
+        assert_eq!(serde_json::to_value(&typed).unwrap(), step);
+
+        // A newer version's kind or source, or a damaged naming, is left out as the UI leaves it
+        // out, and the step still opens: its naming is worked out from its other facts.
+        for naming in [
+            json!({ "name": "Save", "kind": "hologram", "source": "element", "needsReview": false }),
+            json!({ "name": "Save", "kind": "button", "source": "telepathy", "needsReview": false }),
+            json!({ "name": "x".repeat(2_001), "kind": "button", "source": "element", "needsReview": false }),
+            json!("Forwarders"),
+        ] {
+            step["naming"] = naming;
+            let typed = serde_json::to_value(step_from_value(step.clone()).unwrap()).unwrap();
+            assert!(typed.get("naming").is_none());
+        }
+    }
+
+    #[test]
+    fn naming_kinds_and_sources_are_the_cores() {
+        let shared: Value = serde_json::from_str(include_str!(
+            "../../../../../../packages/core/test-vectors/click-naming.json"
+        ))
+        .unwrap();
+        let strings = |key: &str| -> Vec<String> {
+            shared[key]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|item| item.as_str().unwrap().to_string())
+                .collect()
+        };
+        assert_eq!(strings("elementKinds"), NAMING_KINDS);
+        assert_eq!(strings("namingSources"), NAMING_SOURCES);
     }
 
     #[test]

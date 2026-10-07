@@ -28,7 +28,6 @@
     "settings": "Configuració",
     "guides": "Guies",
     "recordingNow": "Hi ha un enregistrament en curs",
-    "saveFirst": "Primer deseu o descarteu l'últim enregistrament",
     "needsReview": "Per revisar"
   },
   "dates": {
@@ -280,9 +279,9 @@
     "drawing": "S'està preparant…",
     "checklist": "Llista de comprovació",
     "personalData": "Abans de compartir-les, comproveu que cap captura de pantalla no tingui dades personals. Els suggeriments automàtics poden passar coses per alt.",
-    "flagged_one": "Cal revisar {{count}} pas: un clic sense nom, clics perduts, text escrit que potser no coincideix o una captura de pantalla per revisar.",
-    "flagged_many": "Cal revisar {{count}} passos: clics sense nom, clics perduts, text escrit que potser no coincideix o captures de pantalla per revisar.",
-    "flagged_other": "Cal revisar {{count}} passos: clics sense nom, clics perduts, text escrit que potser no coincideix o captures de pantalla per revisar.",
+    "flagged_one": "Cal revisar {{count}} pas: un clic sense nom, un nom llegit de la captura de pantalla, clics perduts, text escrit que potser no coincideix o una captura de pantalla per revisar.",
+    "flagged_many": "Cal revisar {{count}} passos: clics sense nom, noms llegits de les captures de pantalla, clics perduts, text escrit que potser no coincideix o captures de pantalla per revisar.",
+    "flagged_other": "Cal revisar {{count}} passos: clics sense nom, noms llegits de les captures de pantalla, clics perduts, text escrit que potser no coincideix o captures de pantalla per revisar.",
     "noFlagged": "No hi ha cap pas marcat per revisar.",
     "stepNumber": "Pas {{number}}",
     "quickEdit": {
@@ -545,6 +544,7 @@
     "reviewRequired": "Reviseu aquest pas: l'enregistrament no ha pogut posar nom al que s'ha clicat, s'han perdut alguns clics aquí, és possible que el text escrit no coincideixi exactament, o no s'ha trobat a la captura de pantalla un secret per difuminar-lo.",
     "review": {
       "unnamed": "Reviseu aquest pas: l'enregistrament no ha pogut posar nom al que s'ha clicat. Escriviu què era o trieu «Està bé».",
+      "checkName": "Reviseu aquest nom: s'ha llegit de la captura de pantalla.",
       "missed": "Reviseu aquest pas: aquí s'han perdut alguns clics.",
       "typing": "Reviseu aquest pas: és possible que el text escrit no coincideixi exactament.",
       "code": "Reviseu aquest pas: no s'ha trobat un secret a la captura de pantalla per difuminar-lo, o és possible que el text no coincideixi exactament.",
@@ -838,6 +838,7 @@
       "managed": "La vostra organització gestiona aquesta configuració, així que la importació està desactivada.",
       "tour": "Mostra el tutorial",
       "tourHelp": "Un recorregut breu per la finestra principal, en finestres de 1024 píxels d'amplada o més.",
+      "tourNarrow": "Un recorregut breu per la finestra principal. Aquesta finestra és massa estreta per mostrar-lo: feu-la d'1024 píxels d'amplada o més i el recorregut apareixerà.",
       "tourStartAgain": "Torna a començar",
       "tourContinue": "Continua el recorregut ({{progress}})"
     },
@@ -1299,6 +1300,7 @@
   "privacy": {
     "intro": "Steps llegeix el text de les captures de pantalla en aquest PC (amb el reconeixement de text sense connexió del mateix Windows) per suggerir què cal difuminar. No s'envia res enlloc.",
     "introLinux": "Steps llegeix el text de les captures de pantalla en aquest ordinador (amb Tesseract, si està instal·lat) per suggerir què cal difuminar. No s'envia res enlloc.",
+    "introPage": "Steps llegeix el text de les pàgines que graves, tal com el mostra el navegador, per suggerir què cal difuminar. No s'envia res enlloc.",
     "strength": "Suggeriments de difuminat",
     "strengths": {
       "light": "Lleuger",

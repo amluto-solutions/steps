@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { AnnouncerProvider, useAnnounce } from "./components/Announcer";
-import { isBrowserEdition, isLinux } from "./recorder-bridge";
 import { Icon } from "./components/icons";
 import type { MenuEntry } from "./components/Menu";
 import { Toast, type ToastMessage } from "./components/Toast";
@@ -17,7 +16,7 @@ import { AnyGuideEditor } from "./app/LibraryGuideEditor";
 import { useLibraryWatch } from "./app/useLibraryWatch";
 import type { GuideStore } from "./editor/useGuideEditor";
 import { errorMessage } from "./errors";
-import type { LibraryBridge, LibraryGuideSummary, TrashEntry, VersionInfo } from "./library-bridge";
+import type { LibraryBridge, VersionInfo } from "./library-bridge";
 import { LibraryHome } from "./library/LibraryHome";
 import { TrashView } from "./library/TrashView";
 import { useBrands } from "./app/useBrands";
@@ -25,15 +24,10 @@ import { useLibraries } from "./app/useLibraries";
 import { useSettings } from "./app/useSettings";
 import { useSettingsTransfer } from "./app/useSettingsTransfer";
 import { useRecordingSession } from "./app/useRecordingSession";
-import {
-  ConfirmDialog,
-  DiscardDialog,
-  NoticeDialog,
-  StartRecordingDialog,
-  VersionsDialog,
-} from "./app/dialogs";
+import { DiscardDialog, NoticeDialog, StartRecordingDialog, VersionsDialog } from "./app/dialogs";
 import { draftStore, libraryStore } from "./app/stores";
 import { useBulkActions } from "./app/useBulkActions";
+import { useLibraryLocks, useLockAndBin } from "./app/useLockAndBin";
 import { useExports } from "./app/useExports";
 import { useShortcutWarning } from "./app/useShortcutWarning";
 import { useLink } from "./app/useLink";
@@ -44,18 +38,8 @@ import { setPeopleNames } from "./editor/suggestions";
 import type { RecorderBridge } from "./recorder-bridge";
 import { SettingsView, type SettingsSection } from "./settings/SettingsView";
 import { isManaged, policy } from "./settings/policy";
-import { readRecordPcAndLogin, readStorageWarnGb } from "./settings/preferences";
-import { withGuideLocks } from "./library/guide-locks";
-import {
-  GuideLocksContext,
-  LockHost,
-  askCount,
-  askNewPassword,
-  askUnlock,
-  showLockedList,
-  showProperties,
-  type LockTarget,
-} from "./library/LockDialogs";
+import { readStorageWarnGb } from "./settings/preferences";
+import { GuideLocksContext, LockHost } from "./library/LockDialogs";
 import { Sidebar, type LibraryView } from "./shell/Sidebar";
 import { Welcome, type WelcomeChoices } from "./shell/Welcome";
 import { TourProvider } from "./tour/TourProvider";
@@ -77,7 +61,7 @@ type Route =
   | { screen: "settings"; section: SettingsSection };
 
 interface AppProps {
-  recorder?: RecorderBridge;
+  recorder: RecorderBridge;
   library?: LibraryBridge;
 }
 
@@ -113,7 +97,7 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
   // Started again while open (F001): this copy came forward, and says why.
   const [alreadyOpen, setAlreadyOpen] = useState(false);
   useEffect(() => {
-    const stop = recorder?.onAlreadyOpen?.(() => setAlreadyOpen(true));
+    const stop = recorder?.onAlreadyOpen(() => setAlreadyOpen(true));
     return () => void stop?.then((unlisten) => unlisten());
   }, [recorder]);
 
@@ -131,34 +115,12 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
   } = settings;
 
   // Every library goes through the guide locks (docs/spec/03-data-and-sharing.md#password-locks).
-  // Made again only if the display name changes, which forgets this session's unlocks.
-  const locks = useMemo(
-    () =>
-      unlocked
-        ? withGuideLocks(unlocked, {
-            who: async () => {
-              const record = readRecordPcAndLogin();
-              const machine =
-                record && recorder?.machineIdentity
-                  ? await recorder.machineIdentity().catch(() => null)
-                  : null;
-              return {
-                by: author.trim() || t("locks.someone"),
-                login: machine?.login ?? "",
-                // The browser can't tell its PC; it says which Steps it was instead.
-                pc: machine?.pc ?? (record && isBrowserEdition(recorder) ? "Steps for Chrome" : ""),
-              };
-            },
-            recoveryPassword: () => policy().guideLockRecoveryPassword,
-          })
-        : null,
-    [unlocked, recorder, author, t],
-  );
+  const locks = useLibraryLocks({ library: unlocked, host: recorder, author });
   const library = locks?.library;
 
   // The person's own names, so screenshots showing them get suggested for blurring (F006).
   useEffect(() => {
-    void (recorder?.identityNames?.() ?? Promise.resolve([]))
+    void (recorder?.identityNames() ?? Promise.resolve([]))
       .catch(() => [])
       .then((names) => setPeopleNames([...names, author]));
   }, [recorder, author]);
@@ -224,7 +186,6 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
     setSnapshot,
     monitors,
     recording,
-    hasPending,
     pending,
     fatal,
     refreshRecoveries,
@@ -238,7 +199,7 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
     setDiscardTarget,
     discard,
   } = session;
-  const recordHint = recording ? t("nav.recordingNow") : hasPending ? t("nav.saveFirst") : null;
+  const recordHint = recording ? t("nav.recordingNow") : null;
 
   // ----- Guide actions -----
 
@@ -253,6 +214,17 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
       setBusy(false);
     }
   };
+
+  const { withPassword, guideEntries, bulkLocks, bin } = useLockAndBin({
+    locks,
+    libraryId,
+    guides,
+    trash,
+    refreshGuides,
+    notify,
+    run,
+    author,
+  });
 
   const bulk = useBulkActions({
     library,
@@ -286,128 +258,6 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
     blurTerms: allBlurTerms,
     saveDraft: (sessionId, flush, doc) => saveDraft(sessionId, flush, doc, true),
   });
-
-  // ----- Password locks (docs/spec/03-data-and-sharing.md#password-locks) -----
-
-  /**
-   * Before a change, move or delete: a locked guide asks for its password, unlocking it for this
-   * one action (or the editing session it's open in). Answers whether to go ahead, and whether it
-   * was unlocked here, to lock again after.
-   */
-  const ensureOpen = async (ref: GuideRef, title: string, action: string) => {
-    if (!locks || locks.isOpen(ref.libraryId, ref.guideId)) return { go: true, unlocked: false };
-    const lock = await locks.lockOf(ref.libraryId, ref.guideId).catch(() => null);
-    if (!lock) return { go: true, unlocked: false };
-    const go = await askUnlock({ ...ref, title, locked: lock.locked }, action);
-    return { go, unlocked: go };
-  };
-
-  /** Runs `action` on a guide that may be locked, asking for its password first. */
-  const withPassword = async (
-    ref: GuideRef,
-    title: string,
-    label: string,
-    action: () => Promise<void>,
-  ) => {
-    const { go, unlocked } = await ensureOpen(ref, title, label);
-    if (!go) return;
-    try {
-      await action();
-    } finally {
-      if (unlocked) locks?.relock(ref.libraryId, ref.guideId);
-    }
-  };
-
-  const lockGuides = async (items: { ref: GuideRef; title: string }[]) => {
-    if (!locks || items.length === 0) return;
-    const first = items[0];
-    const password = await askNewPassword(
-      items.length === 1 && first
-        ? t("locks.lockTitle", { title: first.title })
-        : t("locks.lockManyTitle", { count: items.length }),
-      t("locks.lockBody", { name: author || t("locks.someone") }),
-      t("locks.lockButton"),
-    );
-    if (!password) return;
-    await run(async () => {
-      let done = 0;
-      for (const { ref } of items) {
-        const already = await locks.lockOf(ref.libraryId, ref.guideId).catch(() => null);
-        if (already) continue;
-        await locks.lock(ref.libraryId, ref.guideId, password);
-        done += 1;
-      }
-      await refreshGuides(libraryId);
-      notify({
-        text:
-          items.length === 1 && first
-            ? t("locks.locked", { title: first.title })
-            : [
-                t("locks.lockedMany", { count: done }),
-                ...(items.length > done
-                  ? [t("locks.alreadyLocked", { count: items.length - done })]
-                  : []),
-              ].join(" "),
-      });
-    });
-  };
-
-  const removeLock = (ref: GuideRef, title: string) =>
-    withPassword(ref, title, t("locks.removeButton"), () =>
-      run(
-        async () => {
-          await locks?.removeLock(ref.libraryId, ref.guideId);
-          await refreshGuides(ref.libraryId);
-        },
-        t("locks.removed", { title }),
-      ),
-    );
-
-  const changePassword = async (ref: GuideRef, title: string) => {
-    const { go, unlocked } = await ensureOpen(ref, title, t("locks.next"));
-    if (!go) return;
-    try {
-      const password = await askNewPassword(
-        t("locks.newPasswordTitle", { title }),
-        null,
-        t("locks.changeButton"),
-      );
-      if (!password) return;
-      await run(
-        () => locks?.changePassword(ref.libraryId, ref.guideId, password) ?? Promise.resolve(),
-        t("locks.changed", { title }),
-      );
-    } finally {
-      if (unlocked) locks?.relock(ref.libraryId, ref.guideId);
-    }
-  };
-
-  /** Remove lock on several: one list, where each password is tried on them all. */
-  const removeLocks = (items: LockTarget[]) =>
-    showLockedList(items, t("locks.listBodyRemove"), async (target) => {
-      await locks?.removeLock(target.libraryId, target.guideId);
-    }).then(() => refreshGuides(libraryId));
-
-  const trashGuide = async ({ libraryId: id, guideId }: GuideRef, title: string) => {
-    if (!library) return;
-    try {
-      const entry = await library.trashGuide(id, guideId);
-      await refreshGuides(id);
-      notify({
-        text: t("library.trashed", { title }),
-        action: {
-          label: t("common.undo"),
-          run: () =>
-            void run(async () => {
-              await library.restoreGuide(id, entry.trashId);
-              await refreshGuides(id);
-            }),
-        },
-      });
-    } catch (problem) {
-      notify({ kind: "error", text: errorMessage(problem, t("library.actionFailed")) });
-    }
-  };
 
   /**
    * "Apply blur permanently": burns the blur into the screenshots, in the guide and its saved
@@ -484,71 +334,6 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
     );
   };
 
-  /** Something that can't be undone, waiting for the person to confirm it. */
-  const [confirming, setConfirming] = useState<{
-    title: string;
-    body: string;
-    confirmLabel: string;
-    run: () => Promise<void>;
-  } | null>(null);
-
-  /** Delete for good, from the Bin: asked about first, as it can't be undone. */
-  const deleteForGood = (entry: TrashEntry) => {
-    if (!library || !libraryId) return;
-    setConfirming({
-      title: t("library.deleteForGoodTitle", { title: entry.title }),
-      body: t("library.deleteForGoodBody"),
-      confirmLabel: t("library.deleteForGood"),
-      run: () =>
-        run(
-          async () => {
-            try {
-              await library.deleteTrashed(libraryId, entry.trashId);
-            } finally {
-              await refreshGuides(libraryId);
-            }
-          },
-          t("library.deletedForGood", { title: entry.title }),
-        ),
-    });
-  };
-
-  const emptyTrash = async () => {
-    if (!library || !libraryId || trash.length === 0) return;
-    if (trash.length > 1) {
-      const sure = await askCount(
-        t("locks.emptyTitle", { count: trash.length }),
-        trash.length,
-        t("library.emptyTrash"),
-      );
-      if (sure)
-        await run(async () => {
-          try {
-            const count = await library.emptyTrash(libraryId);
-            notify({ text: t("library.trashEmptied", { count }) });
-          } finally {
-            await refreshGuides(libraryId);
-          }
-        });
-      return;
-    }
-    setConfirming({
-      title: t("library.emptyTrashTitle"),
-      body: t("library.emptyTrashBody", { count: trash.length }),
-      confirmLabel: t("library.emptyTrash"),
-      run: () =>
-        run(async () => {
-          try {
-            const count = await library.emptyTrash(libraryId);
-            notify({ text: t("library.trashEmptied", { count }) });
-          } finally {
-            // Some may have gone even if one couldn't: the list shows what's left.
-            await refreshGuides(libraryId);
-          }
-        }),
-    });
-  };
-
   /** A guide being renamed from its card in the library. */
   const [renaming, setRenaming] = useState<{ ref: GuideRef; title: string } | null>(null);
   /** Rename from a card: under the guide's edit lock, as any change to it is. */
@@ -577,34 +362,6 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
         notify({ text: t("library.renamed", { title }) });
       }),
     );
-  };
-
-  /** Lock…, or Remove lock… and Change password…, by whether the guide is locked. */
-  const lockEntries = (ref: GuideRef, title: string): MenuEntry[] => {
-    if (!locks) return [];
-    const summary = guides.find((guide) => guide.id === ref.guideId);
-    if (summary?.locked)
-      return [
-        {
-          label: t("locks.removeLock"),
-          icon: "lock",
-          onSelect: () => void removeLock(ref, title),
-        },
-        {
-          label: t("locks.changePassword"),
-          icon: "lock",
-          onSelect: () => void changePassword(ref, title),
-        },
-      ];
-    return policy().disableGuideLocks
-      ? []
-      : [
-          {
-            label: t("locks.lock"),
-            icon: "lock",
-            onSelect: () => void lockGuides([{ ref, title }]),
-          },
-        ];
   };
 
   const guideMenu = (ref: GuideRef, title: string, flush?: () => Promise<void>): MenuEntry[] => {
@@ -706,20 +463,7 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
             applyBlurPermanently(ref, title, flush),
           ),
       },
-      ...lockEntries(ref, title),
-      {
-        label: t("locks.properties"),
-        icon: "info",
-        onSelect: () => void showProperties(id, guideId),
-      },
-      "divider",
-      {
-        label: t("library.toTrash"),
-        icon: "trash",
-        danger: true,
-        onSelect: () =>
-          void withPassword(ref, title, t("locks.toBin"), () => trashGuide(ref, title)),
-      },
+      ...guideEntries(ref, title),
     ];
   };
 
@@ -835,16 +579,8 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
               ? libraryName
               : t("nav.allGuides");
 
-  // Stable across renders: the editor re-reads a screenshot's text, and every library card its
-  // thumbnail, whenever these change, and App re-renders on every toast and recorder fact.
-  const readText = useMemo(
-    () =>
-      recorder
-        ? (image: Uint8Array, blurred?: { x: number; y: number; w: number; h: number }[]) =>
-            recorder.readText(image, blurred)
-        : undefined,
-    [recorder],
-  );
+  // Stable across renders: every library card loads its thumbnail again whenever this changes, and
+  // App re-renders on every toast and recorder fact.
   const loadThumbnail = useCallback(
     (guide: { id: string; thumbnailMediaId: string | null }) =>
       library && libraryId && guide.thumbnailMediaId
@@ -896,8 +632,7 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
     return (
       <>
         <Welcome
-          browser={isBrowserEdition(recorder)}
-          linux={isLinux(recorder)}
+          capabilities={recorder.capabilities}
           defaultFolder={preferences.libraryFolder}
           pickFolder={library ? () => library.pickFolder(t("settings.libraries.pickTitle")) : null}
           managed={isManaged()}
@@ -931,7 +666,7 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
               guideCount={guides.length}
               reviewCount={guides.filter(needsReview).length}
               lockedCount={guides.filter((guide) => guide.locked).length}
-              canRecord={Boolean(recorder) && !recording && !hasPending && !busy && !fatal}
+              canRecord={Boolean(recorder) && !recording && !busy && !fatal}
               recordHint={recordHint}
               recordingControls={
                 recorder && (snapshot.state === "recording" || snapshot.state === "paused")
@@ -967,22 +702,7 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
             )}
 
             {route.screen === "library" && route.view.kind === "trash" && (
-              <TrashView
-                trash={trash}
-                busy={busy}
-                onDeleteForGood={deleteForGood}
-                onEmpty={emptyTrash}
-                onRestore={(entry) =>
-                  libraryId &&
-                  void run(
-                    async () => {
-                      await library?.restoreGuide(libraryId, entry.trashId);
-                      await refreshGuides(libraryId);
-                    },
-                    t("library.restored", { title: entry.title }),
-                  )
-                }
-              />
+              <TrashView trash={trash} busy={busy} {...bin} />
             )}
 
             {route.screen === "library" && route.view.kind !== "trash" && (
@@ -1020,38 +740,7 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
                         onMove: (chosen, to) => void bulk.move(chosen, to),
                         onCopy: (chosen, to) => void bulk.copy(chosen, to),
                         onTrash: (chosen) => void bulk.trash(chosen),
-                        ...(locks
-                          ? {
-                              ...(policy().disableGuideLocks
-                                ? {}
-                                : {
-                                    onLock: (chosen: LibraryGuideSummary[]) =>
-                                      void lockGuides(
-                                        chosen
-                                          .filter((guide) => !guide.locked)
-                                          .map((guide) => ({
-                                            ref: { libraryId, guideId: guide.id },
-                                            title: guide.title,
-                                          })),
-                                      ),
-                                  }),
-                              onRemoveLock: (chosen: LibraryGuideSummary[]) =>
-                                void removeLocks(
-                                  chosen.flatMap((guide) =>
-                                    guide.locked
-                                      ? [
-                                          {
-                                            libraryId,
-                                            guideId: guide.id,
-                                            title: guide.title,
-                                            locked: guide.locked,
-                                          },
-                                        ]
-                                      : [],
-                                  ),
-                                ),
-                            }
-                          : {}),
+                        ...bulkLocks,
                         onMerge: (chosen) =>
                           setMerging(chosen.map((guide) => ({ libraryId, guide }))),
                         exportMenu: (chosen) =>
@@ -1109,7 +798,7 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
                 store={editorStore}
                 author={author}
                 mode={editorTarget.kind === "draft" ? "draft" : "saved"}
-                readText={readText}
+                textReader={recorder}
                 sharedLibrary={
                   editorTarget.kind === "guide" &&
                   libraries.some(
@@ -1239,11 +928,12 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
             {route.screen === "settings" && (
               <SettingsView
                 recorder={recorder}
+                capabilities={recorder.capabilities}
                 library={library}
                 section={route.section}
                 onSection={(section) => setRoute({ screen: "settings", section })}
                 onBack={() => setRoute({ screen: "library", view: { kind: "all" } })}
-                locked={recording || hasPending}
+                locked={recording}
                 displayName={author}
                 onDisplayName={settings.saveName}
                 autoStart={autoStart}
@@ -1334,20 +1024,6 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
               title={t("app.alreadyOpenTitle")}
               body={t("app.alreadyOpenBody")}
               onClose={() => setAlreadyOpen(false)}
-            />
-          )}
-
-          {confirming && (
-            <ConfirmDialog
-              title={confirming.title}
-              body={confirming.body}
-              confirmLabel={confirming.confirmLabel}
-              onCancel={() => setConfirming(null)}
-              onConfirm={() => {
-                const { run: confirmed } = confirming;
-                setConfirming(null);
-                void confirmed();
-              }}
             />
           )}
 

@@ -31,6 +31,13 @@ const layout: Measure = {
   },
 };
 
+/**
+ * A clock that never moves, so only the test about the time budget can run out of it. With the
+ * real clock, a worker paused for more than the budget (by a busy machine, or garbage collection)
+ * stopped reading part-way and the test saw too few words.
+ */
+const still = () => 0;
+
 beforeEach(() => {
   document.body.innerHTML = "";
 });
@@ -38,7 +45,7 @@ beforeEach(() => {
 describe("the page's own text", () => {
   it("gives each visible word its place, in lines, as percentages of the view", () => {
     document.body.innerHTML = `<p data-top="100" data-left="50">Email sam@example.com</p>`;
-    const lines = pageText(document, viewport, layout);
+    const lines = pageText(document, viewport, layout, still);
     expect(lines).toEqual([
       {
         words: [
@@ -53,7 +60,7 @@ describe("the page's own text", () => {
 
   it("starts a new line where text wraps", () => {
     document.body.innerHTML = `<p data-top="0" data-wrap="6">Hello there world</p>`;
-    expect(pageText(document, viewport, layout).map((line) => line.words.length)).toEqual([
+    expect(pageText(document, viewport, layout, still).map((line) => line.words.length)).toEqual([
       1, 1, 1,
     ]);
   });
@@ -66,7 +73,7 @@ describe("the page's own text", () => {
       <textarea data-top="10">typed notes</textarea>
       <select data-top="10"><option>Choice</option></select>
       <p data-top="10">Shown</p>`;
-    const words = pageText(document, viewport, layout).flatMap((line) =>
+    const words = pageText(document, viewport, layout, still).flatMap((line) =>
       line.words.map((word) => word.text),
     );
     expect(words).toEqual(["Shown"]);
@@ -76,13 +83,13 @@ describe("the page's own text", () => {
     document.body.innerHTML = `
       <div contenteditable="true" data-top="10"><p data-top="10">Dear Sam</p></div>
       <p data-top="40">To: Sam</p>`;
-    const words = pageText(document, viewport, layout).flatMap((line) =>
+    const words = pageText(document, viewport, layout, still).flatMap((line) =>
       line.words.map((word) => word.text),
     );
     expect(words).toEqual(["To:", "Sam"]);
     document.designMode = "on";
     try {
-      expect(pageText(document, viewport, layout)).toEqual([]);
+      expect(pageText(document, viewport, layout, still)).toEqual([]);
     } finally {
       document.designMode = "off";
     }
@@ -94,7 +101,7 @@ describe("the page's own text", () => {
     const count = (lines: ReturnType<typeof pageText>) =>
       lines.reduce((total, line) => total + line.words.length, 0);
     // Wrapped rows past the view's height are off screen, so only the first rows count.
-    expect(count(pageText(document, { width: 1000, height: 100_000 }, layout))).toBe(
+    expect(count(pageText(document, { width: 1000, height: 100_000 }, layout, still))).toBe(
       TEXT_LIMITS.words,
     );
     // Out of time: nothing more is read.

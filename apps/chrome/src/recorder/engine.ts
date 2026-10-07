@@ -3,6 +3,7 @@ import {
   siteExcluded,
   type OcrLine,
   type RecordingFact,
+  type RecordingSettings,
   type StepTarget,
 } from "@amluto-steps/core";
 
@@ -52,6 +53,8 @@ interface Stored {
 
 /** What a recording starts with, besides its title. */
 export interface StartChoices {
+  /** The settings its steps are built with, kept with it in the journal. */
+  settings?: RecordingSettings;
   keys: boolean;
   excluded: string[];
   sensitive: string[];
@@ -231,7 +234,10 @@ export function createEngine(deps: EngineDeps) {
   return {
     getState: async () => snapshot(await current()),
 
-    start: (title: string, { keys, excluded, sensitive, original = false }: StartChoices) =>
+    start: (
+      title: string,
+      { settings, keys, excluded, sensitive, original = false }: StartChoices,
+    ) =>
       serial(async () => {
         const value = await current();
         if (value.state !== "idle") return snapshot(value);
@@ -243,6 +249,7 @@ export function createEngine(deps: EngineDeps) {
           startedAt: deps.now(),
           stopped: false,
           restartAfter: null,
+          ...(settings ? { settings } : {}),
         });
         await deps.capturing(true);
         const next: Stored = {
@@ -344,9 +351,9 @@ export function createEngine(deps: EngineDeps) {
             taken.width,
             taken.height,
           );
-          // Suggestions only: a screenshot is kept whether or not its words are.
-          if (pointer.text?.length)
-            await deps.keepText(taken.image, pointer.text).catch(() => undefined);
+          // Suggestions only: a screenshot is kept whether or not its words are. A page with no
+          // words keeps that it had none: nothing kept reads as unavailable, never checked.
+          if (pointer.text) await deps.keepText(taken.image, pointer.text).catch(() => undefined);
           shot = {
             tabId: facts.tabId,
             at: now,

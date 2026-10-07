@@ -1,7 +1,25 @@
 import { describe, expect, it } from "vitest";
 
+import shared from "../../test-vectors/click-naming.json";
 import type { UiaElementFacts } from "./types.ts";
-import { describeClick, describeInput, uiaToStepTarget } from "./uia-adapter.ts";
+import { clickPhrase, nameClick, NAMING_SOURCES } from "./click-naming.ts";
+import { ELEMENT_KINDS, renderPhrase } from "./phrase.ts";
+import {
+  describeInput,
+  FRAMEWORK_NAMES,
+  LIGHT_DISMISS_IDS,
+  readableFacts,
+  uiaToStepTarget,
+} from "./uia-adapter.ts";
+
+/** A desktop click's English words and whether it's flagged, as a recorded step has them. */
+const describeClick = (element: UiaElementFacts | null, title: string) => {
+  const naming = nameClick({ element, window: { title, exe: null } });
+  return {
+    text: renderPhrase(clickPhrase(naming), "en", "casual"),
+    unnamed: naming.needsReview,
+  };
+};
 
 const facts = (overrides: Partial<UiaElementFacts>): UiaElementFacts => ({
   controlType: "Pane",
@@ -15,7 +33,7 @@ const facts = (overrides: Partial<UiaElementFacts>): UiaElementFacts => ({
   frameworkId: "Chrome",
   isPassword: false,
   labeledBy: null,
-  parent: null,
+  ancestors: [],
   sensitive: false,
   ...overrides,
 });
@@ -58,7 +76,7 @@ describe("uiaToStepTarget", () => {
       facts({
         controlType: "Text",
         name: "Save",
-        parent: { controlType: "Button", name: "Save changes" },
+        ancestors: [{ controlType: "Button", name: "Save changes" }],
       }),
     );
     expect(target).toEqual({ tagName: "BUTTON", innerText: "Save changes" });
@@ -68,7 +86,7 @@ describe("uiaToStepTarget", () => {
     const inside = facts({
       controlType: "Group",
       className: "sg-nav-list-item__content",
-      parent: { controlType: "ListItem", name: "Forwarders" },
+      ancestors: [{ controlType: "ListItem", name: "Forwarders" }],
     });
     expect(describeClick(inside, "Site Tools").text).toBe('Click "Forwarders"');
     // A named part keeps its own name, and a field stays a field.
@@ -82,7 +100,7 @@ describe("uiaToStepTarget", () => {
       name: "Date modified",
       frameworkId: "DirectUI",
       className: "UIProperty",
-      parent: { controlType: "ListItem", name: "Q3 report.txt" },
+      ancestors: [{ controlType: "ListItem", name: "Q3 report.txt" }],
     });
     expect(describeClick(cell, "amluto-proto-files").text).toBe('Click "Q3 report.txt"');
   });
@@ -92,14 +110,18 @@ describe("uiaToStepTarget", () => {
       controlType: "Edit",
       name: "Quantity",
       frameworkId: "Chrome",
-      parent: { controlType: "ListItem", name: "Widgets" },
+      ancestors: [{ controlType: "ListItem", name: "Widgets" }],
     });
     expect(describeClick(field, "Shop").text).toBe('Click "Quantity" field');
   });
 
   it("keeps plain text as text", () => {
     const target = uiaToStepTarget(
-      facts({ controlType: "Text", name: "Welcome", parent: { controlType: "Group", name: "" } }),
+      facts({
+        controlType: "Text",
+        name: "Welcome",
+        ancestors: [{ controlType: "Group", name: "" }],
+      }),
     );
     expect(target).toEqual({ tagName: "DIV", innerText: "Welcome", role: undefined });
   });
@@ -111,7 +133,7 @@ describe("uiaToStepTarget", () => {
   });
 });
 
-describe("describeClick", () => {
+describe("desktop clicks named and worded", () => {
   it("produces the old wording for common controls", () => {
     expect(describeClick(facts({ controlType: "Button", name: "Save" }), "App").text).toBe(
       'Click "Save"',
@@ -158,5 +180,30 @@ describe("describeInput", () => {
     expect(
       describeInput(facts({ controlType: "Edit", name: "Password", isPassword: true }), undefined),
     ).toBe('Type in "Password" field');
+  });
+});
+
+describe("the naming facts the Windows recorder shares (test-vectors/click-naming.json)", () => {
+  it("allows the same element kinds and naming sources as the desktop's guide files", () => {
+    expect(ELEMENT_KINDS).toEqual(shared.elementKinds);
+    expect(NAMING_SOURCES).toEqual(shared.namingSources);
+  });
+
+  it("knows the same framework names and light-dismiss layer as the recorder", () => {
+    expect(FRAMEWORK_NAMES).toEqual(shared.frameworkNames);
+    expect(LIGHT_DISMISS_IDS).toEqual(shared.lightDismissAutomationIds);
+  });
+
+  it.each(shared.frameworkNameCases.map((entry) => [entry.name, entry] as const))(
+    "takes a framework's name off, and only that (%j)",
+    (_, { name, className, framework }) => {
+      const read = readableFacts(facts({ name, className }));
+      expect(read.name).toBe(framework ? "" : name);
+    },
+  );
+
+  it("takes the light-dismiss layer's name off", () => {
+    for (const automationId of shared.lightDismissAutomationIds)
+      expect(readableFacts(facts({ name: "Close", automationId })).name).toBe("");
   });
 });

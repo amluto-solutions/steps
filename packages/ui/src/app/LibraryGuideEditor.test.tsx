@@ -6,6 +6,7 @@ import { expectNoSeriousAxeViolations } from "../../test/axe";
 import type { GuideStore } from "../editor/useGuideEditor";
 import { initI18n } from "../i18n";
 import type { EditLock, LibraryBridge } from "../library-bridge";
+import { fakeLibrary } from "../library-fake";
 import { toDoc } from "./documents";
 import { LibraryGuideEditor } from "./LibraryGuideEditor";
 
@@ -38,26 +39,18 @@ const sam: EditLock = {
   since: "2026-09-29T09:32:00.000Z",
 };
 
-function makeLibrary(overrides: Partial<Record<keyof LibraryBridge, unknown>> = {}) {
-  return {
-    openForEditing: vi.fn().mockResolvedValue({ kind: "editing" }),
-    releaseLock: vi.fn().mockResolvedValue(undefined),
-    fingerprint: vi.fn().mockResolvedValue("same"),
-    guideFingerprint: vi.fn().mockResolvedValue("same"),
-    listConflicts: vi.fn().mockResolvedValue([]),
-    resolveConflict: vi.fn().mockResolvedValue(undefined),
-    listComments: vi.fn().mockResolvedValue([]),
-    addComment: vi.fn().mockResolvedValue("c9"),
-    resolveComment: vi.fn().mockResolvedValue(undefined),
-    deleteComment: vi.fn().mockResolvedValue(undefined),
-    onLockLost: vi.fn().mockResolvedValue(() => undefined),
-    listDrafts: vi.fn().mockResolvedValue([]),
-    saveDraft: vi.fn().mockResolvedValue(undefined),
-    discardDraft: vi.fn().mockResolvedValue(undefined),
-    draftToCopy: vi.fn(),
-    loadGuide: vi.fn().mockResolvedValue(raw),
-    ...overrides,
-  } as unknown as LibraryBridge;
+/**
+ * The UI package's fake library holding the guide, with every method spied on. `stored` is the
+ * guide as the fake keeps it, for a test to put someone else's lock, drafts, conflicts or
+ * comments on.
+ */
+function makeLibrary() {
+  const library = fakeLibrary({ libraries: [{ id: "lib", name: "Payroll", guides: [raw] }] });
+  for (const name of Object.keys(library) as (keyof LibraryBridge)[])
+    if (typeof library[name] === "function") vi.spyOn(library, name);
+  const stored = library.data.libraries.get("lib")?.guides.get("g1");
+  if (!stored) throw new Error("the guide isn't in the fake library");
+  return { library, stored };
 }
 
 const store: GuideStore = {
@@ -88,11 +81,8 @@ function show(library: LibraryBridge, onOpenGuide = vi.fn()) {
 
 describe("a guide in a shared library", () => {
   it("opens read-only while someone else is editing, and takes over only when confirmed", async () => {
-    const library = makeLibrary({
-      openForEditing: vi.fn((_lib: string, _guide: string, takeOver: boolean) =>
-        Promise.resolve(takeOver ? { kind: "editing" } : { kind: "readOnly", lock: sam }),
-      ),
-    });
+    const { library, stored } = makeLibrary();
+    stored.editor = sam;
     const { container } = show(library);
     expect(await screen.findByText(/Sam is editing this guide/)).toBeTruthy();
     await expectNoSeriousAxeViolations(container);
@@ -107,7 +97,7 @@ describe("a guide in a shared library", () => {
   });
 
   it("lets go of the lock when the editor closes", async () => {
-    const library = makeLibrary();
+    const { library } = makeLibrary();
     const { unmount } = show(library);
     await waitFor(() => expect(library.openForEditing).toHaveBeenCalledWith("lib", "g1", false));
     unmount();
@@ -116,21 +106,23 @@ describe("a guide in a shared library", () => {
 
   it("offers a displaced editor's draft, and opens it as a copy", async () => {
     const onOpenGuide = vi.fn();
-    const copy = { id: "g2", title: "Payroll run (Robin's changes)" };
-    const library = makeLibrary({
-      listDrafts: vi
-        .fn()
-        .mockResolvedValueOnce([
-          { id: "s1", by: "Robin", at: "2026-09-29T10:45:00.000Z", stepCount: 3 },
-        ])
-        .mockResolvedValue([]),
-      draftToCopy: vi.fn().mockResolvedValue(copy),
-    });
+    const { library, stored } = makeLibrary();
+    const step = (id: string) => ({ id, sortKey: id, actionText: `Click ${id}` });
+    stored.drafts = [
+      {
+        info: { id: "s1", by: "Robin", at: "2026-09-29T10:45:00.000Z", stepCount: 3 },
+        document: { guide: guideFile, steps: [step("a1"), step("a2"), step("a3")] },
+      },
+    ];
     show(library, onOpenGuide);
     expect(await screen.findByText(/Unsaved changes by Robin from 29\/09\/2026/)).toBeTruthy();
     expect(screen.getByText(/\(3 steps\)/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Open as a copy" }));
-    await waitFor(() => expect(onOpenGuide).toHaveBeenCalledWith(copy));
+    await waitFor(() =>
+      expect(onOpenGuide).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Payroll run (Robin's changes)", stepCount: 3 }),
+      ),
+    );
     expect(library.draftToCopy).toHaveBeenCalledWith(
       "lib",
       "g1",
@@ -140,21 +132,17 @@ describe("a guide in a shared library", () => {
   });
 
   it("shows both versions of a step saved in two places, and keeps the one chosen", async () => {
-    const library = makeLibrary({
-      listConflicts: vi
-        .fn()
-        .mockResolvedValueOnce([
-          {
-            kind: "step",
-            file: "s1-SAMS-PC.json",
-            id: "s1",
-            from: "SAMS-PC",
-            ours: { actionText: 'Click "Run"', updatedBy: "Robin" },
-            theirs: { actionText: 'Click "Run payroll"', updatedBy: "Sam" },
-          },
-        ])
-        .mockResolvedValue([]),
-    });
+    const { library, stored } = makeLibrary();
+    stored.conflicts = [
+      {
+        kind: "step",
+        file: "s1-SAMS-PC.json",
+        id: "s1",
+        from: "SAMS-PC",
+        ours: { actionText: 'Click "Run"', updatedBy: "Robin" },
+        theirs: { actionText: 'Click "Run payroll"', updatedBy: "Sam" },
+      },
+    ];
     show(library);
     expect(
       await screen.findByText(/changed in two places at once \(one copy from SAMS-PC\)/),
@@ -173,16 +161,15 @@ describe("a guide in a shared library", () => {
   });
 
   it("says who deleted a step that came back, and deletes it again only when asked", async () => {
-    const library = makeLibrary({
-      listConflicts: vi.fn().mockResolvedValue([
-        {
-          kind: "restored",
-          id: "s1",
-          deletedBy: "Robin",
-          step: { actionText: "Click Send", updatedBy: "Sam" },
-        },
-      ]),
-    });
+    const { library, stored } = makeLibrary();
+    stored.conflicts = [
+      {
+        kind: "restored",
+        id: "s1",
+        deletedBy: "Robin",
+        step: { actionText: "Click Send", updatedBy: "Sam" },
+      },
+    ];
     show(library);
     expect(
       await screen.findByText(
@@ -196,19 +183,8 @@ describe("a guide in a shared library", () => {
   });
 
   it("adds a comment about the whole guide, and shows it once saved", async () => {
-    const thread = {
-      id: "c1",
-      text: "Step 4 changed after the October update",
-      by: "Robin",
-      at: "2026-09-29T10:00:00.000Z",
-      mine: true,
-      stepId: null,
-      replies: [],
-      resolved: null,
-    };
-    const library = makeLibrary({
-      listComments: vi.fn().mockResolvedValueOnce([]).mockResolvedValue([thread]),
-    });
+    const thread = { text: "Step 4 changed after the October update" };
+    const { library } = makeLibrary();
     const { container } = show(library);
     fireEvent.click(await screen.findByRole("button", { name: "Comments" }));
     const panel = screen.getByRole("complementary", { name: "Review comments" });
@@ -228,26 +204,18 @@ describe("a guide in a shared library", () => {
   });
 
   it("replies to and resolves someone else's thread; resolved threads are tucked away", async () => {
-    const thread = {
-      id: "c1",
-      text: "Is this still right?",
-      by: "Sam",
-      at: "2026-09-29T10:00:00.000Z",
-      mine: false,
-      stepId: null,
-      replies: [],
-      resolved: null,
-    };
-    const library = makeLibrary({
-      listComments: vi
-        .fn()
-        // On opening, then after the reply; then resolved.
-        .mockResolvedValueOnce([thread])
-        .mockResolvedValueOnce([thread])
-        .mockResolvedValue([
-          { ...thread, resolved: { by: "Robin", at: "2026-09-29T11:00:00.000Z" } },
-        ]),
-    });
+    const { library, stored } = makeLibrary();
+    stored.comments = [
+      {
+        id: "c1",
+        text: "Is this still right?",
+        by: "Sam",
+        at: "2026-09-29T10:00:00.000Z",
+        stepId: null,
+        replyTo: null,
+        resolved: null,
+      },
+    ];
     show(library);
     fireEvent.click(await screen.findByRole("button", { name: /Comments/ }));
     const panel = screen.getByRole("complementary", { name: "Review comments" });
@@ -273,9 +241,8 @@ describe("a guide in a shared library", () => {
   });
 
   it("takes comments on a guide someone else is editing", async () => {
-    const library = makeLibrary({
-      openForEditing: vi.fn().mockResolvedValue({ kind: "readOnly", lock: sam }),
-    });
+    const { library, stored } = makeLibrary();
+    stored.editor = sam;
     show(library);
     expect(await screen.findByText(/Sam is editing this guide/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Comments" }));
@@ -289,7 +256,7 @@ describe("a guide in a shared library", () => {
   });
 
   it("moves focus into the comments panel and back out with Escape", async () => {
-    show(makeLibrary());
+    show(makeLibrary().library);
     const button = await screen.findByRole("button", { name: "Comments" });
     fireEvent.click(button);
     const box = screen.getByRole("textbox", { name: "New comment" });

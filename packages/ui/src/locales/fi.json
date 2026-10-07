@@ -28,7 +28,6 @@
     "settings": "Asetukset",
     "guides": "Ohjeet",
     "recordingNow": "Nauhoitus on käynnissä",
-    "saveFirst": "Tallenna tai hylkää ensin viimeisin nauhoitus",
     "needsReview": "Tarkistettavat"
   },
   "dates": {
@@ -258,8 +257,8 @@
     "drawing": "Valmistellaan…",
     "checklist": "Tarkistuslista",
     "personalData": "Tarkista jokainen näyttökuva henkilötietojen varalta ennen jakamista. Automaattiset ehdotukset voivat jättää jotain huomaamatta.",
-    "flagged_one": "{{count}} vaihe pitää tarkistaa: nimeämätön napsautus, ohitettuja napsautuksia, kirjoitus, joka ei ehkä täsmää, tai tarkistettava näyttökuva.",
-    "flagged_other": "{{count}} vaihetta pitää tarkistaa: nimeämättömiä napsautuksia, ohitettuja napsautuksia, kirjoitusta, joka ei ehkä täsmää, tai tarkistettavia näyttökuvia.",
+    "flagged_one": "{{count}} vaihe pitää tarkistaa: nimeämätön napsautus, näyttökuvasta luettu nimi, ohitettuja napsautuksia, kirjoitus, joka ei ehkä täsmää, tai tarkistettava näyttökuva.",
+    "flagged_other": "{{count}} vaihetta pitää tarkistaa: nimeämättömiä napsautuksia, näyttökuvista luettuja nimiä, ohitettuja napsautuksia, kirjoitusta, joka ei ehkä täsmää, tai tarkistettavia näyttökuvia.",
     "noFlagged": "Yhtään vaihetta ei ole merkitty tarkistettavaksi.",
     "stepNumber": "Vaihe {{number}}",
     "quickEdit": {
@@ -502,6 +501,7 @@
     "reviewRequired": "Tarkista tämä vaihe: nauhoitus ei tunnistanut napsautettua kohdetta, osa napsautuksista jäi tallentamatta, kirjoitus ei ehkä täsmää tai salaisuutta ei löytynyt näyttökuvasta sumennettavaksi.",
     "review": {
       "unnamed": "Tarkista tämä vaihe: nauhoitus ei tunnistanut napsautettua kohdetta. Kirjoita, mikä se oli, tai valitse ”Näyttää oikealta”.",
+      "checkName": "Tarkista tämä nimi: se luettiin näyttökuvasta.",
       "missed": "Tarkista tämä vaihe: osa napsautuksista jäi tässä tallentamatta.",
       "typing": "Tarkista tämä vaihe: kirjoitus ei ehkä täsmää.",
       "code": "Tarkista tämä vaihe: salaisuutta ei löytynyt näyttökuvasta sumennettavaksi, tai teksti ei ehkä täsmää.",
@@ -791,6 +791,7 @@
       "managed": "Organisaatiosi hallitsee näitä asetuksia, joten tuonti on poistettu käytöstä.",
       "tour": "Näytä esittely",
       "tourHelp": "Lyhyt esittely pääikkunasta, kun ikkunan leveys on vähintään 1024 pikseliä.",
+      "tourNarrow": "Lyhyt esittely pääikkunasta. Tämä ikkuna on siihen liian kapea: tee ikkunasta vähintään 1024 pikselin levyinen, niin esittely tulee näkyviin.",
       "tourStartAgain": "Aloita alusta",
       "tourContinue": "Jatka esittelyä ({{progress}})"
     },
@@ -1240,6 +1241,7 @@
   "privacy": {
     "intro": "Steps lukee näyttökuviesi tekstin tällä tietokoneella (Windowsin omalla offline-tekstintunnistuksella) ja ehdottaa sen perusteella, mitä kannattaa sumentaa. Mitään ei lähetetä minnekään.",
     "introLinux": "Steps lukee näyttökuviesi tekstin tällä tietokoneella (Tesseractilla, jos se on asennettu) ja ehdottaa sen perusteella, mitä kannattaa sumentaa. Mitään ei lähetetä minnekään.",
+    "introPage": "Steps lukee tallentamiesi sivujen tekstin sellaisena kuin selain sen näyttää ja ehdottaa sen perusteella, mitä kannattaa sumentaa. Mitään ei lähetetä minnekään.",
     "strength": "Sumennusehdotukset",
     "strengths": {
       "light": "Kevyt",

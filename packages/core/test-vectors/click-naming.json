@@ -1,0 +1,51 @@
+{
+  "_comment": "What Rust and TypeScript must agree on about a click's naming (docs/spec/02-capture.md#click-naming). elementKinds and namingSources are the values a stored naming may hold (packages/core/src/step-text, crates/library/src/schema.rs). frameworkNames are a UI framework's own names for its hosts, compared without anything but letters, digits and underscores and without case; lightDismissAutomationIds mark the invisible layer a XAML menu lays over its window. The TypeScript naming takes both off an element's facts (uia-adapter.ts readableFacts); the Windows recorder uses them to decide when to walk down to the element under the click (crates/capture/src/uia.rs). frameworkNameCases are names with the class name beside them, and whether they are a framework's.",
+  "elementKinds": [
+    "button",
+    "link",
+    "menuItem",
+    "tab",
+    "field",
+    "namedField",
+    "textArea",
+    "checkbox",
+    "radio",
+    "dropdown",
+    "switch",
+    "picture",
+    "listItem",
+    "other"
+  ],
+  "namingSources": ["element", "ancestor", "page", "taskbar", "screen", "window"],
+  "frameworkNames": [
+    "popuphost",
+    "desktopwindowxamlsource",
+    "xamlexplorerhostislandwindow",
+    "chrome_widgetwin_0",
+    "chrome_widgetwin_1",
+    "chromelegacywindow",
+    "intermediated3dwindow",
+    "windowsuicorecorewindow"
+  ],
+  "lightDismissAutomationIds": ["Light Dismiss"],
+  "frameworkNameCases": [
+    { "name": "PopupHost", "className": "", "framework": true },
+    { "name": "Pop-upHost", "className": "", "framework": true },
+    { "name": "DesktopWindowXamlSource", "className": "", "framework": true },
+    { "name": "Intermediate D3D Window", "className": "", "framework": true },
+    { "name": "Windows.UI.Core.CoreWindow", "className": "", "framework": true },
+    {
+      "name": "Chrome_RenderWidgetHostHWND",
+      "className": "Chrome_RenderWidgetHostHWND",
+      "framework": true
+    },
+    {
+      "name": "Chrome Legacy Window",
+      "className": "Chrome_RenderWidgetHostHWND",
+      "framework": true
+    },
+    { "name": "Save", "className": "Button", "framework": false },
+    { "name": "Notepad", "className": "Notepad", "framework": false },
+    { "name": "", "className": "", "framework": false }
+  ]
+}

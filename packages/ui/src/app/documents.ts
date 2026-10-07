@@ -1,39 +1,16 @@
 import {
   ENGLISH,
-  compareSortKeys,
   parseGuide,
   parseStep,
   type Guide,
   type GuideStep,
-  type RecordedStep,
   type StepWording,
 } from "@amluto-steps/core";
 
 import type { EditorDoc } from "../editor/document";
 import { sortSteps } from "../editor/document";
-import { captureSequenceOf } from "../recorded-step";
 
-/** A guide in a library: the two ids always travel together. */
-export interface GuideRef {
-  libraryId: string;
-  guideId: string;
-}
-
-/** Steps from several sources (recovered facts, saved steps, live ones), once each, in order. */
-export const mergeRecordedSteps = (...groups: RecordedStep[][]): RecordedStep[] => {
-  const byId = new Map<string, RecordedStep>();
-  for (const group of groups) for (const step of group) byId.set(step.id, step);
-  return [...byId.values()].sort(
-    (left, right) =>
-      compareSortKeys(left.sortKey, right.sortKey) || compareSortKeys(left.id, right.id),
-  );
-};
-
-/** The steps "Start again" kept: those captured after the restart point. */
-export const afterRestart = <T extends { id: string }>(steps: T[], restart: number | null) =>
-  restart === null
-    ? steps
-    : steps.filter((step) => (captureSequenceOf(step.id) ?? Number.MAX_SAFE_INTEGER) > restart);
+export type { GuideRef } from "../library-bridge";
 
 /** Reads a guide and its steps, leaving out step files that fail the schema (logged, not fatal). */
 export function toDoc(raw: { guide: unknown; steps: unknown[] }): EditorDoc {

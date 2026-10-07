@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { OcrLine } from "@amluto-steps/core";
 
+import { screenWords } from "../screen-words";
+import { fakeScreenshot, fakeTextReader } from "../bridge/screen-words-fake";
 import { blankStep } from "./edits";
 import {
   asRedactions,
@@ -10,6 +12,7 @@ import {
   notPersonalEdit,
   openFindings,
 } from "./suggestions";
+import type { FindingSettings } from "../settings/preferences";
 
 const lines: OcrLine[] = [
   { words: [{ text: "jane@acme.com", x: 10, y: 10, w: 20, h: 2 }] },
@@ -21,10 +24,12 @@ const lines: OcrLine[] = [
   },
 ];
 const step = blankStep("s", { at: 0, by: "Robin" });
+/** Settings > Privacy as a value: Standard, nothing marked never to suggest. */
+const standard = { strength: "standard", safe: [] } as const satisfies FindingSettings;
 
 describe("marking suggestions not personal", () => {
   it("stops them being suggested on that step, as one edit that can be undone", () => {
-    const [email] = openFindings(step, lines, []);
+    const [email] = openFindings(step, lines, [], standard);
     if (!email) throw new Error("no finding");
     const doc = { guide: {} as never, steps: [step] };
     const made = notPersonalEdit("s", [email], "mark not personal")(doc, { at: 5, by: "Jo" });
@@ -33,9 +38,9 @@ describe("marking suggestions not personal", () => {
       { x: email.rect.x, y: email.rect.y, w: email.rect.w, h: email.rect.h },
     ]);
     expect(after?.updatedBy).toBe("Jo");
-    expect(openFindings(after ?? step, lines, []).map((finding) => finding.kind)).toEqual([
-      "phone",
-    ]);
+    expect(openFindings(after ?? step, lines, [], standard).map((finding) => finding.kind)).toEqual(
+      ["phone"],
+    );
     expect(notPersonalEdit("s", [], "x")(doc, { at: 5, by: "Jo" })).toBeNull();
     expect(notPersonalEdit("missing", [email], "x")(doc, { at: 5, by: "Jo" })).toBeNull();
   });
@@ -54,7 +59,7 @@ describe("marking suggestions not personal", () => {
       notPersonal: Array.from({ length: 200 }, (_, index) => ({ x: index / 4, y: 0, w: 1, h: 1 })),
     };
     const doc = { guide: {} as never, steps: [full] };
-    const [email] = openFindings(step, lines, []);
+    const [email] = openFindings(step, lines, [], standard);
     if (!email) throw new Error("no finding");
     const made = notPersonalEdit("s", [email], "x")(doc, { at: 5, by: "Jo" });
     const after = made?.changes[0]?.kind === "step" ? made.changes[0].after : null;
@@ -65,7 +70,7 @@ describe("marking suggestions not personal", () => {
 
 describe("suggested blurs on a step", () => {
   it("offers everything personal that isn't blurred yet", () => {
-    expect(openFindings(step, lines, []).map((finding) => finding.kind)).toEqual([
+    expect(openFindings(step, lines, [], standard).map((finding) => finding.kind)).toEqual([
       "email",
       "phone",
     ]);
@@ -76,20 +81,25 @@ describe("suggested blurs on a step", () => {
       ...step,
       redactions: [{ x: 9, y: 9, w: 22, h: 4, source: "manual" as const }],
     };
-    expect(openFindings(blurred, lines, []).map((finding) => finding.kind)).toEqual(["phone"]);
+    expect(openFindings(blurred, lines, [], standard).map((finding) => finding.kind)).toEqual([
+      "phone",
+    ]);
     const cropped = { ...step, crop: { x: 0, y: 0, w: 50, h: 50, source: "manual" as const } };
-    expect(openFindings(cropped, lines, []).map((finding) => finding.kind)).toEqual(["email"]);
+    expect(openFindings(cropped, lines, [], standard).map((finding) => finding.kind)).toEqual([
+      "email",
+    ]);
   });
 
   it("counts a finding as blurred only when every part of it is covered", () => {
-    const [email] = openFindings(step, lines, []);
+    const [email] = openFindings(step, lines, [], standard);
     if (!email) throw new Error("no finding");
     const { x, y, w, h } = email.rect;
     const withBlurs = (...rects: { x: number; y: number; w: number; h: number }[]) => ({
       ...step,
       redactions: rects.map((rect) => ({ ...rect, source: "manual" as const })),
     });
-    const kinds = (value: typeof step) => openFindings(value, lines, []).map((item) => item.kind);
+    const kinds = (value: typeof step) =>
+      openFindings(value, lines, [], standard).map((item) => item.kind);
     // Most of it, but not all: still open (this used to count at 60%).
     expect(kinds(withBlurs({ x, y, w: w * 0.8, h }))).toContain("email");
     // Two blurs that meet cover it; two with a gap between them don't.
@@ -108,11 +118,11 @@ describe("suggested blurs on a step", () => {
     });
     const steps = [shot("a"), shot("b"), blankStep("no-picture", { at: 0, by: "Robin" })];
     const progress: number[] = [];
-    const { found, unread } = await findOpenInGuide(
-      steps,
-      (item) => (item.id === "b" ? Promise.reject(new Error("no OCR")) : Promise.resolve(lines)),
-      [],
-      (done) => progress.push(done),
+    const words = screenWords(fakeTextReader({ "m-a": lines, "m-b": "unavailable" }), (id) =>
+      Promise.resolve(fakeScreenshot(id)),
+    );
+    const { found, unread } = await findOpenInGuide(steps, words, [], standard, (done) =>
+      progress.push(done),
     );
     expect(found.map((item) => [item.stepId, item.findings.length])).toEqual([["a", 2]]);
     expect(unread).toBe(1);
@@ -125,8 +135,27 @@ describe("suggested blurs on a step", () => {
     expect(made?.changes[0]).toMatchObject({ id: "a", after: { redactions: [{}, {}] } });
   });
 
+  it("looks as hard as the settings it's given say, and never suggests their safe words", () => {
+    const kinds = (settings: FindingSettings) =>
+      openFindings(step, lines, [], settings).map((finding) => finding.kind);
+    expect(kinds(standard)).toEqual(["email", "phone"]);
+    expect(kinds({ strength: "standard", safe: ["acme"] })).toEqual(["phone"]);
+    const address: OcrLine[] = [
+      {
+        words: [
+          { text: "SW1A", x: 10, y: 40, w: 6, h: 2 },
+          { text: "1AA", x: 17, y: 40, w: 4, h: 2 },
+        ],
+      },
+    ];
+    expect(openFindings(step, address, [], standard).map((finding) => finding.kind)).toEqual([
+      "postcode",
+    ]);
+    expect(openFindings(step, address, [], { strength: "light", safe: [] })).toEqual([]);
+  });
+
   it("turns findings into suggested blur areas", () => {
-    const [area] = asRedactions(openFindings(step, lines, []));
+    const [area] = asRedactions(openFindings(step, lines, [], standard));
     expect(area?.source).toBe("suggested");
     expect(area && area.w > 20).toBe(true);
   });

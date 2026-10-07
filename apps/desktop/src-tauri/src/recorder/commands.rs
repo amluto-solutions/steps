@@ -7,7 +7,7 @@ use library::MediaInfo;
 use serde_json::{Value, json};
 use tauri::{AppHandle, Emitter, Manager, State};
 
-use super::recording::StartOptions;
+use super::recording::{RecordingSettings, StartOptions};
 use super::{
     CaptureMonitor, CommandError, GuideDocument, RecorderPreferences, RecorderService,
     RecorderSnapshot, RecoverySession, STEP_EVENT, publish_state, unix_millis,
@@ -416,6 +416,14 @@ pub fn recorder_get_restart_point(
     session_id: String,
 ) -> Result<Option<u64>, CommandError> {
     service.restart_point(&session_id)
+}
+
+#[tauri::command(async, rename_all = "camelCase")]
+pub fn recorder_get_recording_settings(
+    service: State<'_, RecorderService>,
+    session_id: String,
+) -> Result<Option<RecordingSettings>, CommandError> {
+    service.recording_settings(&session_id)
 }
 
 #[tauri::command(async, rename_all = "camelCase")]

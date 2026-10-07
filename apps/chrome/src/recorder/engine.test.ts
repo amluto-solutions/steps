@@ -119,6 +119,18 @@ describe("the Chrome recorder", () => {
     expect((await log.facts(second))[0]?.record).toMatchObject({ value: null, withheld: "off" });
   });
 
+  it("keeps the settings a recording started with in its journal", async () => {
+    const { sessionId } = await engine.start("Settings", {
+      settings: { showUnnamedTyping: true },
+      keys: false,
+      excluded: [],
+      sensitive: [],
+    });
+    expect((await log.session(sessionId as string)).settings).toEqual({
+      showUnnamedTyping: true,
+    });
+  });
+
   it("makes a step of a change of site, not of every page on it", async () => {
     await engine.start("Sites", { keys: false, excluded: [], sensitive: [] });
     await engine.navigated(tab);
@@ -213,6 +225,15 @@ describe("the Chrome recorder", () => {
     await engine.pointer({ ...tab, url: "https://bank.example.test/" }, { ...pointer, text });
     expect(kept).toHaveLength(1);
     expect(kept[0]?.lines).toEqual(text);
+  });
+
+  it("keeps that a page showed no words, apart from a page that sent none", async () => {
+    // No words kept reads as "unavailable" later, which the export review calls not checked.
+    await engine.start("Blank", { keys: false, excluded: [], sensitive: [] });
+    await engine.pointer(tab, { ...pointer, text: [] });
+    clock += 1_000;
+    await engine.pointer(tab, pointer);
+    expect(kept.map((each) => each.lines)).toEqual([[]]);
   });
 
   it("withholds fields the organisation names as secret", async () => {

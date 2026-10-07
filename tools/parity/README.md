@@ -5,10 +5,13 @@ These scripts drive the **real** mouse and keyboard, so keep your hands off whil
 | Script | What it proves |
 |---|---|
 | `run.ps1 -Page fixture` | 21 steps (20 control types and 7 typed fields), scored against the Phase 1 targets |
+| `run.ps1 -Page overlays` | Chrome's hit test on a page that changes as the button goes down: a tab that swaps the page, a menu row with an unnamed inside, a drop-down's choice over tiles, a button that shows a loading screen. Every step must be named for what was clicked |
 | `run.ps1 -Page forms` | privacy: 10 realistic login, payment and settings forms; no secret value is ever recorded |
 | `stress.ps1` | 50 clicks at 50 per second, and a stalled worker with a 16-slot queue; every click is accounted for (recorded, double or reported missed) |
 | `desktop.ps1` | Calculator, Excel (a throwaway CSV) and File Explorer (dummy files) get sensible step names |
 | `../msix/smoke.ps1` | the same parity run with the recorder inside an MSIX package (needs Developer Mode) |
+
+**Before a run:** nothing may cover the main screen. Edge doesn't lay out a window that's behind another one, so its page never reaches UI Automation and the driver stops with "element #amluto-plan not found" (07/10/2026); a script can't bring the window forward itself.
 
 **Common switches:**
 - `-Release`: use optimised builds. Timings only mean something here.

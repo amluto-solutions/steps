@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { isBrowserEdition } from "../recorder-bridge";
 import { isLocked } from "./policy";
 import { isLocalFolder, readExportPreferences, saveExportPreferences } from "./preferences";
 import { Row, Switch } from "./controls";
@@ -24,7 +23,7 @@ export function ExportSection(props: SettingsProps) {
     <>
       <h2 className="mb-3.5 font-heading text-xl text-navy">{t("settings.sections.export")}</h2>
       {/* A browser saves exports to its own downloads folder. */}
-      {!isBrowserEdition(props.recorder) && (
+      {props.capabilities.exportFolder && (
         <Row
           label={t("exportSettings.folder")}
           help={preferences.folder ?? downloads ?? t("exportSettings.downloads")}

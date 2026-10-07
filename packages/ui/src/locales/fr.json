@@ -28,7 +28,6 @@
     "settings": "Paramètres",
     "guides": "Guides",
     "recordingNow": "Un enregistrement est en cours",
-    "saveFirst": "Enregistrez ou abandonnez d'abord votre dernier enregistrement",
     "needsReview": "À revoir"
   },
   "dates": {
@@ -280,9 +279,9 @@
     "drawing": "Préparation…",
     "checklist": "Liste de vérification",
     "personalData": "Vérifiez qu'aucune capture d'écran ne contient de données personnelles avant de la partager. Les suggestions automatiques peuvent en oublier.",
-    "flagged_one": "{{count}} étape à vérifier : un clic sans nom, des clics manqués, une saisie qui ne correspond peut-être pas ou une capture d'écran à contrôler.",
-    "flagged_many": "{{count}} étapes à vérifier : des clics sans nom, des clics manqués, une saisie qui ne correspond peut-être pas ou des captures d'écran à contrôler.",
-    "flagged_other": "{{count}} étapes à vérifier : des clics sans nom, des clics manqués, une saisie qui ne correspond peut-être pas ou des captures d'écran à contrôler.",
+    "flagged_one": "{{count}} étape à vérifier : un clic sans nom, un nom lu sur la capture d'écran, des clics manqués, une saisie qui ne correspond peut-être pas ou une capture d'écran à contrôler.",
+    "flagged_many": "{{count}} étapes à vérifier : des clics sans nom, des noms lus sur les captures d'écran, des clics manqués, une saisie qui ne correspond peut-être pas ou des captures d'écran à contrôler.",
+    "flagged_other": "{{count}} étapes à vérifier : des clics sans nom, des noms lus sur les captures d'écran, des clics manqués, une saisie qui ne correspond peut-être pas ou des captures d'écran à contrôler.",
     "noFlagged": "Aucune étape n'est signalée comme à vérifier.",
     "stepNumber": "Étape {{number}}",
     "quickEdit": {
@@ -545,6 +544,7 @@
     "reviewRequired": "Vérifiez cette étape : l'enregistrement n'a pas pu nommer l'élément cliqué, des clics ont été manqués ici, la saisie ne correspond peut-être pas exactement, ou un secret n'a pas été trouvé dans la capture d'écran pour être flouté.",
     "review": {
       "unnamed": "Vérifiez cette étape : l'enregistrement n'a pas pu nommer l'élément cliqué. Indiquez ce que c'était, ou choisissez « C'est bon ».",
+      "checkName": "Vérifiez ce nom : il a été lu à partir de la capture d'écran.",
       "missed": "Vérifiez cette étape : des clics ont été manqués ici.",
       "typing": "Vérifiez cette étape : la saisie ne correspond peut-être pas exactement.",
       "code": "Vérifiez cette étape : un secret n'a pas été trouvé dans la capture d'écran pour être flouté, ou le texte ne correspond peut-être pas exactement.",
@@ -838,6 +838,7 @@
       "managed": "Votre organisation gère ces paramètres : l'importation est donc désactivée.",
       "tour": "Afficher le tutoriel",
       "tourHelp": "Une courte visite de la fenêtre principale, dans les fenêtres d'au moins 1 024 pixels de large.",
+      "tourNarrow": "Une courte visite de la fenêtre principale. Cette fenêtre est trop étroite pour l'afficher : donnez-lui une largeur d'au moins 1 024 pixels et la visite apparaîtra.",
       "tourStartAgain": "Recommencer",
       "tourContinue": "Reprendre la visite ({{progress}})"
     },
@@ -1299,6 +1300,7 @@
   "privacy": {
     "intro": "Steps lit le texte de vos captures d'écran sur ce PC (avec la reconnaissance de texte hors connexion intégrée à Windows) pour suggérer ce qu'il faut flouter. Rien n'est envoyé nulle part.",
     "introLinux": "Steps lit le texte de vos captures d'écran sur cet ordinateur (avec Tesseract, s'il est installé) pour suggérer ce qu'il faut flouter. Rien n'est envoyé nulle part.",
+    "introPage": "Steps lit le texte des pages que vous enregistrez, tel que le navigateur l'affiche, pour suggérer ce qu'il faut flouter. Rien n'est envoyé nulle part.",
     "strength": "Suggestions de flou",
     "strengths": {
       "light": "Léger",

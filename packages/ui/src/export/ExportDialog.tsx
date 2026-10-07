@@ -6,56 +6,43 @@ import {
   mainLanguage,
   pdfLayoutOf,
   visibleStepText,
-  type Finding,
   type GuideStep,
 } from "@amluto-steps/core";
 import { rebuildsWording, setAllValues, setShowValue, type Stamp } from "../editor/edits";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  buildRenderModel,
-  cameraOf,
-  headerCount,
-  renderClipboardHtml,
-  renderClipboardText,
-  renderDocx,
-  renderPdf,
-  renderStepImage,
-  renderWalkthrough,
-  optimiseForSharing,
-  withCameraFrame,
-  type BrandLook,
-  type PdfOptions,
-  type RenderModel,
-  type RenderedImage,
-} from "@amluto-steps/export";
+import { headerCount, type PdfOptions } from "@amluto-steps/export";
 
 import { Spinner } from "../components/Spinner";
 import { Icon } from "../components/icons";
 import type { Edit, EditorDoc } from "../editor/document";
 import { errorMessage } from "../errors";
-import { isLocked } from "../settings/policy";
-import { safeFileName } from "../files";
 import type { FileFilter, VersionInfo } from "../library-bridge";
-import { formatDate } from "../library/dates";
 import { ModalDialog } from "../ModalDialog";
-import { isBrowserEdition, type FaceSet, type RecorderBridge } from "../recorder-bridge";
+import type { Fonts } from "../bridge/fonts";
+import type { Capabilities } from "../capabilities";
+import type { ExportFiles } from "./export-files";
 import { askConfirm } from "../app/ask";
-import { pdfFacesFor, pdfFonts, webFonts } from "./fonts";
-import { readExportPreferences, readMadeWith } from "../settings/preferences";
-import { asRedactions, blurFoundEdit, dataUrlBytes, openFindings } from "../editor/suggestions";
+import type { ExportChoices } from "../settings/preferences";
+import { blurFoundEdit } from "../editor/suggestions";
+import type { TextReader } from "../screen-words";
+import { FORMATS, exportJob, fullyWritten, type ExportFormat, type PageLanguages } from "./job";
+import { exportPreparation } from "./preparation";
 import { StepQuickEdit } from "./StepQuickEdit";
 import { UndoButtons } from "./UndoButtons";
 import type { BrandProfile } from "@amluto-steps/core";
-import { AMLUTO_PROFILE, lookFor, rasterise, readDefaultBrand } from "../settings/brands";
+import { AMLUTO_PROFILE } from "../settings/brands";
 
-export type ExportFormat = "pdf" | "docx" | "html" | "copy" | "amlsteps";
+export type { ExportFormat } from "./job";
 
 export interface ExportDialogProps {
   format: ExportFormat;
   doc: EditorDoc;
   preparedBy: string;
-  recorder: RecorderBridge;
+  /** Where the export is written, the PC's fonts for a PDF, and whether this copy opens exports. */
+  recorder: ExportFiles & Fonts & { readonly capabilities: Capabilities };
+  /** Reads the screenshots' words for the personal-data check; absent, none can be checked. */
+  textReader: TextReader | undefined;
   loadImage: (mediaId: string) => Promise<string>;
   pickSaveLocation: (
     title: string,
@@ -74,6 +61,8 @@ export interface ExportDialogProps {
   /** Client brands besides the built-in Amluto one. */
   brands: BrandProfile[];
   blurTerms: string[];
+  /** Settings and IT policy as this export uses them, read once as it starts (`readExportChoices`). */
+  choices: ExportChoices;
   /**
    * .amlsteps only: writes the file from the saved guide (after the editor's pending edits),
    * with blur burned in unless the unblurred originals are asked for.
@@ -103,42 +92,6 @@ function onPicture(step: GuideStep, rect: { x: number; y: number; w: number; h: 
   return x + w <= 0 || y + h <= 0 || x >= 100 || y >= 100 ? null : { x, y, w, h };
 }
 
-/**
- * What differs between the formats, in one place (their names come from en.json):
- * - `extension`: the file written, or null for the clipboard.
- * - `brand`: whether the brand choice shows; the clipboard only offers it when there is a choice,
- *   and a .amlsteps file carries the guide itself, not a look.
- * - `walkthrough`: the web page's player takes plain WebP screenshots and draws the pointer itself.
- */
-const FORMATS: Record<
-  ExportFormat,
-  {
-    extension: string | null;
-    brand: "always" | "when-several" | "never";
-    walkthrough: boolean;
-  }
-> = {
-  pdf: { extension: "pdf", brand: "always", walkthrough: false },
-  docx: { extension: "docx", brand: "always", walkthrough: false },
-  html: { extension: "html", brand: "always", walkthrough: true },
-  copy: { extension: null, brand: "when-several", walkthrough: false },
-  amlsteps: { extension: "amlsteps", brand: "never", walkthrough: false },
-};
-
-/** Word can't take an SVG logo on its own, so the Amluto SVG goes in as a PNG. */
-const withPngLogo = async (model: RenderModel): Promise<RenderModel> => {
-  const logo = model.brand.coverLogo;
-  if (logo?.type !== "svg") return model;
-  try {
-    return {
-      ...model,
-      brand: { ...model.brand, coverLogo: { type: "png", data: await rasterise(logo.data) } },
-    };
-  } catch {
-    return { ...model, brand: { ...model.brand, coverLogo: null } };
-  }
-};
-
 /** The player, styles and embedded fonts, in bytes, on top of the screenshots. */
 const WALKTHROUGH_OVERHEAD = 90_000;
 
@@ -149,26 +102,37 @@ const WALKTHROUGH_OVERHEAD = 90_000;
 export function ExportDialog(props: ExportDialogProps) {
   const { t } = useTranslation();
   const format = FORMATS[props.format];
-  const [images, setImages] = useState<Map<string, RenderedImage>>(new Map());
-  /** How many screenshots have been drawn in which brand (they're redrawn when it changes). */
-  const [prepared, setPrepared] = useState({ brandId: "", count: 0 });
+  /**
+   * The screenshots as they will be exported, their personal-data findings (outlined in the
+   * filmstrip), and the steps unchecked or missing: prepared once for this review, each
+   * screenshot loaded and read once, so a brand change only redraws them.
+   */
+  const [preparation] = useState(() =>
+    exportPreparation({
+      loadImage: props.loadImage,
+      textReader: props.textReader,
+      walkthrough: format.walkthrough,
+      blurTerms: props.blurTerms,
+      findings: props.choices.findings,
+    }),
+  );
+  const { images, plainImages, findings, unchecked, missing, progress } = useSyncExternalStore(
+    preparation.subscribe,
+    () => preparation.state,
+  );
+  const shown = preparation.shown;
   const [problem, setProblem] = useState<string | null>(null);
-  /** Possible personal data OCR found that isn't blurred, per step (outlined in the filmstrip). */
-  const [findings, setFindings] = useState<Map<string, Finding[]>>(new Map());
-  /** Steps whose screenshot couldn't be checked (no OCR), and whose screenshot couldn't load. */
-  const [unchecked, setUnchecked] = useState<string[]>([]);
-  const [missing, setMissing] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   /** Walkthrough only: 1920 px JPEG pictures, about half the size (docs/spec/05-export.md). */
-  const optimise = useMemo(() => readExportPreferences().optimiseForSharing, []);
+  const optimise = props.choices.optimiseForSharing;
   /** .amlsteps only: off unless chosen, with a warning (docs/spec/03-data-and-sharing.md). */
   const [includeOriginals, setIncludeOriginals] = useState(false);
   /** IT can keep unblurred originals out of .amlsteps files (the `IncludeOriginals` lock). */
-  const originalsLocked = isLocked("IncludeOriginals");
+  const originalsLocked = props.choices.originalsLocked;
   const profiles = [AMLUTO_PROFILE, ...props.brands];
   const initialBrand =
     profiles.find((profile) => profile.id === props.doc.guide.brandProfileId) ??
-    profiles.find((profile) => profile.id === readDefaultBrand()) ??
+    profiles.find((profile) => profile.id === props.choices.defaultBrand) ??
     AMLUTO_PROFILE;
   const [brand, setBrand] = useState<BrandProfile>(initialBrand);
   const [options, setOptions] = useState<PdfOptions>({
@@ -192,42 +156,14 @@ export function ExportDialog(props: ExportDialogProps) {
   /** PDF and Word: more languages, each its own file (not asked about on every export). */
   const [alsoIn, setAlsoIn] = useState<ReadonlySet<string>>(new Set());
   /** The web page: every language, the ones fully written, or only the guide's own. */
-  const [pageLanguages, setPageLanguages] = useState<"all" | "written" | "main">("all");
+  const [pageLanguages, setPageLanguages] = useState<PageLanguages>("all");
   /** Each language exported in, with how many hand-written texts it hasn't got yet (F041). */
   const notWrittenIn = [language, ...alsoIn]
     .filter((code, index, all) => code !== main && all.indexOf(code) === index)
     .map((code) => ({ code, count: docIn(props.doc, code).missing.length }))
     .filter((item) => item.count > 0);
-  /** The languages every text the guide's writer wrote has been written in, its own first. */
-  const fullyWritten = [
-    main,
-    ...LANGUAGES.map((item) => item.code as string).filter(
-      (code) => code !== main && docIn(props.doc, code).missing.length === 0,
-    ),
-  ];
-  /** The web page's languages, the guide's own first. */
-  const walkthroughLanguages = () =>
-    pageLanguages === "main"
-      ? [main]
-      : pageLanguages === "written"
-        ? fullyWritten
-        : [main, ...LANGUAGES.map((item) => item.code as string).filter((code) => code !== main)];
-  /** The walkthrough's screenshots: blur and crop only, since it draws the marks itself. */
-  const plainImages = useRef(new Map<string, RenderedImage>());
-  /**
-   * A step as this format shows it: the web page's camera opens on a slightly wider view of a
-   * smart-zoom crop, so its picture, and the check for personal data, cover that view.
-   */
-  const shown = (step: GuideStep) => (format.walkthrough ? withCameraFrame(step) : step);
-  const plainImage = async (step: GuideStep, source: string, look: BrandLook) => ({
-    ...(await renderStepImage(shown(step), source, look, "image/webp", false)),
-    camera: cameraOf(step),
-  });
-  /** Screenshots as loaded, so a brand change redraws them without loading them again. */
-  const sources = useRef(new Map<string, string>());
-  /** Text recognition and the missing-picture check run once, not per brand. */
-  const firstPassDone = useRef(false);
-
+  /** How many languages every text the guide's writer wrote has been written in. */
+  const writtenCount = fullyWritten(props.doc).length;
   const withImages = useMemo(
     () => props.doc.steps.filter((step) => step.kind === "interaction" && step.media?.id),
     [props.doc.steps],
@@ -249,62 +185,12 @@ export function ExportDialog(props: ExportDialogProps) {
     .map(([stepId, found]) => ({ stepId, count: found.length }));
   const blurCount = props.doc.steps.reduce((sum, step) => sum + step.redactions.length, 0);
 
-  // Draw every screenshot the way it will be exported, one at a time, and again in a new brand's
-  // colours when the brand changes. The first pass also reads the text for the personal-data check.
+  // Every screenshot drawn the way it will be exported, and again in a new brand's colours when
+  // the brand changes; the first pass also checks them for personal data.
   useEffect(() => {
-    let cancelled = false;
-    const look = lookFor(brand);
-    const firstPass = !firstPassDone.current;
-    void (async () => {
-      let done = 0;
-      // Four at a time (05/10/2026): reading a screenshot's text happens in the app while the next
-      // is drawn, so a long guide is ready far sooner than one page after another.
-      const queue = [...withImages];
-      const prepareNext = async (): Promise<void> => {
-        const step = queue.shift();
-        if (!step || cancelled) return;
-        try {
-          const known = sources.current.get(step.id);
-          const source = known ?? (await props.loadImage(step.media?.id ?? ""));
-          sources.current.set(step.id, source);
-          const drawn = await renderStepImage(shown(step), source, look);
-          if (!cancelled) setImages((current) => new Map(current).set(step.id, drawn));
-          if (format.walkthrough && firstPass)
-            plainImages.current.set(step.id, await plainImage(step, source, look));
-          if (firstPass) {
-            try {
-              const found = openFindings(
-                shown(step),
-                await props.recorder.readText(dataUrlBytes(source), step.redactions),
-                props.blurTerms,
-              );
-              setFindings((current) => new Map(current).set(step.id, found));
-            } catch {
-              // Without OCR nothing can be suggested, and the review must say so rather than
-              // report the screenshot as clean.
-              setUnchecked((current) => [...current, step.id]);
-            }
-          }
-        } catch {
-          // A missing screenshot (e.g. not synced yet) exports as a step without a picture; the
-          // review lists it.
-          if (firstPass) setMissing((current) => [...current, step.id]);
-        }
-        if (cancelled) return;
-        done += 1;
-        setPrepared({ brandId: brand.id, count: done });
-        await prepareNext();
-      };
-      await Promise.all(Array.from({ length: 4 }, () => prepareNext()));
-      if (cancelled) return;
-      // A guide with no screenshots (text blocks only) is ready at once; without this its Export
-      // button never came on.
-      setPrepared({ brandId: brand.id, count: done });
-      firstPassDone.current = true;
-    })();
-    return () => {
-      cancelled = true;
-    };
+    const stop = new AbortController();
+    void preparation.prepare(props.doc.steps, brand, stop.signal);
+    return () => stop.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- redrawn only when the brand changes
   }, [brand.id]);
 
@@ -314,28 +200,12 @@ export function ExportDialog(props: ExportDialogProps) {
    */
   const [blurringAll, setBlurringAll] = useState(false);
   const blurAll = async () => {
-    const found = [...findings]
-      .filter(([, items]) => items.length > 0)
-      .map(([stepId, items]) => ({ stepId, findings: items }));
-    if (found.length === 0 || !props.edit) return;
+    const edit = props.edit;
+    if (!edit) return;
     setBlurringAll(true);
-    props.edit(blurFoundEdit(found, t("editor.undo.blur")));
-    const look = lookFor(brand);
-    for (const { stepId, findings: items } of found) {
-      setFindings((current) => new Map(current).set(stepId, []));
-      const step = props.doc.steps.find((item) => item.id === stepId);
-      const source = sources.current.get(stepId);
-      if (!step || !source) continue;
-      const blurred = { ...step, redactions: [...step.redactions, ...asRedactions(items)] };
-      try {
-        const drawn = await renderStepImage(shown(blurred), source, look);
-        setImages((current) => new Map(current).set(stepId, drawn));
-        if (format.walkthrough)
-          plainImages.current.set(stepId, await plainImage(blurred, source, look));
-      } catch {
-        // The blur is saved either way; the export draws every screenshot again from the guide.
-      }
-    }
+    await preparation.blurAll(props.doc.steps, brand, (found) =>
+      edit(blurFoundEdit(found, t("editor.undo.blur"))),
+    );
     setBlurringAll(false);
   };
 
@@ -356,23 +226,7 @@ export function ExportDialog(props: ExportDialogProps) {
   /** After a quick fix: that step's picture drawn and checked for personal data again. */
   const refreshStep = async (id: string) => {
     const step = props.doc.steps.find((item) => item.id === id);
-    if (!step?.media?.id) return;
-    try {
-      const source = sources.current.get(id) ?? (await props.loadImage(step.media.id));
-      sources.current.set(id, source);
-      const look = lookFor(brand);
-      const drawn = await renderStepImage(shown(step), source, look);
-      setImages((current) => new Map(current).set(id, drawn));
-      if (format.walkthrough) plainImages.current.set(id, await plainImage(step, source, look));
-      const found = openFindings(
-        shown(step),
-        await props.recorder.readText(dataUrlBytes(source), step.redactions),
-        props.blurTerms,
-      );
-      setFindings((current) => new Map(current).set(id, found));
-    } catch {
-      // The step exports from the guide either way; the review keeps what it last showed.
-    }
+    if (step) await preparation.refresh(step, brand);
   };
 
   // After Undo or Redo, the screenshots they changed are drawn and checked again, once the
@@ -403,67 +257,50 @@ export function ExportDialog(props: ExportDialogProps) {
 
   // Every screenshot has been tried in this brand, whether it drew or not: one missing picture
   // mustn't block the export for ever.
-  const ready = prepared.brandId === brand.id && prepared.count >= withImages.length;
+  const ready = progress.brandId === brand.id && progress.count >= withImages.length;
 
-  const walkthroughImages = async () =>
-    optimise
-      ? new Map(
-          await Promise.all(
-            [...plainImages.current].map(
-              async ([id, image]) => [id, await optimiseForSharing(image)] as const,
-            ),
-          ),
-        )
-      : plainImages.current;
-
-  /** A brand font's faces: uploaded ones as they are, installed ones looked up on the PC. */
-  const facesOf = async (font: BrandProfile["headingFont"]): Promise<FaceSet | null> => {
-    if (!font) return null;
-    if (font.uploaded)
-      return {
-        regular: font.uploaded.regular,
-        bold: font.uploaded.bold,
-        italic: null,
-        boldItalic: null,
-      };
-    return props.recorder.getFontFamily(font.family).catch(() => null);
-  };
-
-  /** Every word a PDF will show, for choosing fonts that have its characters (not its pictures). */
-  const textForFonts = (model: ReturnType<typeof buildRenderModel>) =>
-    JSON.stringify({
-      ...model,
-      brand: { ...model.brand, coverLogo: null, pageLogo: null },
-      items: model.items.map((item) => (item.kind === "step" ? { ...item, image: null } : item)),
-    });
-
-  /** The guide in `code`, as an export shows it: its words in that language, and the export's too. */
-  const modelIn = (
-    code: string,
-    pictures: Map<string, RenderedImage>,
-    extra: Partial<Parameters<typeof buildRenderModel>[3]> = {},
-  ) => {
-    const { doc } = docIn(props.doc, code);
-    return buildRenderModel(doc.guide, doc.steps, pictures, {
-      preparedBy: props.preparedBy,
-      now: new Date(),
-      brand: lookFor(brand),
-      madeWith: readMadeWith(),
-      language: code,
-      ...extra,
-    });
-  };
+  /**
+   * Running the export: formats, languages, file names, the folder or the save dialog, and the
+   * PDF's fonts, written through the bridge's export files.
+   */
+  const job = exportJob({
+    files: props.recorder,
+    askWhere: (defaultName) =>
+      props.pickSaveLocation(
+        // A .amlsteps file is for handing a guide to another Steps user, so it's always asked.
+        props.format === "amlsteps" ? t("export.amlsteps.pickTitle") : t("export.saveTitle"),
+        defaultName,
+        [{ name: t(`export.filters.${props.format}`), extensions: [format.extension ?? ""] }],
+      ),
+    findFont: (family) => props.recorder.getFontFamily(family),
+    listVersions: props.listVersions,
+    saveAmlsteps: props.saveAmlsteps,
+  });
+  /** The export as chosen in this review, with its pictures as prepared. */
+  const request = () => ({
+    format: props.format,
+    doc: props.doc,
+    preparedBy: props.preparedBy,
+    brand,
+    images,
+    plainImages,
+    language,
+    alsoIn: [...alsoIn],
+    pageLanguages,
+    pdf: options,
+    contentsPage,
+    controlPage,
+    includeOriginals,
+    choices: props.choices,
+    now: new Date(),
+  });
 
   /** The walkthrough in the default browser, exactly as a recipient will see it. */
   const preview = async () => {
     setBusy(true);
     setProblem(null);
     try {
-      const pictures = await walkthroughImages();
-      const [model, ...others] = walkthroughLanguages().map((code) => modelIn(code, pictures));
-      if (!model) return;
-      const html = await renderWalkthrough(model, webFonts(), others);
-      await props.recorder.previewWalkthrough(new TextEncoder().encode(html));
+      await job.preview(request());
     } catch (error) {
       setProblem(errorMessage(error, t("export.failed")));
     } finally {
@@ -475,114 +312,28 @@ export function ExportDialog(props: ExportDialogProps) {
     setBusy(true);
     setProblem(null);
     try {
-      const pictures = format.walkthrough ? await walkthroughImages() : images;
-      const extra = {
-        contents: paged && contentsPage && sectionCount > 0,
-        documentControl:
-          paged && controlPage
-            ? { versions: (await props.listVersions?.().catch(() => [])) ?? [] }
-            : null,
-      };
-      const model = modelIn(language, pictures, extra);
-      if (props.format === "copy") {
-        const html = renderClipboardHtml(model);
-        await navigator.clipboard.write([
-          new ClipboardItem({
-            "text/html": new Blob([html], { type: "text/html" }),
-            "text/plain": new Blob([renderClipboardText(model)], { type: "text/plain" }),
-          }),
-        ]);
-        props.onExported("copy", t("export.copied"), null);
-        props.onClose();
-        return;
-      }
-      const extension = format.extension ?? "";
-      const filter: FileFilter = {
-        name: t(`export.filters.${props.format}`),
-        extensions: [extension],
-      };
-      if (props.format === "amlsteps") {
-        // Always asked: this file is for handing a guide to another Steps user.
-        const path = await props.pickSaveLocation(
-          t("export.amlsteps.pickTitle"),
-          `${safeFileName(model.title)}.${extension}`,
-          [filter],
-        );
-        if (!path || !props.saveAmlsteps) {
-          setBusy(false);
-          return;
-        }
-        await props.saveAmlsteps(path, includeOriginals);
-        props.onExported("amlsteps", t("export.amlsteps.done"), null);
-        props.onClose();
-        return;
-      }
-      // One file, or with more languages chosen for a PDF or Word file, one each.
-      const files = format.walkthrough
-        ? [{ code: main, model: null }]
-        : [language, ...[...alsoIn].filter((code) => code !== language)].map((code) => ({
-            code,
-            model: code === language ? model : modelIn(code, pictures, extra),
-          }));
-      const saving = readExportPreferences();
-      const folder = saving.askEveryTime
-        ? null
-        : (saving.folder ?? (await props.recorder.defaultExportFolder()));
-      let lastPath: string | null = null;
-      let saved = 0;
-      let fontsMissing = false;
-      for (const file of files) {
-        const shownModel = file.model ?? model;
-        const suffix = files.length > 1 ? ` (${languageName(file.code)})` : "";
-        const name = `${safeFileName(shownModel.title)}${suffix} - ${formatDate(new Date()).replace(/\//g, "-")}.${extension}`;
-        const chosen = folder
-          ? null
-          : await props.pickSaveLocation(t("export.saveTitle"), name, [filter]);
-        if (!folder && !chosen) break;
-        const render: Record<"pdf" | "docx" | "html", () => Promise<Uint8Array>> = {
-          pdf: async () => {
-            const faces = await pdfFacesFor(
-              {
-                heading: await facesOf(brand.headingFont),
-                body: await facesOf(brand.bodyFont),
-              },
-              textForFonts(shownModel),
-              file.code,
-              (family) => props.recorder.getFontFamily(family).catch(() => null),
-            );
-            fontsMissing ||= faces.missing;
-            return renderPdf(shownModel, pdfFonts(faces), options);
-          },
-          html: async () => {
-            const [page, ...others] = walkthroughLanguages().map((code) => modelIn(code, pictures));
-            return new TextEncoder().encode(
-              await renderWalkthrough(page ?? model, webFonts(), others),
-            );
-          },
-          docx: async () => renderDocx(await withPngLogo(shownModel)),
-        };
-        const bytes = await render[props.format]();
-        lastPath = folder
-          ? await props.recorder.writeExportTo(folder, name, bytes)
-          : await props.recorder.writeExport(chosen ?? "", bytes);
-        saved += 1;
-      }
-      if (saved === 0 || !lastPath) {
+      const outcome = await job.run(request());
+      if (outcome.kind === "cancelled") {
         setBusy(false);
         return;
       }
-      const savedName = lastPath.split(/[\\/]/).at(-1) ?? lastPath;
-      props.onExported(
-        props.format,
-        [
-          saved > 1
-            ? t("export.savedSeveral", { count: saved, name: savedName })
-            : t("export.saved", { name: savedName }),
-          ...(fontsMissing ? [t("export.fontsMissing")] : []),
-        ].join(" "),
-        // A browser saves by name only: no path to copy or file to open.
-        isBrowserEdition(props.recorder) ? null : lastPath,
-      );
+      if (outcome.kind === "copied") props.onExported("copy", t("export.copied"), null);
+      else if (outcome.kind === "amlsteps")
+        props.onExported("amlsteps", t("export.amlsteps.done"), null);
+      else {
+        const savedName = outcome.path.split(/[\\/]/).at(-1) ?? outcome.path;
+        props.onExported(
+          props.format,
+          [
+            outcome.count > 1
+              ? t("export.savedSeveral", { count: outcome.count, name: savedName })
+              : t("export.saved", { name: savedName }),
+            ...(outcome.fontsMissing ? [t("export.fontsMissing")] : []),
+          ].join(" "),
+          // A browser saves by name only: no path to copy or file to open.
+          props.recorder.capabilities.openExports ? outcome.path : null,
+        );
+      }
       props.onClose();
     } catch (error) {
       setProblem(errorMessage(error, t("export.failed")));
@@ -628,7 +379,7 @@ export function ExportDialog(props: ExportDialogProps) {
             {!ready && (
               <p role="status" className="mb-3 text-sm text-secondary">
                 {t("export.preparing", {
-                  done: prepared.brandId === brand.id ? prepared.count : 0,
+                  done: progress.brandId === brand.id ? progress.count : 0,
                   total: withImages.length,
                 })}
               </p>
@@ -923,7 +674,7 @@ export function ExportDialog(props: ExportDialogProps) {
                       {t("export.languages.all", { count: LANGUAGES.length })}
                     </option>
                     <option value="written">
-                      {t("export.languages.written", { count: fullyWritten.length })}
+                      {t("export.languages.written", { count: writtenCount })}
                     </option>
                     <option value="main">
                       {t("export.languages.just", { name: languageName(main) })}
@@ -1207,7 +958,7 @@ export function ExportDialog(props: ExportDialogProps) {
  * readers included) can tell which steps need a look.
  */
 function StepChips(props: {
-  ids: string[];
+  ids: readonly string[];
   numbers: Map<string, number>;
   onShowStep: ((stepId: string) => void) | undefined;
 }) {

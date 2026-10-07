@@ -1,7 +1,7 @@
 import type { GuideStore } from "../editor/useGuideEditor";
-import type { LibraryBridge } from "../library-bridge";
+import type { GuideFiles } from "../library-bridge";
 import { imageFileOf } from "../recorded-step";
-import type { RecorderBridge } from "../recorder-bridge";
+import type { RecordingJournal } from "../bridge/recording-journal";
 import { readChoices } from "../settings/preferences";
 import type { GuideRef } from "./documents";
 
@@ -10,7 +10,7 @@ import type { GuideRef } from "./documents";
  * is the user's excluded apps, which Retake won't capture (the organisation's are added in Rust).
  */
 export const draftStore = (
-  recorder: RecorderBridge,
+  recorder: RecordingJournal,
   sessionId: string,
   excluded: string[] = [],
 ): GuideStore => ({
@@ -24,7 +24,7 @@ export const draftStore = (
 
 /** Where the editor saves a guide in a library. */
 export const libraryStore = (
-  library: LibraryBridge,
+  library: GuideFiles,
   { libraryId, guideId }: GuideRef,
   excluded: string[] = [],
 ): GuideStore => ({

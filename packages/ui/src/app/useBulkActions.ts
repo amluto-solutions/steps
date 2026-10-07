@@ -13,7 +13,7 @@ import { mergeGuides, mergeId } from "../library/merge";
 import type { MergeRequest } from "../library/MergeDialog";
 import { toDoc } from "./documents";
 import type { GuideLocks } from "../library/guide-locks";
-import { askCount, showLockedList } from "../library/LockDialogs";
+import { askCount } from "../library/LockDialogs";
 
 /** What happened to each guide in a batch. */
 interface Outcome<T> {
@@ -60,7 +60,7 @@ export function useBulkActions(context: {
     if (!library) return outcome;
     for (const guide of guides) {
       try {
-        if (needsLock && guide.locked && !locks?.isOpen(from, guide.id)) {
+        if (needsLock && guide.locked && !locks?.isOpen({ libraryId: from, guideId: guide.id })) {
           outcome.locked.push(guide);
           continue;
         }
@@ -124,14 +124,14 @@ export function useBulkActions(context: {
 
   const nameOf = (id: string) => libraries.find((item) => item.id === id)?.name ?? "";
 
-  /** The locked guides a batch left, each done once its password is given. */
+  /** The locked guides a batch left, each done once its password is given (the guide locks ask). */
   const offerLocked = async (
     from: string,
     locked: LibraryGuideSummary[],
     body: string,
     act: (guide: LibraryGuideSummary) => Promise<unknown>,
   ) => {
-    await showLockedList(
+    await locks?.runOnLocked(
       locked.flatMap((guide) =>
         guide.locked
           ? [{ libraryId: from, guideId: guide.id, title: guide.title, locked: guide.locked }]

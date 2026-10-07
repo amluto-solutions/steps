@@ -1,5 +1,5 @@
 {
-  "_comment": "The top-level fields of guide.json and step files that Steps 1.0.0 knows. Any other field came from a newer Steps and is kept when an older one saves (docs/spec/03-data-and-sharing.md#versions-of-steps). Shared by the desktop (crates/library/src/guides.rs) and Steps for Chrome (apps/chrome/src/folder/newer-fields.ts).",
+  "_comment": "The top-level fields of guide.json and step files that this version of Steps knows (1.0.0's, and a click's naming from 06/10/2026). Any other field came from a newer Steps and is kept when an older one saves (docs/spec/03-data-and-sharing.md#versions-of-steps). Shared by the desktop (crates/library/src/guides.rs) and Steps for Chrome (apps/chrome/src/folder/newer-fields.ts).",
   "guide": [
     "id",
     "title",
@@ -46,6 +46,7 @@
     "updatedBy",
     "formatVersion",
     "reviewRequired",
+    "naming",
     "translations"
   ]
 }

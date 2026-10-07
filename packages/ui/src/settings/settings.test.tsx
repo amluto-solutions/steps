@@ -10,12 +10,22 @@ import {
   readBlurStrength,
   isLocalFolder,
   readChoices,
+  readExportChoices,
   readExportPreferences,
+  saveBlurStrength,
   saveChoices,
   saveExportPreferences,
+  saveMadeWith,
+  saveSafeTerms,
 } from "./preferences";
 import type { Updates } from "../app/useUpdates";
 import { SettingsView, type SettingsProps, type SettingsSection } from "./SettingsView";
+import type { Capabilities } from "../capabilities";
+import { fakeCapabilities } from "../bridge/capabilities-fake";
+import { fakeHotkeys } from "../bridge/hotkeys-fake";
+import { fakeRecorderBridge } from "../bridge/recorder-bridge-fake";
+import { fakeLibrary } from "../library-fake";
+import type { RecorderBridge } from "../recorder-bridge";
 
 initI18n();
 beforeEach(() => window.localStorage.clear());
@@ -38,6 +48,7 @@ const settings = (section: SettingsSection, overrides: Partial<SettingsProps> = 
   render(
     <SettingsView
       recorder={undefined}
+      capabilities={overrides.recorder?.capabilities ?? fakeCapabilities()}
       library={undefined}
       section={section}
       onSection={vi.fn()}
@@ -221,12 +232,12 @@ describe("changing a shortcut from the keyboard", () => {
     );
     const suspendHotkeys = vi.fn().mockResolvedValue(bindings);
     const setHotkey = vi.fn().mockResolvedValue(shared);
-    const recorder = {
+    const recorder = fakeRecorderBridge({
       // Read again once shortcuts are back on: by then, what was saved.
       getHotkeys: vi.fn().mockResolvedValueOnce(bindings).mockResolvedValue(shared),
       setHotkey,
       suspendHotkeys,
-    } as unknown as SettingsProps["recorder"];
+    });
     settings("shortcuts", { recorder });
     fireEvent.click(await screen.findByRole("button", { name: "Change the shortcut for Stop" }));
     expect(suspendHotkeys).toHaveBeenLastCalledWith(true);
@@ -243,11 +254,7 @@ describe("changing a shortcut from the keyboard", () => {
 
   it("lets Tab move on from the key box, and Escape hands focus back to Change", async () => {
     const bindings = [{ action: "stop" as const, keys: "ctrl+alt+shift+s", registered: true }];
-    const recorder = {
-      getHotkeys: vi.fn().mockResolvedValue(bindings),
-      setHotkey: vi.fn().mockResolvedValue(bindings),
-      suspendHotkeys: vi.fn().mockResolvedValue(bindings),
-    } as unknown as SettingsProps["recorder"];
+    const recorder = fakeRecorderBridge(fakeHotkeys(bindings));
     settings("shortcuts", { recorder });
     const change = await screen.findByRole("button", { name: "Change the shortcut for Stop" });
     fireEvent.click(change);
@@ -283,8 +290,8 @@ describe("the export folder", () => {
       optimiseForSharing: true,
     });
     const notify = vi.fn();
-    const pickFolder = vi.fn().mockResolvedValue(String.raw`\\server\share`);
-    settings("export", { notify, library: { pickFolder } as unknown as SettingsProps["library"] });
+    const library = fakeLibrary({ picks: { folder: String.raw`\\server\share` } });
+    settings("export", { notify, library });
     fireEvent.click(screen.getByRole("button", { name: /Change folder/ }));
     await waitFor(() => expect(notify).toHaveBeenCalled());
     expect(notify.mock.calls[0]?.[0]).toEqual({
@@ -292,6 +299,44 @@ describe("the export folder", () => {
       text: expect.stringContaining("this PC’s drives") as unknown,
     });
     expect(readExportPreferences().folder).toBe(String.raw`C:\Exports`);
+  });
+});
+
+describe("an export's choices", () => {
+  it("are the person's settings in one value, with IT's locks and choices on top", () => {
+    saveExportPreferences({
+      folder: String.raw`C:\Exports`,
+      askEveryTime: true,
+      optimiseForSharing: false,
+    });
+    saveMadeWith(false);
+    saveBlurStrength("thorough");
+    saveSafeTerms(["Acme"]);
+    window.localStorage.setItem("amluto-steps-default-brand", "own");
+    expect(readExportChoices()).toEqual({
+      folder: String.raw`C:\Exports`,
+      askEveryTime: true,
+      optimiseForSharing: false,
+      madeWith: false,
+      originalsLocked: false,
+      defaultBrand: "own",
+      findings: { strength: "thorough", safe: ["Acme"] },
+    });
+
+    setPolicy({
+      ...managed,
+      locked: [...managed.locked, "IncludeOriginals"],
+      blurStrength: "light",
+    });
+    expect(readExportChoices()).toEqual({
+      folder: null,
+      askEveryTime: false,
+      optimiseForSharing: false,
+      madeWith: false,
+      originalsLocked: true,
+      defaultBrand: "client",
+      findings: { strength: "light", safe: ["Acme"] },
+    });
   });
 });
 
@@ -390,12 +435,11 @@ describe("Get help", () => {
     });
     const showSupportBundle = vi.fn().mockResolvedValue(undefined);
     const openSupportEmail = vi.fn().mockResolvedValue(undefined);
-    const recorder = {
+    const recorder = fakeRecorderBridge({
       createSupportBundle,
       showSupportBundle,
       openSupportEmail,
-      openLogsFolder: vi.fn(),
-    } as unknown as SettingsProps["recorder"];
+    });
     const { container } = settings("about", {
       recorder,
       libraries: [
@@ -483,8 +527,36 @@ describe("Wait for command output", () => {
   });
 });
 
+/** A recorder bridge that states these capabilities, with `more` of its parts in place. */
+const withCapabilities = (changes: Partial<Capabilities>, more: Partial<RecorderBridge> = {}) =>
+  fakeRecorderBridge({ capabilities: fakeCapabilities(changes), ...more });
+
+/** What the desktop app on Linux states. */
+const LINUX: Partial<Capabilities> = {
+  autoStart: "signIn",
+  programNames: "plain",
+  hideBar: false,
+  inputSources: false,
+  screenWords: "tesseract",
+};
+
+/** What Steps for Chrome states (in Chrome and Edge, which can open folders). */
+const BROWSER: Partial<Capabilities> = {
+  records: "pages",
+  autoStart: null,
+  defaultLibrary: "browser",
+  hotkeys: false,
+  updates: false,
+  support: false,
+  exportFolder: false,
+  openExports: false,
+  commandOutput: false,
+  screenWords: "page",
+  savesLinkChoice: false,
+};
+
 describe("Settings on Linux", () => {
-  const linux = { os: "linux" } as unknown as SettingsProps["recorder"];
+  const linux = withCapabilities(LINUX);
 
   it("starts at sign-in, not with Windows", () => {
     settings("general", { recorder: linux });
@@ -506,6 +578,11 @@ describe("Settings on Linux", () => {
     );
   });
 
+  it("says text is read with Tesseract", () => {
+    settings("privacy", { recorder: linux });
+    expect(screen.getByText(/with Tesseract, if it’s installed/)).toBeTruthy();
+  });
+
   it("keeps Windows' own on Windows", () => {
     settings("recording");
     expect(screen.getByText("Hide the recording bar from screenshots")).toBeTruthy();
@@ -518,7 +595,7 @@ const EXPORT_ASK = "Ask where to save every time";
 
 describe("Settings in Steps for Chrome", () => {
   it("leaves out what only the desktop has", () => {
-    const browser = { edition: "browser" } as unknown as SettingsProps["recorder"];
+    const browser = withCapabilities({ ...BROWSER, libraryFolders: false });
     settings("general", { recorder: browser });
     const sections = screen
       .getAllByRole("button")
@@ -532,18 +609,23 @@ describe("Settings in Steps for Chrome", () => {
   });
 
   it("saves exports to Chrome's downloads, with no folder to choose", async () => {
-    const browser = {
-      edition: "browser",
+    const browser = withCapabilities(BROWSER, {
       defaultExportFolder: () => Promise.resolve("downloads"),
-    } as unknown as SettingsProps["recorder"];
+    });
     settings("export", { recorder: browser });
     expect(await screen.findByText(EXPORT_ASK)).toBeTruthy();
     expect(screen.queryByText(EXPORT_FOLDER)).toBeNull();
   });
 
+  it("says the words to blur come from the pages themselves, not Windows' text recognition", () => {
+    settings("privacy", { recorder: withCapabilities(BROWSER) });
+    expect(screen.getByText(/the text on the pages you record/)).toBeTruthy();
+    expect(screen.queryByText(/Windows’ own offline text recognition/)).toBeNull();
+  });
+
   it("lists sites never recorded in place of apps", () => {
     window.localStorage.removeItem("amluto-steps-excluded-sites");
-    const browser = { edition: "browser" } as unknown as SettingsProps["recorder"];
+    const browser = withCapabilities(BROWSER);
     settings("recording", { recorder: browser });
     expect(screen.queryByText("Apps never recorded")).toBeNull();
     const field = screen.getByLabelText("Site to exclude, for example bank.example");
@@ -553,6 +635,29 @@ describe("Settings in Steps for Chrome", () => {
     expect(JSON.parse(window.localStorage.getItem("amluto-steps-excluded-sites") ?? "[]")).toEqual([
       "bank.example",
     ]);
+  });
+
+  it("has Libraries where the browser can open folders (Chrome and Edge, not Firefox)", () => {
+    settings("libraries", { recorder: withCapabilities({ ...BROWSER, libraryFolders: true }) });
+    expect(screen.getByRole("button", { name: /Libraries/ })).toBeTruthy();
+    expect(screen.getByText(/“My guides” is kept in this browser/)).toBeTruthy();
+  });
+
+  it("leaves updates, logs and support files to the browser's store", () => {
+    settings("about", {
+      recorder: withCapabilities(BROWSER),
+      updates: {
+        channel: "store",
+        status: { kind: "idle" },
+        check: vi.fn(async () => undefined),
+        install: vi.fn(async () => undefined),
+        automatic: true,
+        setAutomatic: vi.fn(),
+      },
+    });
+    expect(screen.queryByText("The Microsoft Store keeps Steps up to date.")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Make a support file" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Open logs folder/ })).toBeNull();
   });
 
   it("keeps them on the desktop", () => {

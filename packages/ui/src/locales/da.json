@@ -28,7 +28,6 @@
     "settings": "Indstillinger",
     "guides": "Vejledninger",
     "recordingNow": "En optagelse er i gang",
-    "saveFirst": "Gem eller kassér din seneste optagelse først",
     "needsReview": "Skal gennemgås"
   },
   "dates": {
@@ -258,8 +257,8 @@
     "drawing": "Forbereder…",
     "checklist": "Tjekliste",
     "personalData": "Kontrollér hvert skærmbillede for personoplysninger, før du deler det. Automatiske forslag kan overse ting.",
-    "flagged_one": "{{count}} trin skal kontrolleres: et klik uden navn, oversete klik, indtastning, der måske ikke stemmer, eller et skærmbillede, der skal kontrolleres.",
-    "flagged_other": "{{count}} trin skal kontrolleres: klik uden navn, oversete klik, indtastning, der måske ikke stemmer, eller skærmbilleder, der skal kontrolleres.",
+    "flagged_one": "{{count}} trin skal kontrolleres: et klik uden navn, et navn læst fra skærmbilledet, oversete klik, indtastning, der måske ikke stemmer, eller et skærmbillede, der skal kontrolleres.",
+    "flagged_other": "{{count}} trin skal kontrolleres: klik uden navn, navne læst fra skærmbilleder, oversete klik, indtastning, der måske ikke stemmer, eller skærmbilleder, der skal kontrolleres.",
     "noFlagged": "Ingen trin er markeret til kontrol.",
     "stepNumber": "Trin {{number}}",
     "quickEdit": {
@@ -502,6 +501,7 @@
     "reviewRequired": "Kontrollér dette trin: Optagelsen kunne ikke navngive det, der blev klikket på, nogle klik blev overset her, indtastningen stemmer måske ikke præcist, eller en hemmelighed, der skulle sløres, blev ikke fundet i skærmbilledet.",
     "review": {
       "unnamed": "Kontrollér dette trin: Optagelsen kunne ikke navngive det, der blev klikket på. Skriv, hvad det var, eller vælg ”Ser rigtigt ud”.",
+      "checkName": "Kontrollér dette navn: Det blev læst fra skærmbilledet.",
       "missed": "Kontrollér dette trin: Nogle klik blev overset her.",
       "typing": "Kontrollér dette trin: Indtastningen stemmer måske ikke præcist.",
       "code": "Kontrollér dette trin: En hemmelighed i det blev ikke fundet på skærmbilledet, så den kunne ikke slørres, eller teksten stemmer måske ikke præcist.",
@@ -791,6 +791,7 @@
       "managed": "Din organisation administrerer disse indstillinger, så import er slået fra.",
       "tour": "Vis introduktionen",
       "tourHelp": "En kort rundvisning i hovedvinduet, i vinduer, der er mindst 1024 pixel brede.",
+      "tourNarrow": "En kort rundvisning i hovedvinduet. Dette vindue er for smalt til den: gør det mindst 1024 pixel bredt, så vises rundvisningen.",
       "tourStartAgain": "Start forfra",
       "tourContinue": "Fortsæt rundvisningen ({{progress}})"
     },
@@ -1240,6 +1241,7 @@
   "privacy": {
     "intro": "Steps læser teksten i dine skærmbilleder på denne pc (med Windows' egen offline tekstgenkendelse) for at foreslå, hvad der skal sløres. Intet sendes nogen steder hen.",
     "introLinux": "Steps læser teksten i dine skærmbilleder på denne computer (med Tesseract, hvis det er installeret) for at foreslå, hvad der skal sløres. Intet sendes nogen steder hen.",
+    "introPage": "Steps læser teksten på de sider, du optager, som browseren viser den, for at foreslå, hvad der skal sløres. Intet sendes nogen steder hen.",
     "strength": "Forslag til sløring",
     "strengths": {
       "light": "Let",

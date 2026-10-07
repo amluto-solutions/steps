@@ -53,6 +53,8 @@ export interface TourContextValue {
   resume: () => void;
   /** "Show the tutorial" switched off. */
   turnOff: () => void;
+  /** The window is wide enough for the tour; narrower, it waits (MIN_WIDTH). */
+  wide: boolean;
 }
 
 const TourContext = createContext<TourContextValue>({
@@ -61,6 +63,7 @@ const TourContext = createContext<TourContextValue>({
   start: () => undefined,
   resume: () => undefined,
   turnOff: () => undefined,
+  wide: true,
 });
 
 export const useTour = (): TourContextValue => useContext(TourContext);
@@ -356,8 +359,9 @@ export function TourProvider({
       start,
       resume,
       turnOff,
+      wide,
     }),
-    [state.status, ongoing, progress, start, resume, turnOff],
+    [state.status, ongoing, progress, start, resume, turnOff, wide],
   );
 
   const placement: Placement | null = litRect

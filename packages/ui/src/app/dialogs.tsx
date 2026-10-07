@@ -199,48 +199,6 @@ export function DiscardDialog(props: { onKeep: () => void; onDiscard: () => void
   );
 }
 
-/**
- * Asks before something that can't be undone (deleting for good). Focus starts on Cancel, so a
- * reflex Enter does nothing harmful.
- */
-export function ConfirmDialog(props: {
-  title: string;
-  body: string;
-  confirmLabel: string;
-  onConfirm: () => void;
-  onCancel: () => void;
-}) {
-  const { t } = useTranslation();
-  const cancelRef = useRef<HTMLButtonElement>(null);
-  return (
-    <Backdrop>
-      <ModalDialog
-        role="alertdialog"
-        labelledBy="confirm-title"
-        describedBy="confirm-body"
-        initialFocus={cancelRef}
-        onEscape={props.onCancel}
-        className="card w-full max-w-lg p-6"
-      >
-        <h2 id="confirm-title" className="font-heading text-xl text-navy">
-          {props.title}
-        </h2>
-        <p id="confirm-body" className="mt-3 text-secondary">
-          {props.body}
-        </p>
-        <div className="mt-6 flex justify-end gap-3">
-          <button ref={cancelRef} type="button" className="btn" onClick={props.onCancel}>
-            {t("common.cancel")}
-          </button>
-          <button type="button" className="btn btn-dark" onClick={props.onConfirm}>
-            {props.confirmLabel}
-          </button>
-        </div>
-      </ModalDialog>
-    </Backdrop>
-  );
-}
-
 /** Something to know, with one OK: in the app's own style, never the browser's alert. */
 export function NoticeDialog(props: { title: string; body: string; onClose: () => void }) {
   const { t } = useTranslation();

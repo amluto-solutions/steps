@@ -24,7 +24,7 @@ use zbus::blocking::{Connection, MessageIterator};
 use zbus::zvariant::{OwnedObjectPath, OwnedValue, Value};
 
 use crate::coords::PxRect;
-use crate::facts::{ElementFacts, InputRecord, ParentFacts};
+use crate::facts::{AncestorFacts, ElementFacts, InputRecord};
 pub use crate::lookup::{FocusOptions, Lookup};
 use crate::lookup::{
     Replies, Reply, await_worker_ready, fingerprint, fit_value, is_editable, origin_from_address,
@@ -450,7 +450,7 @@ fn facts_for(
         is_password,
         labeled_by: bus.labelled_by(element),
         bounds,
-        parent: None,
+        ancestors: Vec::new(),
         sensitive: false,
     };
     facts.sensitive = is_password
@@ -545,16 +545,21 @@ fn element_at(bus: &Bus, x: i32, y: i32) -> Result<(ElementFacts, bool), String>
         facts = facts_for(bus, &element, &[], origin);
         retried = true;
     }
-    if let Some(parent) = bus.parent(&element) {
-        facts.parent = Some(ParentFacts {
+    // What the element is called is decided in TypeScript from these facts
+    // (docs/spec/02-capture.md#click-naming).
+    let mut current = element;
+    let parents = std::iter::from_fn(|| {
+        current = bus.parent(&current)?;
+        Some(AncestorFacts {
             control_type: control_type(
-                &bus.role_name(&parent),
-                bus.states(&parent).has(State::Editable),
+                &bus.role_name(&current),
+                bus.states(&current).has(State::Editable),
             )
             .to_string(),
-            name: bus.string_property(&parent, "Name"),
-        });
-    }
+            name: bus.string_property(&current, "Name"),
+        })
+    });
+    facts.ancestors = crate::lookup::ancestors(parents);
     Ok((facts, retried))
 }
 

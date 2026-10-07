@@ -28,7 +28,6 @@
     "settings": "Pengaturan",
     "guides": "Panduan",
     "recordingNow": "Rekaman sedang berjalan",
-    "saveFirst": "Simpan atau buang rekaman terakhir Anda terlebih dahulu",
     "needsReview": "Perlu ditinjau"
   },
   "dates": {
@@ -236,7 +235,7 @@
     "drawing": "Menyiapkan…",
     "checklist": "Daftar periksa",
     "personalData": "Periksa setiap cuplikan layar untuk data pribadi sebelum Anda membagikannya. Saran otomatis bisa melewatkan sesuatu.",
-    "flagged_other": "{{count}} langkah perlu diperiksa: klik tanpa nama, klik yang terlewat, ketikan yang mungkin tidak cocok, atau cuplikan layar yang perlu diperiksa.",
+    "flagged_other": "{{count}} langkah perlu diperiksa: klik tanpa nama, nama yang dibaca dari cuplikan layar, klik yang terlewat, ketikan yang mungkin tidak cocok, atau cuplikan layar yang perlu diperiksa.",
     "noFlagged": "Tidak ada langkah yang ditandai untuk diperiksa.",
     "stepNumber": "Langkah {{number}}",
     "quickEdit": {
@@ -459,6 +458,7 @@
     "reviewRequired": "Periksa langkah ini: rekaman tidak dapat menamai apa yang diklik, beberapa klik terlewat di sini, ketikan mungkin tidak sama persis, atau rahasia yang perlu diburamkan tidak ditemukan di cuplikan layar.",
     "review": {
       "unnamed": "Periksa langkah ini: rekaman tidak dapat menamai apa yang diklik. Tulis apa itu, atau pilih “Sudah benar”.",
+      "checkName": "Periksa nama ini: dibaca dari cuplikan layar.",
       "missed": "Periksa langkah ini: beberapa klik terlewat di sini.",
       "typing": "Periksa langkah ini: ketikan mungkin tidak sama persis.",
       "code": "Periksa langkah ini: rahasia di dalamnya tidak ditemukan di cuplikan layar untuk diburamkan, atau teksnya mungkin tidak sama persis.",
@@ -744,6 +744,7 @@
       "managed": "Organisasi Anda mengelola pengaturan ini, jadi impor dinonaktifkan.",
       "tour": "Tampilkan tutorial",
       "tourHelp": "Tur singkat jendela utama, di jendela dengan lebar 1024 piksel atau lebih.",
+      "tourNarrow": "Tur singkat jendela utama. Jendela ini terlalu sempit untuk tur tersebut: lebarkan hingga 1024 piksel atau lebih dan tur akan muncul.",
       "tourStartAgain": "Mulai dari awal",
       "tourContinue": "Lanjutkan tur ({{progress}})"
     },
@@ -1181,6 +1182,7 @@
   "privacy": {
     "intro": "Steps membaca teks di cuplikan layar Anda di PC ini (dengan pengenalan teks offline bawaan Windows) untuk menyarankan apa yang perlu diburamkan. Tidak ada yang dikirim ke mana pun.",
     "introLinux": "Steps membaca teks di cuplikan layar Anda di komputer ini (dengan Tesseract, jika terinstal) untuk menyarankan apa yang perlu diburamkan. Tidak ada yang dikirim ke mana pun.",
+    "introPage": "Steps membaca teks di halaman yang Anda rekam, sebagaimana ditampilkan browser, untuk menyarankan apa yang perlu diburamkan. Tidak ada yang dikirim ke mana pun.",
     "strength": "Saran pemburaman",
     "strengths": {
       "light": "Ringan",

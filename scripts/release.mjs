@@ -690,8 +690,8 @@ ${sums.map((line) => `- \`${line.replace("  ", "` ")}`).join("\n")}
 - [ ] once each store lists it: \`browser/steps-chrome-${version}.zip\` to the Chrome Web Store and Edge Add-ons (docs/chrome-web-store.md); \`browser/steps-firefox-${version}.zip\` with its sources to addons.mozilla.org (docs/firefox-add-ons.md)
 - [ ] \`CHANGELOG.md\` entry; checksums published with the release notes
 - [ ] push the release's commit and tag to ${REPOSITORY}, then \`node scripts/publish-github.mjs ${version}\`: the GitHub Release with every file in \`download/\`, each checked from outside
-- [ ] upload \`release-out/${version}/download/SHA256SUMS.txt\` to the \`download\` folder on steps.amluto.com (the download page reads it)
-${wingetDir ? "- [ ] once the downloads are live, submit the winget manifests to microsoft/winget-pkgs (docs/release-runbook.md#winget)\n" : ""}${latest ? `- [ ] once the GitHub Release is live, upload \`release.json\` and \`.htaccess\` from \`release-out/${version}/update/\` to the \`update\` folder on steps.amluto.com; then ${updater.endpoints[0]} must show ${version} (purge SiteGround's cache if it doesn't)\n` : ""}`;
+- [ ] \`node scripts/publish-site.mjs ${version}\`: \`SHA256SUMS.txt\` to steps.amluto.com/download (the download page reads it)${latest ? " and the update manifest to /update" : ""}, each checked from outside
+${wingetDir ? "- [ ] once the downloads are live, submit the winget manifests to microsoft/winget-pkgs (docs/release-runbook.md#winget)\n" : ""}`;
 mkdirSync(join(repo, "releases"), { recursive: true });
 writeFileSync(join(repo, "releases", `${version}.md`), record);
 
@@ -723,7 +723,5 @@ console.log(
     : "  - MSIX: fill in apps/desktop/msix/identity.json first; CHANGELOG.md; publish the checksums",
 );
 console.log(`  - push the tag to ${REPOSITORY}, then node scripts/publish-github.mjs ${version}`);
-console.log("  - SHA256SUMS.txt to steps.amluto.com/download");
-if (latest)
-  console.log(`  - then release-out/${version}/update/ to steps.amluto.com/update, and check it`);
+console.log(`  - then node scripts/publish-site.mjs ${version}`);
 console.log("  - the browser zips to their stores, once each is listed");

@@ -28,7 +28,6 @@
     "settings": "Iestatījumi",
     "guides": "Pamācības",
     "recordingNow": "Notiek ierakstīšana",
-    "saveFirst": "Vispirms saglabājiet vai atmetiet pēdējo ierakstu",
     "needsReview": "Jāpārskata"
   },
   "dates": {
@@ -280,9 +279,9 @@
     "drawing": "Notiek sagatavošana…",
     "checklist": "Kontrolsaraksts",
     "personalData": "Pirms kopīgošanas pārbaudiet, vai ekrānuzņēmumos nav personas datu. Automātiskie ieteikumi var kaut ko palaist garām.",
-    "flagged_zero": "{{count}} soļi jāpārbauda: nenosaukti klikšķi, izlaisti klikšķi, ievadītais teksts, kas var neatbilst, vai pārbaudāmi ekrānuzņēmumi.",
-    "flagged_one": "{{count}} solis jāpārbauda: nenosaukts klikšķis, izlaisti klikšķi, ievadītais teksts, kas var neatbilst, vai pārbaudāms ekrānuzņēmums.",
-    "flagged_other": "{{count}} soļi jāpārbauda: nenosaukti klikšķi, izlaisti klikšķi, ievadītais teksts, kas var neatbilst, vai pārbaudāmi ekrānuzņēmumi.",
+    "flagged_zero": "{{count}} soļi jāpārbauda: nenosaukti klikšķi, no ekrānuzņēmumiem nolasīti nosaukumi, izlaisti klikšķi, ievadītais teksts, kas var neatbilst, vai pārbaudāmi ekrānuzņēmumi.",
+    "flagged_one": "{{count}} solis jāpārbauda: nenosaukts klikšķis, no ekrānuzņēmuma nolasīts nosaukums, izlaisti klikšķi, ievadītais teksts, kas var neatbilst, vai pārbaudāms ekrānuzņēmums.",
+    "flagged_other": "{{count}} soļi jāpārbauda: nenosaukti klikšķi, no ekrānuzņēmumiem nolasīti nosaukumi, izlaisti klikšķi, ievadītais teksts, kas var neatbilst, vai pārbaudāmi ekrānuzņēmumi.",
     "noFlagged": "Neviens solis nav atzīmēts pārbaudei.",
     "stepNumber": "{{number}}. solis",
     "quickEdit": {
@@ -545,6 +544,7 @@
     "reviewRequired": "Pārbaudiet šo soli: ierakstot neizdevās noteikt, uz kā tika noklikšķināts, šeit tika izlaisti klikšķi, ievadītais teksts var precīzi neatbilst vai ekrānuzņēmumā neizdevās atrast aizmiglojamu slepenu informāciju.",
     "review": {
       "unnamed": "Pārbaudiet šo soli: ierakstot neizdevās noteikt, uz kā tika noklikšķināts. Uzrakstiet, kas tas bija, vai izvēlieties “Izskatās pareizi”.",
+      "checkName": "Pārbaudiet šo nosaukumu: tas nolasīts no ekrānuzņēmuma.",
       "missed": "Pārbaudiet šo soli: šeit tika izlaisti klikšķi.",
       "typing": "Pārbaudiet šo soli: ievadītais teksts var precīzi neatbilst.",
       "code": "Pārbaudiet šo soli: tajā esošo slepeno informāciju neizdevās atrast ekrānuzņēmumā, lai to aizmigloto, vai arī teksts var precīzi neatbilst.",
@@ -838,6 +838,7 @@
       "managed": "Šos iestatījumus pārvalda jūsu organizācija, tāpēc importēšana ir izslēgta.",
       "tour": "Rādīt ievadapmācību",
       "tourHelp": "Īss galvenā loga apskats logos, kuru platums ir vismaz 1024 pikseļi.",
+      "tourNarrow": "Īss galvenā loga apskats. Šis logs tam ir pārāk šaurs: padariet to vismaz 1024 pikseļu platu, un apskats parādīsies.",
       "tourStartAgain": "Sākt no jauna",
       "tourContinue": "Turpināt apskatu ({{progress}})"
     },
@@ -1299,6 +1300,7 @@
   "privacy": {
     "intro": "Steps nolasa tekstu jūsu ekrānuzņēmumos šajā datorā (ar Windows iebūvēto bezsaistes teksta atpazīšanu), lai ieteiktu, ko aizmiglot. Nekas netiek nekur sūtīts.",
     "introLinux": "Steps nolasa tekstu jūsu ekrānuzņēmumos šajā datorā (ar Tesseract, ja tā ir instalēta), lai ieteiktu, ko aizmiglot. Nekas netiek nekur sūtīts.",
+    "introPage": "Steps nolasa tekstu jūsu ierakstītajās lapās tā, kā to attēlo pārlūks, lai ieteiktu, ko aizmiglot. Nekas netiek nekur sūtīts.",
     "strength": "Aizmiglošanas ieteikumi",
     "strengths": {
       "light": "Viegli",

@@ -1,7 +1,6 @@
 import { BLUR_STRENGTHS, type BlurStrength } from "@amluto-steps/core";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { isLinux } from "../recorder-bridge";
 import { policy } from "./policy";
 import {
   readBlurStrength,
@@ -106,6 +105,13 @@ function RecordPcRow() {
   );
 }
 
+/** How this copy reads the words it suggests blurring, which the section's intro says. */
+const INTRO = {
+  windowsOcr: "privacy.intro",
+  tesseract: "privacy.introLinux",
+  page: "privacy.introPage",
+} as const satisfies Record<SettingsProps["capabilities"]["screenWords"], string>;
+
 export function PrivacySection(props: SettingsProps) {
   const { t } = useTranslation();
   const add = (text: string) => {
@@ -121,7 +127,7 @@ export function PrivacySection(props: SettingsProps) {
     <>
       <h2 className="mb-1 font-heading text-xl text-navy">{t("settings.sections.privacy")}</h2>
       <p className="mb-4 text-sm leading-relaxed text-secondary">
-        {t(isLinux(props.recorder) ? "privacy.introLinux" : "privacy.intro")}
+        {t(INTRO[props.capabilities.screenWords])}
       </p>
       <StrengthRow {...props} />
       <ChipList

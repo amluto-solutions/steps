@@ -23,11 +23,7 @@ import type { ToastMessage } from "../components/Toast";
 import type { EditorDoc } from "./document";
 import {
   blankStep,
-  blockStep,
   deleteSteps,
-  duplicateStep,
-  insertStepAt,
-  mergeWithNext,
   moveStep,
   removeStepOutput,
   removeTypedValue,
@@ -38,7 +34,6 @@ import {
   markChecked,
   reviewReason,
   setStepCode,
-  splitStep,
   updateGuide,
   updateStep,
   replaceText,
@@ -65,15 +60,12 @@ import { LanguageToneDialog } from "./LanguageToneDialog";
 import { FindBlurDialog } from "./FindBlurDialog";
 import { applySmartZoom } from "./zoom";
 import { Retake } from "./Retake";
-import {
-  blurFoundEdit,
-  dataUrlBytes,
-  findOpenInGuide,
-  notPersonalEdit,
-  openFindings,
-} from "./suggestions";
+import { blurFoundEdit, findOpenInGuide, notPersonalEdit, openFindings } from "./suggestions";
+import { screenWords, type Area, type TextReader } from "../screen-words";
 import { useGuideEditor, type EditorHooks, type GuideStore } from "./useGuideEditor";
+import { addMenu, insertAfter, newId, stepMenu, type MenuEditor } from "./step-menus";
 import { ModalDialog } from "../ModalDialog";
+import { readFindingSettings } from "../settings/preferences";
 
 /** What a side panel (review comments) sees of the editor. */
 export interface EditorView {
@@ -108,18 +100,16 @@ export interface GuideEditorProps {
   /** Guide-level actions for a saved guide (duplicate, versions, move…). */
   guideMenu?: ((doc: EditorDoc, flush: () => Promise<void>) => MenuEntry[]) | undefined;
   notify: (toast: Omit<ToastMessage, "id">) => void;
-  /** Windows OCR, for suggested blurs and Find & Blur; absent where it isn't available. */
   /**
    * The guide is in a synced or organisation-managed library, so blur only hides text in exports:
    * people with access can still open the original screenshots.
    */
   sharedLibrary?: boolean | undefined;
-  readText?:
-    | ((
-        image: Uint8Array,
-        blurred?: { x: number; y: number; w: number; h: number }[],
-      ) => Promise<OcrLine[]>)
-    | undefined;
+  /**
+   * Reads screenshots' words, for suggested blurs, Blur all and Find & Blur; absent where there's
+   * no reader, and those are hidden.
+   */
+  textReader?: TextReader | undefined;
   /** Settings → Privacy: always-blur terms. */
   blurTerms: string[];
   /** Someone else holds the edit lock (shared libraries): nothing can change here. */
@@ -135,12 +125,6 @@ export interface GuideEditorProps {
   /** On the right of the editor, when given (review comments). */
   sidePanel?: ((view: EditorView) => ReactNode) | undefined;
 }
-
-let idCounter = 0;
-const newId = (prefix: string) => {
-  idCounter += 1;
-  return `${prefix}-${Date.now().toString(36)}${idCounter.toString(36)}`;
-};
 
 const TOOLS: { tool: ImageTool; icon: IconName }[] = [
   { tool: "select", icon: "pointer" },
@@ -163,9 +147,6 @@ const isTextField = (target: EventTarget | null) =>
  * list on the left, the selected step on the right. Every change goes through the undo layer and
  * is saved file by file straight away.
  */
-/** Read text is kept per screenshot and the blur it was read with. */
-const textKey = (mediaId: string, blur: string) => `${mediaId}|${blur}`;
-
 /**
  * Full screenshots are large data URLs (a long guide's would be hundreds of megabytes), so only
  * the most recently used are kept; thumbnails are small and more are kept.
@@ -180,6 +161,25 @@ function trimImageCache(cache: Map<string, string>) {
     const keys = [...cache.keys()].filter((key) => key.endsWith(suffix));
     for (const key of keys.slice(0, Math.max(0, keys.length - MAX_CACHED[kind]))) cache.delete(key);
   }
+}
+
+/** A store's screenshots and thumbnails, the most recently used kept in memory. */
+function cachedImages(store: GuideStore) {
+  const cache = new Map<string, string>();
+  return async (mediaId: string, thumbnail: boolean) => {
+    const key = `${mediaId}:${thumbnail ? "t" : "f"}`;
+    const cached = cache.get(key);
+    if (cached) {
+      // Most recently used last, so the oldest go first when the cache is trimmed.
+      cache.delete(key);
+      cache.set(key, cached);
+      return cached;
+    }
+    const data = await store.loadImage(mediaId, thumbnail);
+    cache.set(key, data);
+    trimImageCache(cache);
+    return data;
+  };
 }
 
 export function GuideEditor(props: GuideEditorProps) {
@@ -219,7 +219,8 @@ export function GuideEditor(props: GuideEditorProps) {
   });
   const [tool, setTool] = useState<ImageTool>("select");
   const [notesOpen, setNotesOpen] = useState(false);
-  const [textLines, setTextLines] = useState<Map<string, OcrLine[]>>(new Map());
+  /** The selected screenshot's words, with the screenshot and blur they were read for. */
+  const [shownWords, setShownWords] = useState<{ key: string; lines: OcrLine[] } | null>(null);
   /** The suggested blur pointed at in the list, and the one last asked to be shown. */
   const [pointed, setPointed] = useState<{ stepId: string; index: number } | null>(null);
   const [revealed, setRevealed] = useState<{ stepId: string; area: Finding["rect"] } | null>(null);
@@ -227,7 +228,6 @@ export function GuideEditor(props: GuideEditorProps) {
   const [tidy, setTidy] = useState<{ suggestions: TidySuggestion[]; chosen: Set<string> } | null>(
     null,
   );
-  const imageCache = useRef(new Map<string, string>());
 
   const numbers = useMemo(() => {
     const map = new Map<string, number>();
@@ -252,24 +252,9 @@ export function GuideEditor(props: GuideEditorProps) {
   /** The selected step's words in the language shown. */
   const selectedText = selected && (view.steps[selectedIndex] ?? selected);
 
-  const loadImage = useCallback(
-    async (mediaId: string, thumbnail: boolean) => {
-      const key = `${mediaId}:${thumbnail ? "t" : "f"}`;
-      const cache = imageCache.current;
-      const cached = cache.get(key);
-      if (cached) {
-        // Most recently used last, so the oldest go first when the cache is trimmed.
-        cache.delete(key);
-        cache.set(key, cached);
-        return cached;
-      }
-      const data = await props.store.loadImage(mediaId, thumbnail);
-      cache.set(key, data);
-      trimImageCache(cache);
-      return data;
-    },
-    [props.store],
-  );
+  // Memoised by hand, as is `words` below: each holds a cache, so must stay the same object from
+  // one render to the next.
+  const loadImage = useMemo(() => cachedImages(props.store), [props.store]);
   const loadThumbnail = useCallback((mediaId: string) => loadImage(mediaId, true), [loadImage]);
 
   const [imageUrl, setImageUrl] = useState<{ id: string; url: string } | null>(null);
@@ -287,61 +272,40 @@ export function GuideEditor(props: GuideEditorProps) {
     };
   }, [mediaId, loadImage]);
 
-  // Words in each screenshot as a step blurs it, read by OCR and kept for this session. Kept per
-  // screenshot *and* blur: two steps can share a screenshot with different blur, and words
-  // under one step's blur must still count for the other.
-  const readText = props.readText;
-  const linesFor = useCallback(
-    async (step: GuideStep): Promise<OcrLine[]> => {
-      const id = step.media?.id;
-      if (!id || !readText) return [];
-      const key = textKey(id, JSON.stringify(step.redactions));
-      const known = textLines.get(key);
-      if (known) return known;
-      const lines = await readText(dataUrlBytes(await loadImage(id, false)), step.redactions);
-      setTextLines((current) => new Map(current).set(key, lines));
-      return lines;
-    },
-    [readText, textLines, loadImage],
+  // The words in each screenshot under each step's blur, kept for this editor by the screen
+  // words module and shared by the suggestions, Blur all and Find & Blur.
+  const textReader = props.textReader;
+  const words = useMemo(
+    () => (textReader ? screenWords(textReader, (id) => loadImage(id, false)) : null),
+    [textReader, loadImage],
   );
 
   const selectedMedia = selected?.kind === "interaction" ? (selected.media?.id ?? null) : null;
   // The blur on screen, as a value that changes only when the blur does.
   const selectedBlur = JSON.stringify(selected?.redactions ?? []);
-  // Read the text in the screenshot on screen, for its suggested blurs; again whenever its blur
-  // changes, which also takes blurred words out of the cache (OCR itself is cached, so it's cheap).
+  // The click mark too: the words round it are read closer up, as the export review reads them.
+  const selectedMark = JSON.stringify(selected?.highlight ?? null);
+  const shownKey = `${selectedMedia ?? ""}|${selectedBlur}|${selectedMark}`;
+  // Read the words in the screenshot on screen, for its suggested blurs; again whenever its blur
+  // changes, which also takes blurred words out of the app's cache.
   useEffect(() => {
-    if (!selectedMedia || !readText) return;
+    if (!selectedMedia || !words) return;
     let cancelled = false;
-    void (async () => {
-      try {
-        const blurred = JSON.parse(selectedBlur) as {
-          x: number;
-          y: number;
-          w: number;
-          h: number;
-        }[];
-        const lines = await readText(dataUrlBytes(await loadImage(selectedMedia, false)), blurred);
-        if (!cancelled)
-          setTextLines((current) =>
-            new Map(current).set(textKey(selectedMedia, selectedBlur), lines),
-          );
-      } catch {
-        // No OCR (or no language for it): no suggestions, and the export review still shows everything.
-      }
-    })();
+    const redactions = JSON.parse(selectedBlur) as Area[];
+    const highlight = JSON.parse(selectedMark) as Area | null;
+    void words.wordsOf({ media: { id: selectedMedia }, redactions, highlight }).then((lines) => {
+      // Unreadable: no suggestions here, and the export review says it wasn't checked.
+      if (!cancelled && lines !== "unavailable")
+        setShownWords({ key: `${selectedMedia}|${selectedBlur}|${selectedMark}`, lines });
+    });
     return () => {
       cancelled = true;
     };
-  }, [selectedMedia, selectedBlur, readText, loadImage]);
+  }, [selectedMedia, selectedBlur, selectedMark, words]);
 
   const findings: Finding[] =
-    selected && selectedMedia
-      ? openFindings(
-          selected,
-          textLines.get(textKey(selectedMedia, selectedBlur)) ?? [],
-          props.blurTerms,
-        )
+    selected && selectedMedia && shownWords?.key === shownKey
+      ? openFindings(selected, shownWords.lines, props.blurTerms, readFindingSettings())
       : [];
 
   /** Adds blur areas to several steps as one undo step (Find & Blur, Blur all). */
@@ -351,12 +315,14 @@ export function GuideEditor(props: GuideEditorProps) {
   /** Blur all: every possible personal detail in every screenshot, blurred in one go (one undo). */
   const [blurring, setBlurring] = useState<{ done: number; total: number } | null>(null);
   const blurAll = async () => {
+    if (!words) return;
     setBlurring({ done: 0, total: 0 });
     try {
       const { found, unread } = await findOpenInGuide(
         doc.steps,
-        linesFor,
+        words,
         props.blurTerms,
+        readFindingSettings(),
         (done, total) => setBlurring({ done, total }),
       );
       const count = found.reduce((sum, item) => sum + item.findings.length, 0);
@@ -405,12 +371,10 @@ export function GuideEditor(props: GuideEditorProps) {
     [apply, props.notify, t, selection, selectedIndex, doc.steps],
   );
 
-  const insertAfter = useCallback(
-    (step: GuideStep, index: number, label: string) => {
-      apply((current, stamp) => insertStepAt(current, step, index + 1, label, stamp));
-      setSelection({ kind: "step", id: step.id });
-    },
-    [apply],
+  /** What the step and Add menus, and pictures added as steps, change the guide through. */
+  const menuEditor = useMemo<MenuEditor>(
+    () => ({ steps: doc.steps, author: props.author, t, apply, select: setSelection, remove }),
+    [doc.steps, props.author, t, apply, remove],
   );
 
   const addImages = useCallback(
@@ -436,14 +400,14 @@ export function GuideEditor(props: GuideEditorProps) {
               captureRect: null,
             },
           };
-          insertAfter(step, index, t("editor.undo.addImage"));
+          insertAfter(menuEditor, step, index, t("editor.undo.addImage"));
           index += 1;
         } catch {
           props.notify({ kind: "error", text: t("editor.imageFailed") });
         }
       }
     },
-    [props, selectedIndex, doc.steps.length, insertAfter, t],
+    [props, selectedIndex, doc.steps.length, menuEditor, t],
   );
 
   // Undo/redo for the whole editor (typing included), Ctrl+V for pasted screenshots.
@@ -477,115 +441,9 @@ export function GuideEditor(props: GuideEditorProps) {
     };
   }, [editor, addImages]);
 
-  const stepMenu = (step: GuideStep, index: number): MenuEntry[] => [
-    {
-      label: t("editor.menu.duplicate"),
-      icon: "copy",
-      onSelect: () =>
-        apply((current, stamp) => duplicateStep(current, step.id, newId("step"), stamp)),
-    },
-    ...(step.kind === "interaction"
-      ? [
-          {
-            label: t("editor.menu.split"),
-            icon: "split" as const,
-            note: t("editor.menu.splitNote"),
-            onSelect: () =>
-              apply((current, stamp) => splitStep(current, step.id, newId("step"), stamp)),
-          },
-          {
-            label: t("editor.menu.merge"),
-            icon: "merge" as const,
-            disabled: doc.steps[index + 1]?.kind !== "interaction",
-            onSelect: () => apply((current, stamp) => mergeWithNext(current, step.id, stamp)),
-          },
-        ]
-      : []),
-    "divider",
-    {
-      label: t("editor.menu.moveUp"),
-      icon: "up",
-      disabled: index === 0,
-      onSelect: () => apply((current, stamp) => moveStep(current, step.id, index - 1, stamp)),
-    },
-    {
-      label: t("editor.menu.moveDown"),
-      icon: "down",
-      disabled: index === doc.steps.length - 1,
-      onSelect: () => apply((current, stamp) => moveStep(current, step.id, index + 1, stamp)),
-    },
-    "divider",
-    {
-      label: t("editor.menu.addStepAfter"),
-      icon: "plus",
-      onSelect: () =>
-        insertAfter(
-          blankStep(newId("step"), { at: Date.now(), by: props.author }),
-          index,
-          t("editor.undo.addStep"),
-        ),
-    },
-    {
-      label: t("editor.menu.addTipAfter"),
-      icon: "info",
-      onSelect: () =>
-        insertAfter(
-          blockStep(newId("block"), "tip", { at: Date.now(), by: props.author }),
-          index,
-          t("editor.undo.addBlock"),
-        ),
-    },
-    "divider",
-    {
-      label: t("editor.menu.delete"),
-      icon: "trash",
-      danger: true,
-      trailing: t("editor.deleteKey"),
-      onSelect: () => remove([step.id]),
-    },
-  ];
-
-  // New items go after the selected step; with the guide details or intro selected they go
-  // first, and only the outro sends them to the end.
-  const addAt =
-    selectedIndex >= 0 ? selectedIndex : selection.kind === "outro" ? doc.steps.length - 1 : -1;
-  const addBlock = (type: Block["type"]) =>
-    insertAfter(
-      blockStep(newId("block"), type, { at: Date.now(), by: props.author }),
-      addAt,
-      t("editor.undo.addBlock"),
-    );
-  const addMenu: MenuEntry[] = [
-    {
-      label: t("editor.menu.blankStep"),
-      icon: "plus",
-      note: t("editor.menu.blankStepNote"),
-      onSelect: () =>
-        insertAfter(
-          blankStep(newId("step"), { at: Date.now(), by: props.author }),
-          addAt,
-          t("editor.undo.addStep"),
-        ),
-    },
-    {
-      label: t("editor.menu.image"),
-      icon: "image",
-      note: props.store.importImage ? t("editor.menu.imageNote") : t("editor.saveFirstForImages"),
-      disabled: !props.store.importImage,
-      onSelect: () => document.getElementById("editor-image-input")?.click(),
-    },
-    { heading: t("editor.menu.blocks") },
-    { label: t("editor.block.header"), icon: "text", onSelect: () => addBlock("header") },
-    { label: t("editor.block.text"), icon: "note", onSelect: () => addBlock("text") },
-    { label: t("editor.block.callout"), icon: "info", onSelect: () => addBlock("callout") },
-    { label: t("editor.block.tip"), icon: "info", onSelect: () => addBlock("tip") },
-    { label: t("editor.block.warning"), icon: "warning", onSelect: () => addBlock("warning") },
-    { label: t("editor.block.alert"), icon: "warning", onSelect: () => addBlock("alert") },
-  ];
-
   const hasValues = doc.steps.some((step) => step.textParts.value);
   const guideMenu: MenuEntry[] = [
-    ...(readText
+    ...(words
       ? [
           {
             label: t("findBlur.menu"),
@@ -719,12 +577,12 @@ export function GuideEditor(props: GuideEditorProps) {
             }}
           />
         )}
-        {findBlurOpen && readText && (
+        {findBlurOpen && words && (
           <FindBlurDialog
             steps={doc.steps}
             numbers={numbers}
             terms={props.blurTerms}
-            linesFor={linesFor}
+            words={words}
             textMatches={(term) => stepsWithText(doc, term)}
             onReplace={(term, replacement) => {
               const made = apply((current, stamp) =>
@@ -937,7 +795,7 @@ export function GuideEditor(props: GuideEditorProps) {
                 </button>
               )}
             />
-            {readText && (
+            {words && (
               <button
                 type="button"
                 className="btn"
@@ -1027,8 +885,11 @@ export function GuideEditor(props: GuideEditorProps) {
               apply((current, stamp) => moveStep(current, id, toIndex, stamp))
             }
             onDelete={(id) => remove([id])}
-            stepMenu={stepMenu}
-            addMenu={addMenu}
+            stepMenu={(step, index) => stepMenu(menuEditor, step, index)}
+            addMenu={addMenu(menuEditor, selection, {
+              canImport: Boolean(props.store.importImage),
+              pick: () => document.getElementById("editor-image-input")?.click(),
+            })}
             loadThumbnail={loadThumbnail}
           />
           <input

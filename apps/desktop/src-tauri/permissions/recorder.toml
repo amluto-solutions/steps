@@ -169,6 +169,11 @@ description = "Allows the frontend to read where a recording was started again."
 commands.allow = ["recorder_get_restart_point"]
 
 [[permission]]
+identifier = "allow-recorder-get-recording-settings"
+description = "Allows the frontend to read the settings a recording started with."
+commands.allow = ["recorder_get_recording_settings"]
+
+[[permission]]
 identifier = "allow-recorder-save-draft"
 description = "Allows the editor to publish a stopped recording's draft as a guide."
 commands.allow = ["recorder_save_draft"]

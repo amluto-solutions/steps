@@ -5,9 +5,11 @@ import type { ToastMessage } from "../components/Toast";
 import { errorMessage } from "../errors";
 import { askConfirm } from "./ask";
 import { safeFileName } from "../files";
-import type { LibraryBridge } from "../library-bridge";
+import type { FileDialogs, Libraries } from "../library-bridge";
 import { formatDate } from "../library/dates";
-import type { RecorderBridge } from "../recorder-bridge";
+import type { Brands } from "../bridge/brands";
+import type { Fonts } from "../bridge/fonts";
+import type { SettingsFiles } from "../bridge/settings-files";
 import { buildBackup, readBackup } from "../settings/backup";
 import { readDefaultBrand, saveDefaultBrand } from "../settings/brands";
 import {
@@ -60,8 +62,8 @@ export function settingsFileName(name: string, when: Date): string {
  * to the settings, brands and libraries hooks (docs/spec/07-settings-and-policy.md).
  */
 export function useSettingsTransfer(context: {
-  recorder: RecorderBridge | undefined;
-  library: LibraryBridge | undefined;
+  recorder: (SettingsFiles & Brands & Fonts) | undefined;
+  library: (Libraries & FileDialogs) | undefined;
   notify: (message: Omit<ToastMessage, "id">) => void;
   run: (action: () => Promise<unknown>, done?: string) => Promise<void>;
   settings: Settings;

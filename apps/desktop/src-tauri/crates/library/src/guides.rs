@@ -67,6 +67,7 @@ const STEP_FIELDS: &[&str] = &[
     "updatedBy",
     "formatVersion",
     "reviewRequired",
+    "naming",
     "translations",
 ];
 

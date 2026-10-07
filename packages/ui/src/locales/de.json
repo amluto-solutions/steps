@@ -28,7 +28,6 @@
     "settings": "Einstellungen",
     "guides": "Anleitungen",
     "recordingNow": "Eine Aufnahme läuft",
-    "saveFirst": "Speichern oder verwerfen Sie zuerst Ihre letzte Aufnahme",
     "needsReview": "Prüfung fällig"
   },
   "dates": {
@@ -258,8 +257,8 @@
     "drawing": "Wird vorbereitet…",
     "checklist": "Checkliste",
     "personalData": "Prüfen Sie jeden Screenshot auf personenbezogene Daten, bevor Sie ihn teilen. Automatische Vorschläge können etwas übersehen.",
-    "flagged_one": "{{count}} Schritt muss geprüft werden: ein unbenannter Klick, verpasste Klicks, eine Eingabe, die vielleicht nicht stimmt, oder ein zu prüfender Screenshot.",
-    "flagged_other": "{{count}} Schritte müssen geprüft werden: unbenannte Klicks, verpasste Klicks, Eingaben, die vielleicht nicht stimmen, oder zu prüfende Screenshots.",
+    "flagged_one": "{{count}} Schritt muss geprüft werden: ein unbenannter Klick, ein aus dem Screenshot gelesener Name, verpasste Klicks, eine Eingabe, die vielleicht nicht stimmt, oder ein zu prüfender Screenshot.",
+    "flagged_other": "{{count}} Schritte müssen geprüft werden: unbenannte Klicks, aus Screenshots gelesene Namen, verpasste Klicks, Eingaben, die vielleicht nicht stimmen, oder zu prüfende Screenshots.",
     "noFlagged": "Keine Schritte sind zur Prüfung markiert.",
     "stepNumber": "Schritt {{number}}",
     "quickEdit": {
@@ -502,6 +501,7 @@
     "reviewRequired": "Prüfen Sie diesen Schritt: Die Aufnahme konnte nicht benennen, was angeklickt wurde, hier wurden Klicks verpasst, die Eingabe stimmt vielleicht nicht genau, oder ein vertraulicher Wert wurde im Screenshot nicht zum Weichzeichnen gefunden.",
     "review": {
       "unnamed": "Prüfen Sie diesen Schritt: Die Aufnahme konnte nicht benennen, was angeklickt wurde. Schreiben Sie, was es war, oder wählen Sie „Sieht richtig aus“.",
+      "checkName": "Prüfen Sie diesen Namen: Er wurde aus dem Screenshot gelesen.",
       "missed": "Prüfen Sie diesen Schritt: Hier wurden einige Klicks verpasst.",
       "typing": "Prüfen Sie diesen Schritt: Die Eingabe stimmt vielleicht nicht genau.",
       "code": "Prüfen Sie diesen Schritt: Ein vertraulicher Wert darin wurde im Screenshot nicht gefunden und konnte nicht weichgezeichnet werden, oder der Text stimmt nicht genau.",
@@ -791,6 +791,7 @@
       "managed": "Ihre Organisation verwaltet diese Einstellungen, daher ist der Import ausgeschaltet.",
       "tour": "Einführung anzeigen",
       "tourHelp": "Ein kurzer Rundgang durch das Hauptfenster, in Fenstern ab 1024 Pixel Breite.",
+      "tourNarrow": "Ein kurzer Rundgang durch das Hauptfenster. Dieses Fenster ist dafür zu schmal: Machen Sie es mindestens 1024 Pixel breit, dann erscheint der Rundgang.",
       "tourStartAgain": "Neu beginnen",
       "tourContinue": "Rundgang fortsetzen ({{progress}})"
     },
@@ -1240,6 +1241,7 @@
   "privacy": {
     "intro": "Steps liest den Text in Ihren Screenshots auf diesem PC (mit der Offline-Texterkennung von Windows), um vorzuschlagen, was weichgezeichnet werden sollte. Nichts wird irgendwohin gesendet.",
     "introLinux": "Steps liest den Text in Ihren Screenshots auf diesem Computer (mit Tesseract, falls installiert), um vorzuschlagen, was weichgezeichnet werden sollte. Nichts wird irgendwohin gesendet.",
+    "introPage": "Steps liest den Text auf den Seiten, die Sie aufzeichnen, so wie ihn der Browser anzeigt, um vorzuschlagen, was weichgezeichnet werden sollte. Nichts wird irgendwohin gesendet.",
     "strength": "Weichzeichnen-Vorschläge",
     "strengths": {
       "light": "Leicht",

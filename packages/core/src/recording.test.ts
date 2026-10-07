@@ -85,6 +85,56 @@ describe("recording fact schema", () => {
     expect(recordingFactSchema.parse(fact)).toEqual(fact);
   });
 
+  describe("an element's parents", () => {
+    const field = {
+      controlType: "Edit",
+      localizedControlType: "edit",
+      name: "Email",
+      automationId: "",
+      helpText: "",
+      ariaRole: "",
+      ariaProperties: "",
+      className: "",
+      frameworkId: "Chrome",
+      isPassword: false,
+      labeledBy: null,
+      bounds: null,
+      sensitive: false,
+    };
+    const inputFact = (element: object) => ({
+      sessionId: "session-1",
+      recordedAt: 1_790_246_400_000,
+      sequence: 4,
+      record: { kind: "input", tickMs: 140, element, value: null, withheld: "setting-off" },
+    });
+    const elementOf = (parsed: unknown) =>
+      (parsed as { record: { element: Record<string, unknown> } }).record.element;
+
+    it("keeps up to four, nearest first", () => {
+      const ancestors = [
+        { controlType: "Group", name: "" },
+        { controlType: "ListItem", name: "Forwarders" },
+        { controlType: "List", name: "Email" },
+      ];
+      expect(elementOf(recordingFactSchema.parse(inputFact({ ...field, ancestors })))).toEqual({
+        ...field,
+        ancestors,
+      });
+    });
+
+    it("reads the one parent a recording made before 06/10/2026 kept", () => {
+      const parent = { controlType: "Group", name: "Sign in" };
+      expect(elementOf(recordingFactSchema.parse(inputFact({ ...field, parent })))).toEqual({
+        ...field,
+        ancestors: [parent],
+      });
+      expect(elementOf(recordingFactSchema.parse(inputFact({ ...field, parent: null })))).toEqual({
+        ...field,
+        ancestors: [],
+      });
+    });
+  });
+
   it("requires a normalized HTTP site origin in navigation facts", () => {
     const fact = {
       sessionId: "session-1",

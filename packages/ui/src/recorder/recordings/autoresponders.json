@@ -1,0 +1,2507 @@
+{
+  "about": "A SiteGround recording on Windows (05/10/2026): sign in, switch site, Email > Autoresponders, zoom with Ctrl+- and Ctrl+=. Facts from the journal, anything personal replaced.",
+  "facts": [
+    {
+      "sessionId": "recording-autoresponders",
+      "recordedAt": 1791226014204,
+      "sequence": 1,
+      "record": {
+        "kind": "click",
+        "id": 3,
+        "tickMs": 423922000,
+        "button": "left",
+        "injected": true,
+        "x": 1249,
+        "y": 9,
+        "window": {
+          "title": "Steps by Amluto: step-by-step guides from a single run-through - Google Chrome",
+          "exe": "chrome.exe",
+          "pid": 12972,
+          "frame": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "elevation": "notElevated",
+          "remoteSession": false,
+          "appName": "Google Chrome",
+          "shell": false
+        },
+        "capture": {
+          "mode": "window",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "monitor": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1080
+          },
+          "scale": 1,
+          "width": 1920,
+          "height": 1032,
+          "image": "click-3.webp"
+        },
+        "clickPct": {
+          "x": 65.052,
+          "y": 0.872
+        },
+        "element": {
+          "controlType": "Button",
+          "localizedControlType": "button",
+          "name": "New tab",
+          "automationId": "",
+          "helpText": "",
+          "ariaRole": "button",
+          "ariaProperties": "checked=true;readonly=true;expanded=false;multiline=false;multiselectable=false;required=false;hasactions=false",
+          "className": "TabStripControlButton",
+          "frameworkId": "Chrome",
+          "isPassword": false,
+          "labeledBy": null,
+          "bounds": {
+            "left": 1230,
+            "top": 0,
+            "right": 1258,
+            "bottom": 41
+          },
+          "parent": {
+            "controlType": "Pane",
+            "name": ""
+          },
+          "sensitive": false
+        },
+        "elementPct": {
+          "x": 64.063,
+          "y": 0,
+          "w": 1.458,
+          "h": 3.973
+        },
+        "uia": {
+          "status": "ok",
+          "ms": 60.2,
+          "retried": false,
+          "error": null
+        },
+        "screenshotMs": 39.1,
+        "queueDelayMs": 15
+      }
+    },
+    {
+      "sessionId": "recording-autoresponders",
+      "recordedAt": 1791226016153,
+      "sequence": 2,
+      "record": {
+        "kind": "navigation",
+        "tickMs": 423923812,
+        "origin": "siteground.co.uk",
+        "window": {
+          "title": "Web Hosting Done Right - SiteGround UK - Google Chrome",
+          "exe": "chrome.exe",
+          "pid": 12972,
+          "frame": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "elevation": "notElevated",
+          "remoteSession": false,
+          "appName": "Google Chrome",
+          "shell": false
+        },
+        "id": 1,
+        "capture": {
+          "mode": "window",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "monitor": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1080
+          },
+          "scale": 1,
+          "width": 1920,
+          "height": 1032,
+          "image": "nav-1.webp"
+        }
+      }
+    },
+    {
+      "sessionId": "recording-autoresponders",
+      "recordedAt": 1791226016295,
+      "sequence": 3,
+      "record": {
+        "kind": "typing",
+        "id": 281474976710656,
+        "tickMs": 423922906,
+        "window": {
+          "title": "New tab - Google Chrome",
+          "exe": "chrome.exe",
+          "pid": 12972,
+          "frame": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "elevation": "notElevated",
+          "remoteSession": false,
+          "appName": "Google Chrome",
+          "shell": false
+        },
+        "capture": {
+          "mode": "window",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "monitor": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1080
+          },
+          "scale": 1,
+          "width": 1920,
+          "height": 1032,
+          "image": "typing-281474976710656.webp"
+        },
+        "element": {
+          "controlType": "Document",
+          "localizedControlType": "document",
+          "name": "Widgets",
+          "automationId": "RootWebArea",
+          "helpText": "",
+          "ariaRole": "document",
+          "ariaProperties": "readonly=true;expanded=false;multiline=false;multiselectable=false;required=false;hasactions=false",
+          "className": "",
+          "frameworkId": "Chrome",
+          "isPassword": false,
+          "labeledBy": null,
+          "bounds": {
+            "left": -1012,
+            "top": 1392,
+            "right": -12,
+            "bottom": 2400
+          },
+          "parent": null,
+          "sensitive": false
+        },
+        "text": "site",
+        "form": "text",
+        "language": "plain",
+        "cell": null,
+        "approximate": false,
+        "checkScreenshot": false
+      }
+    },
+    {
+      "sessionId": "recording-autoresponders",
+      "recordedAt": 1791226017825,
+      "sequence": 4,
+      "record": {
+        "kind": "click",
+        "id": 4,
+        "tickMs": 423925625,
+        "button": "left",
+        "injected": true,
+        "x": 1824,
+        "y": 174,
+        "window": {
+          "title": "Web Hosting Done Right - SiteGround UK - Google Chrome",
+          "exe": "chrome.exe",
+          "pid": 12972,
+          "frame": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "elevation": "notElevated",
+          "remoteSession": false,
+          "appName": "Google Chrome",
+          "shell": false
+        },
+        "capture": {
+          "mode": "window",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "monitor": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1080
+          },
+          "scale": 1,
+          "width": 1920,
+          "height": 1032,
+          "image": "click-4.webp"
+        },
+        "clickPct": {
+          "x": 95,
+          "y": 16.86
+        },
+        "element": {
+          "controlType": "Hyperlink",
+          "localizedControlType": "link",
+          "name": "Login",
+          "automationId": "",
+          "helpText": "Login to Site Area",
+          "ariaRole": "link",
+          "ariaProperties": "readonly=true;expanded=false;multiline=false;multiselectable=false;required=false;hasactions=false",
+          "className": "header-help__channel__tab",
+          "frameworkId": "Chrome",
+          "isPassword": false,
+          "labeledBy": null,
+          "bounds": {
+            "left": 1803,
+            "top": 141,
+            "right": 1849,
+            "bottom": 181
+          },
+          "parent": {
+            "controlType": "ListItem",
+            "name": "Login"
+          },
+          "sensitive": false
+        },
+        "elementPct": {
+          "x": 93.906,
+          "y": 13.663,
+          "w": 2.396,
+          "h": 3.876
+        },
+        "uia": {
+          "status": "ok",
+          "ms": 6.2,
+          "retried": false,
+          "error": null
+        },
+        "screenshotMs": 26.3,
+        "queueDelayMs": 15
+      }
+    },
+    {
+      "sessionId": "recording-autoresponders",
+      "recordedAt": 1791226019889,
+      "sequence": 5,
+      "record": {
+        "kind": "click",
+        "id": 5,
+        "tickMs": 423927718,
+        "button": "left",
+        "injected": true,
+        "x": 1415,
+        "y": 745,
+        "window": {
+          "title": "SiteGround Login - Google Chrome",
+          "exe": "chrome.exe",
+          "pid": 12972,
+          "frame": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "elevation": "notElevated",
+          "remoteSession": false,
+          "appName": "Google Chrome",
+          "shell": false
+        },
+        "capture": {
+          "mode": "window",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "monitor": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1080
+          },
+          "scale": 1,
+          "width": 1920,
+          "height": 1032,
+          "image": "click-5.webp"
+        },
+        "clickPct": {
+          "x": 73.698,
+          "y": 72.19
+        },
+        "element": {
+          "controlType": "Button",
+          "localizedControlType": "button",
+          "name": "Continue with Google",
+          "automationId": "",
+          "helpText": "",
+          "ariaRole": "button",
+          "ariaProperties": "readonly=true;expanded=false;multiline=false;multiselectable=false;required=false;hasactions=false",
+          "className": "sg-button-base sg-button-base--color-secondary sg-button-base--type-ghost sg-button sg-button--x-large social-login--button",
+          "frameworkId": "Chrome",
+          "isPassword": false,
+          "labeledBy": null,
+          "bounds": {
+            "left": 1257,
+            "top": 702,
+            "right": 1619,
+            "bottom": 758
+          },
+          "parent": {
+            "controlType": "Group",
+            "name": ""
+          },
+          "sensitive": false
+        },
+        "elementPct": {
+          "x": 65.469,
+          "y": 68.023,
+          "w": 18.854,
+          "h": 5.426
+        },
+        "uia": {
+          "status": "ok",
+          "ms": 16.6,
+          "retried": false,
+          "error": null
+        },
+        "screenshotMs": 28.9,
+        "queueDelayMs": 0
+      }
+    },
+    {
+      "sessionId": "recording-autoresponders",
+      "recordedAt": 1791226021704,
+      "sequence": 6,
+      "record": {
+        "kind": "click",
+        "id": 6,
+        "tickMs": 423929640,
+        "button": "left",
+        "injected": true,
+        "x": 892,
+        "y": 593,
+        "window": {
+          "title": "Sign in – Google accounts - Google Chrome",
+          "exe": "chrome.exe",
+          "pid": 12972,
+          "frame": {
+            "left": 717,
+            "top": 240,
+            "right": 1221,
+            "bottom": 914
+          },
+          "elevation": "notElevated",
+          "remoteSession": false,
+          "appName": "Google Chrome",
+          "shell": false
+        },
+        "capture": {
+          "mode": "window",
+          "rect": {
+            "left": 717,
+            "top": 240,
+            "right": 1221,
+            "bottom": 914
+          },
+          "monitor": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1080
+          },
+          "scale": 1,
+          "width": 504,
+          "height": 674,
+          "image": "click-6.webp"
+        },
+        "clickPct": {
+          "x": 34.722,
+          "y": 52.374
+        },
+        "element": {
+          "controlType": "Hyperlink",
+          "localizedControlType": "link",
+          "name": "Robin Example robin@example.com",
+          "automationId": "",
+          "helpText": "",
+          "ariaRole": "link",
+          "ariaProperties": "readonly=true;expanded=false;multiline=false;multiselectable=false;required=false;hasactions=false",
+          "className": "VV3oRb YZVTmd SmR8",
+          "frameworkId": "Chrome",
+          "isPassword": false,
+          "labeledBy": null,
+          "bounds": {
+            "left": 726,
+            "top": 562,
+            "right": 1197,
+            "bottom": 630
+          },
+          "parent": {
+            "controlType": "ListItem",
+            "name": "Robin Examplerobin@example.com"
+          },
+          "sensitive": false
+        },
+        "elementPct": {
+          "x": 1.786,
+          "y": 47.774,
+          "w": 93.452,
+          "h": 10.089
+        },
+        "uia": {
+          "status": "ok",
+          "ms": 6.6,
+          "retried": false,
+          "error": null
+        },
+        "screenshotMs": 9.3,
+        "queueDelayMs": 0
+      }
+    },
+    {
+      "sessionId": "recording-autoresponders",
+      "recordedAt": 1791226031447,
+      "sequence": 7,
+      "record": {
+        "kind": "click",
+        "id": 7,
+        "tickMs": 423939296,
+        "button": "left",
+        "injected": true,
+        "x": 1477,
+        "y": 635,
+        "window": {
+          "title": "SiteGround Login - Google Chrome",
+          "exe": "chrome.exe",
+          "pid": 12972,
+          "frame": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "elevation": "notElevated",
+          "remoteSession": false,
+          "appName": "Google Chrome",
+          "shell": false
+        },
+        "capture": {
+          "mode": "window",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "monitor": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1080
+          },
+          "scale": 1,
+          "width": 1920,
+          "height": 1032,
+          "image": "click-7.webp"
+        },
+        "clickPct": {
+          "x": 76.927,
+          "y": 61.531
+        },
+        "element": {
+          "controlType": "Group",
+          "localizedControlType": "group",
+          "name": "Time-based One-Time Password Verification Code",
+          "automationId": "",
+          "helpText": "",
+          "ariaRole": "group",
+          "ariaProperties": "readonly=true;expanded=false;multiline=false;multiselectable=false;required=false;hasactions=false",
+          "className": "cipher-subtitle",
+          "frameworkId": "Chrome",
+          "isPassword": false,
+          "labeledBy": null,
+          "bounds": {
+            "left": 1315,
+            "top": 616,
+            "right": 1581,
+            "bottom": 637
+          },
+          "parent": {
+            "controlType": "Button",
+            "name": "Fill credentials for siteground.co.uk"
+          },
+          "sensitive": true
+        },
+        "elementPct": {
+          "x": 68.49,
+          "y": 59.69,
+          "w": 13.854,
+          "h": 2.035
+        },
+        "uia": {
+          "status": "ok",
+          "ms": 14,
+          "retried": false,
+          "error": null
+        },
+        "screenshotMs": 22.8,
+        "queueDelayMs": 0
+      }
+    },
+    {
+      "sessionId": "recording-autoresponders",
+      "recordedAt": 1791226031567,
+      "sequence": 8,
+      "record": {
+        "kind": "input",
+        "tickMs": 423939312,
+        "element": {
+          "controlType": "Edit",
+          "localizedControlType": "edit",
+          "name": "Verification Code",
+          "automationId": "",
+          "helpText": "",
+          "ariaRole": "textbox",
+          "ariaProperties": "expanded=false;multiline=false;multiselectable=false;required=false;hasactions=false",
+          "className": "sg-input sg-field",
+          "frameworkId": "Chrome",
+          "isPassword": false,
+          "labeledBy": "Verification Code",
+          "bounds": {
+            "left": 1263,
+            "top": 534,
+            "right": 1625,
+            "bottom": 582
+          },
+          "parent": null,
+          "sensitive": true
+        },
+        "value": null,
+        "withheld": "sensitive",
+        "id": 1,
+        "window": {
+          "title": "SiteGround Login - Google Chrome",
+          "exe": "chrome.exe",
+          "pid": 12972,
+          "frame": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "elevation": "notElevated",
+          "remoteSession": false,
+          "appName": "Google Chrome",
+          "shell": false
+        },
+        "capture": {
+          "mode": "window",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "monitor": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1080
+          },
+          "scale": 1,
+          "width": 1920,
+          "height": 1032,
+          "image": "field-1.webp"
+        },
+        "elementPct": {
+          "x": 65.781,
+          "y": 51.744,
+          "w": 18.854,
+          "h": 4.651
+        }
+      }
+    },
+    {
+      "sessionId": "recording-autoresponders",
+      "recordedAt": 1791226032507,
+      "sequence": 9,
+      "record": {
+        "kind": "click",
+        "id": 8,
+        "tickMs": 423940343,
+        "button": "left",
+        "injected": true,
+        "x": 1403,
+        "y": 631,
+        "window": {
+          "title": "SiteGround Login - Google Chrome",
+          "exe": "chrome.exe",
+          "pid": 12972,
+          "frame": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "elevation": "notElevated",
+          "remoteSession": false,
+          "appName": "Google Chrome",
+          "shell": false
+        },
+        "capture": {
+          "mode": "window",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "monitor": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1080
+          },
+          "scale": 1,
+          "width": 1920,
+          "height": 1032,
+          "image": "click-8.webp"
+        },
+        "clickPct": {
+          "x": 73.073,
+          "y": 61.143
+        },
+        "element": {
+          "controlType": "Button",
+          "localizedControlType": "button",
+          "name": "SIGN IN",
+          "automationId": "",
+          "helpText": "",
+          "ariaRole": "button",
+          "ariaProperties": "readonly=true;expanded=false;multiline=false;multiselectable=false;required=false;hasactions=false",
+          "className": "sg-button-base sg-button-base--color-primary sg-button-base--type-contained sg-button sg-button--x-large",
+          "frameworkId": "Chrome",
+          "isPassword": false,
+          "labeledBy": null,
+          "bounds": {
+            "left": 1263,
+            "top": 606,
+            "right": 1625,
+            "bottom": 662
+          },
+          "parent": {
+            "controlType": "Group",
+            "name": ""
+          },
+          "sensitive": false
+        },
+        "elementPct": {
+          "x": 65.781,
+          "y": 58.721,
+          "w": 18.854,
+          "h": 5.426
+        },
+        "uia": {
+          "status": "ok",
+          "ms": 11.2,
+          "retried": false,
+          "error": null
+        },
+        "screenshotMs": 26.1,
+        "queueDelayMs": 0
+      }
+    },
+    {
+      "sessionId": "recording-autoresponders",
+      "recordedAt": 1791226032623,
+      "sequence": 10,
+      "record": {
+        "kind": "input",
+        "tickMs": 423940343,
+        "element": {
+          "controlType": "Edit",
+          "localizedControlType": "edit",
+          "name": "Verification Code",
+          "automationId": "",
+          "helpText": "",
+          "ariaRole": "textbox",
+          "ariaProperties": "expanded=false;multiline=false;multiselectable=false;required=false;hasactions=false",
+          "className": "sg-input sg-field",
+          "frameworkId": "Chrome",
+          "isPassword": false,
+          "labeledBy": "Verification Code",
+          "bounds": {
+            "left": 1263,
+            "top": 534,
+            "right": 1625,
+            "bottom": 582
+          },
+          "parent": null,
+          "sensitive": true
+        },
+        "value": null,
+        "withheld": "sensitive",
+        "id": 2,
+        "window": {
+          "title": "SiteGround Login - Google Chrome",
+          "exe": "chrome.exe",
+          "pid": 12972,
+          "frame": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "elevation": "notElevated",
+          "remoteSession": false,
+          "appName": "Google Chrome",
+          "shell": false
+        },
+        "capture": {
+          "mode": "window",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "monitor": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1080
+          },
+          "scale": 1,
+          "width": 1920,
+          "height": 1032,
+          "image": "field-2.webp"
+        },
+        "elementPct": {
+          "x": 65.781,
+          "y": 51.744,
+          "w": 18.854,
+          "h": 4.651
+        }
+      }
+    },
+    {
+      "sessionId": "recording-autoresponders",
+      "recordedAt": 1791226042217,
+      "sequence": 11,
+      "record": {
+        "kind": "click",
+        "id": 9,
+        "tickMs": 423950062,
+        "button": "left",
+        "injected": true,
+        "x": 1403,
+        "y": 631,
+        "window": {
+          "title": "My SiteGround Account - Google Chrome",
+          "exe": "chrome.exe",
+          "pid": 12972,
+          "frame": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "elevation": "notElevated",
+          "remoteSession": false,
+          "appName": "Google Chrome",
+          "shell": false
+        },
+        "capture": {
+          "mode": "window",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "monitor": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1080
+          },
+          "scale": 1,
+          "width": 1920,
+          "height": 1032,
+          "image": "click-9.webp"
+        },
+        "clickPct": {
+          "x": 73.073,
+          "y": 61.143
+        },
+        "element": {
+          "controlType": "Document",
+          "localizedControlType": "document",
+          "name": "My SiteGround Account",
+          "automationId": "RootWebArea",
+          "helpText": "",
+          "ariaRole": "document",
+          "ariaProperties": "readonly=true;expanded=false;multiline=false;multiselectable=false;required=false;hasactions=false",
+          "className": "",
+          "frameworkId": "Chrome",
+          "isPassword": false,
+          "labeledBy": null,
+          "bounds": {
+            "left": 0,
+            "top": 121,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "parent": {
+            "controlType": "Pane",
+            "name": ""
+          },
+          "sensitive": false
+        },
+        "elementPct": {
+          "x": 0,
+          "y": 11.725,
+          "w": 100,
+          "h": 88.275
+        },
+        "uia": {
+          "status": "ok",
+          "ms": 5,
+          "retried": false,
+          "error": null
+        },
+        "screenshotMs": 30.1,
+        "queueDelayMs": 0
+      }
+    },
+    {
+      "sessionId": "recording-autoresponders",
+      "recordedAt": 1791226043394,
+      "sequence": 12,
+      "record": {
+        "kind": "click",
+        "id": 10,
+        "tickMs": 423951234,
+        "button": "left",
+        "injected": true,
+        "x": 604,
+        "y": 146,
+        "window": {
+          "title": "My SiteGround Account - Google Chrome",
+          "exe": "chrome.exe",
+          "pid": 12972,
+          "frame": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "elevation": "notElevated",
+          "remoteSession": false,
+          "appName": "Google Chrome",
+          "shell": false
+        },
+        "capture": {
+          "mode": "window",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "monitor": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1080
+          },
+          "scale": 1,
+          "width": 1920,
+          "height": 1032,
+          "image": "click-10.webp"
+        },
+        "clickPct": {
+          "x": 31.458,
+          "y": 14.147
+        },
+        "element": {
+          "controlType": "Document",
+          "localizedControlType": "document",
+          "name": "My SiteGround Account",
+          "automationId": "RootWebArea",
+          "helpText": "",
+          "ariaRole": "document",
+          "ariaProperties": "readonly=true;expanded=false;multiline=false;multiselectable=false;required=false;hasactions=false",
+          "className": "",
+          "frameworkId": "Chrome",
+          "isPassword": false,
+          "labeledBy": null,
+          "bounds": {
+            "left": 0,
+            "top": 121,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "parent": {
+            "controlType": "Pane",
+            "name": ""
+          },
+          "sensitive": false
+        },
+        "elementPct": {
+          "x": 0,
+          "y": 11.725,
+          "w": 100,
+          "h": 88.275
+        },
+        "uia": {
+          "status": "ok",
+          "ms": 4.9,
+          "retried": false,
+          "error": null
+        },
+        "screenshotMs": 23.5,
+        "queueDelayMs": 0
+      }
+    },
+    {
+      "sessionId": "recording-autoresponders",
+      "recordedAt": 1791226048292,
+      "sequence": 13,
+      "record": {
+        "kind": "click",
+        "id": 11,
+        "tickMs": 423956125,
+        "button": "left",
+        "injected": true,
+        "x": 1455,
+        "y": 767,
+        "window": {
+          "title": "My SiteGround Account > Websites - Google Chrome",
+          "exe": "chrome.exe",
+          "pid": 12972,
+          "frame": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "elevation": "notElevated",
+          "remoteSession": false,
+          "appName": "Google Chrome",
+          "shell": false
+        },
+        "capture": {
+          "mode": "window",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "monitor": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1080
+          },
+          "scale": 1,
+          "width": 1920,
+          "height": 1032,
+          "image": "click-11.webp"
+        },
+        "clickPct": {
+          "x": 75.781,
+          "y": 74.322
+        },
+        "element": {
+          "controlType": "Document",
+          "localizedControlType": "document",
+          "name": "My SiteGround Account > Websites",
+          "automationId": "RootWebArea",
+          "helpText": "",
+          "ariaRole": "document",
+          "ariaProperties": "readonly=true;expanded=false;multiline=false;multiselectable=false;required=false;hasactions=false",
+          "className": "",
+          "frameworkId": "Chrome",
+          "isPassword": false,
+          "labeledBy": null,
+          "bounds": {
+            "left": 0,
+            "top": 121,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "parent": {
+            "controlType": "Pane",
+            "name": ""
+          },
+          "sensitive": false
+        },
+        "elementPct": {
+          "x": 0,
+          "y": 11.725,
+          "w": 100,
+          "h": 88.275
+        },
+        "uia": {
+          "status": "ok",
+          "ms": 6.4,
+          "retried": false,
+          "error": null
+        },
+        "screenshotMs": 25.9,
+        "queueDelayMs": 15
+      }
+    },
+    {
+      "sessionId": "recording-autoresponders",
+      "recordedAt": 1791226054685,
+      "sequence": 14,
+      "record": {
+        "kind": "click",
+        "id": 12,
+        "tickMs": 423962531,
+        "button": "left",
+        "injected": true,
+        "x": 385,
+        "y": 149,
+        "window": {
+          "title": "Site Tools > Dashboard - Google Chrome",
+          "exe": "chrome.exe",
+          "pid": 12972,
+          "frame": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "elevation": "notElevated",
+          "remoteSession": false,
+          "appName": "Google Chrome",
+          "shell": false
+        },
+        "capture": {
+          "mode": "window",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "monitor": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1080
+          },
+          "scale": 1,
+          "width": 1920,
+          "height": 1032,
+          "image": "click-12.webp"
+        },
+        "clickPct": {
+          "x": 20.052,
+          "y": 14.438
+        },
+        "element": {
+          "controlType": "Edit",
+          "localizedControlType": "edit",
+          "name": "",
+          "automationId": "",
+          "helpText": "",
+          "ariaRole": "textbox",
+          "ariaProperties": "expanded=false;multiline=false;multiselectable=false;required=false;hasactions=false",
+          "className": "sg-select-control__input",
+          "frameworkId": "Chrome",
+          "isPassword": false,
+          "labeledBy": null,
+          "bounds": {
+            "left": 279,
+            "top": 138,
+            "right": 475,
+            "bottom": 160
+          },
+          "parent": {
+            "controlType": "Group",
+            "name": ""
+          },
+          "sensitive": false
+        },
+        "elementPct": {
+          "x": 14.531,
+          "y": 13.372,
+          "w": 10.208,
+          "h": 2.132
+        },
+        "uia": {
+          "status": "ok",
+          "ms": 13.4,
+          "retried": false,
+          "error": null
+        },
+        "screenshotMs": 28.3,
+        "queueDelayMs": 0
+      }
+    },
+    {
+      "sessionId": "recording-autoresponders",
+      "recordedAt": 1791226056273,
+      "sequence": 15,
+      "record": {
+        "kind": "click",
+        "id": 13,
+        "tickMs": 423964109,
+        "button": "left",
+        "injected": true,
+        "x": 448,
+        "y": 427,
+        "window": {
+          "title": "Site Tools > Dashboard - Google Chrome",
+          "exe": "chrome.exe",
+          "pid": 12972,
+          "frame": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "elevation": "notElevated",
+          "remoteSession": false,
+          "appName": "Google Chrome",
+          "shell": false
+        },
+        "capture": {
+          "mode": "window",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "monitor": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1080
+          },
+          "scale": 1,
+          "width": 1920,
+          "height": 1032,
+          "image": "click-13.webp"
+        },
+        "clickPct": {
+          "x": 23.333,
+          "y": 41.376
+        },
+        "element": {
+          "controlType": "RadioButton",
+          "localizedControlType": "radio button",
+          "name": "File Manager",
+          "automationId": "",
+          "helpText": "",
+          "ariaRole": "radio",
+          "ariaProperties": "checked=false;expanded=false;multiline=false;multiselectable=false;required=false;hasactions=false",
+          "className": "sg-select-box sg-select-box--variant-standard sg-select-box--background-solid sg-select-box--border-radius-small sg-with-padding sg-with-padding--padding-top-medium sg-with-padding--padding-right-medium sg-with-padding--padding-bottom-medium sg-with-padding--padding-left-medium dashboard-tile__content",
+          "frameworkId": "Chrome",
+          "isPassword": false,
+          "labeledBy": null,
+          "bounds": {
+            "left": 421,
+            "top": 318,
+            "right": 594,
+            "bottom": 494
+          },
+          "parent": {
+            "controlType": "Group",
+            "name": ""
+          },
+          "sensitive": false
+        },
+        "elementPct": {
+          "x": 21.927,
+          "y": 30.814,
+          "w": 9.01,
+          "h": 17.054
+        },
+        "uia": {
+          "status": "ok",
+          "ms": 13.1,
+          "retried": false,
+          "error": null
+        },
+        "screenshotMs": 27.8,
+        "queueDelayMs": 0
+      }
+    },
+    {
+      "sessionId": "recording-autoresponders",
+      "recordedAt": 1791226064860,
+      "sequence": 16,
+      "record": {
+        "kind": "click",
+        "id": 14,
+        "tickMs": 423972718,
+        "button": "left",
+        "injected": true,
+        "x": 355,
+        "y": 183,
+        "window": {
+          "title": "Site Tools > Dashboard - Google Chrome",
+          "exe": "chrome.exe",
+          "pid": 12972,
+          "frame": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "elevation": "notElevated",
+          "remoteSession": false,
+          "appName": "Google Chrome",
+          "shell": false
+        },
+        "capture": {
+          "mode": "window",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "monitor": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1080
+          },
+          "scale": 1,
+          "width": 1920,
+          "height": 1032,
+          "image": "click-14.webp"
+        },
+        "clickPct": {
+          "x": 18.49,
+          "y": 17.733
+        },
+        "element": {
+          "controlType": "Group",
+          "localizedControlType": "group",
+          "name": "Hello, Robin! Your domain is not pointing to this site To point your domain name to your new site, change your name servers to the ones below. If you're transferring a website, make sure that the data transfer is completed before you point the domain. Name servers Show IP Addresses ns1.siteground.net ns2.siteground.net Name server change may take up to 72 hours to propagate. If you have already changed your name servers, you can click on refresh to see if the change is completed. If you feel that you're seeing this message by mistake, you can click here to hide it permanently. Pinned Tools File Manager FTP Accounts MySQL Manager PostgreSQL Manager Backups SSL Manager HTTPS Enforce Protected URLs Blocked Traffic",
+          "automationId": "",
+          "helpText": "",
+          "ariaRole": "group",
+          "ariaProperties": "readonly=true;expanded=false;multiline=false;multiselectable=false;required=false;hasactions=false",
+          "className": "sg-page-container sg-with-padding sg-with-padding--padding-top-inherit sg-with-padding--padding-right-inherit sg-with-padding--padding-bottom-large sg-with-padding--padding-left-inherit",
+          "frameworkId": "Chrome",
+          "isPassword": false,
+          "labeledBy": null,
+          "bounds": {
+            "left": 88,
+            "top": 177,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "parent": {
+            "controlType": "Group",
+            "name": ""
+          },
+          "sensitive": false
+        },
+        "elementPct": {
+          "x": 4.583,
+          "y": 17.151,
+          "w": 95.417,
+          "h": 82.849
+        },
+        "uia": {
+          "status": "ok",
+          "ms": 4.6,
+          "retried": false,
+          "error": null
+        },
+        "screenshotMs": 20.5,
+        "queueDelayMs": 0
+      }
+    },
+    {
+      "sessionId": "recording-autoresponders",
+      "recordedAt": 1791226065582,
+      "sequence": 17,
+      "record": {
+        "kind": "click",
+        "id": 15,
+        "tickMs": 423973437,
+        "button": "left",
+        "injected": true,
+        "x": 343,
+        "y": 147,
+        "window": {
+          "title": "Site Tools > Dashboard - Google Chrome",
+          "exe": "chrome.exe",
+          "pid": 12972,
+          "frame": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "elevation": "notElevated",
+          "remoteSession": false,
+          "appName": "Google Chrome",
+          "shell": false
+        },
+        "capture": {
+          "mode": "window",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "monitor": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1080
+          },
+          "scale": 1,
+          "width": 1920,
+          "height": 1032,
+          "image": "click-15.webp"
+        },
+        "clickPct": {
+          "x": 17.865,
+          "y": 14.244
+        },
+        "element": {
+          "controlType": "Edit",
+          "localizedControlType": "edit",
+          "name": "",
+          "automationId": "",
+          "helpText": "",
+          "ariaRole": "textbox",
+          "ariaProperties": "expanded=false;multiline=false;multiselectable=false;required=false;hasactions=false",
+          "className": "sg-select-control__input",
+          "frameworkId": "Chrome",
+          "isPassword": false,
+          "labeledBy": null,
+          "bounds": {
+            "left": 279,
+            "top": 138,
+            "right": 475,
+            "bottom": 160
+          },
+          "parent": {
+            "controlType": "Group",
+            "name": ""
+          },
+          "sensitive": false
+        },
+        "elementPct": {
+          "x": 14.531,
+          "y": 13.372,
+          "w": 10.208,
+          "h": 2.132
+        },
+        "uia": {
+          "status": "ok",
+          "ms": 14.7,
+          "retried": false,
+          "error": null
+        },
+        "screenshotMs": 19.9,
+        "queueDelayMs": 16
+      }
+    },
+    {
+      "sessionId": "recording-autoresponders",
+      "recordedAt": 1791226066955,
+      "sequence": 18,
+      "record": {
+        "kind": "click",
+        "id": 16,
+        "tickMs": 423974781,
+        "button": "left",
+        "injected": true,
+        "x": 348,
+        "y": 230,
+        "window": {
+          "title": "Site Tools > Dashboard - Google Chrome",
+          "exe": "chrome.exe",
+          "pid": 12972,
+          "frame": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "elevation": "notElevated",
+          "remoteSession": false,
+          "appName": "Google Chrome",
+          "shell": false
+        },
+        "capture": {
+          "mode": "window",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "monitor": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1080
+          },
+          "scale": 1,
+          "width": 1920,
+          "height": 1032,
+          "image": "click-16.webp"
+        },
+        "clickPct": {
+          "x": 18.125,
+          "y": 22.287
+        },
+        "element": {
+          "controlType": "Text",
+          "localizedControlType": "text",
+          "name": "example.co.uk",
+          "automationId": "",
+          "helpText": "",
+          "ariaRole": "description",
+          "ariaProperties": "readonly=true;expanded=false;multiline=false;multiselectable=false;required=false;hasactions=false",
+          "className": "",
+          "frameworkId": "Chrome",
+          "isPassword": false,
+          "labeledBy": null,
+          "bounds": {
+            "left": 280,
+            "top": 225,
+            "right": 366,
+            "bottom": 242
+          },
+          "parent": {
+            "controlType": "ListItem",
+            "name": "example.co.uk"
+          },
+          "sensitive": false
+        },
+        "elementPct": {
+          "x": 14.583,
+          "y": 21.802,
+          "w": 4.479,
+          "h": 1.647
+        },
+        "uia": {
+          "status": "ok",
+          "ms": 44.1,
+          "retried": true,
+          "error": null
+        },
+        "screenshotMs": 20.7,
+        "queueDelayMs": 0
+      }
+    },
+    {
+      "sessionId": "recording-autoresponders",
+      "recordedAt": 1791226072188,
+      "sequence": 19,
+      "record": {
+        "kind": "click",
+        "id": 17,
+        "tickMs": 423980031,
+        "button": "left",
+        "injected": true,
+        "x": 44,
+        "y": 643,
+        "window": {
+          "title": "Site Tools > Dashboard - Google Chrome",
+          "exe": "chrome.exe",
+          "pid": 12972,
+          "frame": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "elevation": "notElevated",
+          "remoteSession": false,
+          "appName": "Google Chrome",
+          "shell": false
+        },
+        "capture": {
+          "mode": "window",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "monitor": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1080
+          },
+          "scale": 1,
+          "width": 1920,
+          "height": 1032,
+          "image": "click-17.webp"
+        },
+        "clickPct": {
+          "x": 2.292,
+          "y": 62.306
+        },
+        "element": {
+          "controlType": "Text",
+          "localizedControlType": "text",
+          "name": "Email",
+          "automationId": "",
+          "helpText": "",
+          "ariaRole": "description",
+          "ariaProperties": "readonly=true;expanded=false;multiline=false;multiselectable=false;required=false;hasactions=false",
+          "className": "",
+          "frameworkId": "Chrome",
+          "isPassword": false,
+          "labeledBy": null,
+          "bounds": {
+            "left": 28,
+            "top": 636,
+            "right": 59,
+            "bottom": 651
+          },
+          "parent": {
+            "controlType": "Group",
+            "name": ""
+          },
+          "sensitive": false
+        },
+        "elementPct": {
+          "x": 1.458,
+          "y": 61.628,
+          "w": 1.615,
+          "h": 1.453
+        },
+        "uia": {
+          "status": "ok",
+          "ms": 3.2,
+          "retried": false,
+          "error": null
+        },
+        "screenshotMs": 20.6,
+        "queueDelayMs": 0
+      }
+    },
+    {
+      "sessionId": "recording-autoresponders",
+      "recordedAt": 1791226074125,
+      "sequence": 20,
+      "record": {
+        "kind": "click",
+        "id": 18,
+        "tickMs": 423981968,
+        "button": "left",
+        "injected": true,
+        "x": 216,
+        "y": 365,
+        "window": {
+          "title": "Site Tools > Dashboard - Google Chrome",
+          "exe": "chrome.exe",
+          "pid": 12972,
+          "frame": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "elevation": "notElevated",
+          "remoteSession": false,
+          "appName": "Google Chrome",
+          "shell": false
+        },
+        "capture": {
+          "mode": "window",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "monitor": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1080
+          },
+          "scale": 1,
+          "width": 1920,
+          "height": 1032,
+          "image": "click-18.webp"
+        },
+        "clickPct": {
+          "x": 11.25,
+          "y": 35.368
+        },
+        "element": {
+          "controlType": "Group",
+          "localizedControlType": "group",
+          "name": "",
+          "automationId": "",
+          "helpText": "",
+          "ariaRole": "group",
+          "ariaProperties": "readonly=true;expanded=false;multiline=false;multiselectable=false;required=false;hasactions=false",
+          "className": "sg-nav-list-item__content",
+          "frameworkId": "Chrome",
+          "isPassword": false,
+          "labeledBy": null,
+          "bounds": {
+            "left": 96,
+            "top": 346,
+            "right": 400,
+            "bottom": 386
+          },
+          "parent": {
+            "controlType": "ListItem",
+            "name": "Autoresponders"
+          },
+          "sensitive": false
+        },
+        "elementPct": {
+          "x": 5,
+          "y": 33.527,
+          "w": 15.833,
+          "h": 3.876
+        },
+        "uia": {
+          "status": "ok",
+          "ms": 38.5,
+          "retried": true,
+          "error": null
+        },
+        "screenshotMs": 23.8,
+        "queueDelayMs": 0
+      }
+    },
+    {
+      "sessionId": "recording-autoresponders",
+      "recordedAt": 1791226077848,
+      "sequence": 21,
+      "record": {
+        "kind": "click",
+        "id": 19,
+        "tickMs": 423985687,
+        "button": "left",
+        "injected": true,
+        "x": 50,
+        "y": 203,
+        "window": {
+          "title": "Site Tools > Email Autoresponders - Google Chrome",
+          "exe": "chrome.exe",
+          "pid": 12972,
+          "frame": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "elevation": "notElevated",
+          "remoteSession": false,
+          "appName": "Google Chrome",
+          "shell": false
+        },
+        "capture": {
+          "mode": "window",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "monitor": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1080
+          },
+          "scale": 1,
+          "width": 1920,
+          "height": 1032,
+          "image": "click-19.webp"
+        },
+        "clickPct": {
+          "x": 2.604,
+          "y": 19.671
+        },
+        "element": {
+          "controlType": "Button",
+          "localizedControlType": "button",
+          "name": "",
+          "automationId": "",
+          "helpText": "",
+          "ariaRole": "button",
+          "ariaProperties": "readonly=true;expanded=false;multiline=false;multiselectable=false;required=false;hasactions=false",
+          "className": "sg-button-base sg-button-base--color-secondary sg-button-base--type-ghost sg-navigation-rail-item__button",
+          "frameworkId": "Chrome",
+          "isPassword": false,
+          "labeledBy": null,
+          "bounds": {
+            "left": 17,
+            "top": 193,
+            "right": 70,
+            "bottom": 225
+          },
+          "parent": {
+            "controlType": "Group",
+            "name": ""
+          },
+          "sensitive": false
+        },
+        "elementPct": {
+          "x": 0.885,
+          "y": 18.702,
+          "w": 2.76,
+          "h": 3.101
+        },
+        "uia": {
+          "status": "ok",
+          "ms": 7.9,
+          "retried": false,
+          "error": null
+        },
+        "screenshotMs": 24.7,
+        "queueDelayMs": 16
+      }
+    },
+    {
+      "sessionId": "recording-autoresponders",
+      "recordedAt": 1791226080155,
+      "sequence": 22,
+      "record": {
+        "kind": "keys",
+        "id": 281474976710657,
+        "tickMs": 423987843,
+        "window": {
+          "title": "Site Tools > Dashboard - Google Chrome",
+          "exe": "chrome.exe",
+          "pid": 12972,
+          "frame": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "elevation": "notElevated",
+          "remoteSession": false,
+          "appName": "Google Chrome",
+          "shell": false
+        },
+        "capture": {
+          "mode": "window",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "monitor": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1080
+          },
+          "scale": 1,
+          "width": 1920,
+          "height": 1032,
+          "image": "keys-281474976710657.webp"
+        },
+        "ctrl": true,
+        "alt": false,
+        "shift": false,
+        "win": false,
+        "vkey": 189,
+        "key": "-"
+      }
+    },
+    {
+      "sessionId": "recording-autoresponders",
+      "recordedAt": 1791226080464,
+      "sequence": 23,
+      "record": {
+        "kind": "keys",
+        "id": 281474976710658,
+        "tickMs": 423988156,
+        "window": {
+          "title": "Site Tools > Dashboard - Google Chrome",
+          "exe": "chrome.exe",
+          "pid": 12972,
+          "frame": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "elevation": "notElevated",
+          "remoteSession": false,
+          "appName": "Google Chrome",
+          "shell": false
+        },
+        "capture": {
+          "mode": "window",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "monitor": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1080
+          },
+          "scale": 1,
+          "width": 1920,
+          "height": 1032,
+          "image": "keys-281474976710658.webp"
+        },
+        "ctrl": true,
+        "alt": false,
+        "shift": false,
+        "win": false,
+        "vkey": 189,
+        "key": "-"
+      }
+    },
+    {
+      "sessionId": "recording-autoresponders",
+      "recordedAt": 1791226080784,
+      "sequence": 24,
+      "record": {
+        "kind": "keys",
+        "id": 281474976710659,
+        "tickMs": 423988468,
+        "window": {
+          "title": "Site Tools > Dashboard - Google Chrome",
+          "exe": "chrome.exe",
+          "pid": 12972,
+          "frame": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "elevation": "notElevated",
+          "remoteSession": false,
+          "appName": "Google Chrome",
+          "shell": false
+        },
+        "capture": {
+          "mode": "window",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "monitor": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1080
+          },
+          "scale": 1,
+          "width": 1920,
+          "height": 1032,
+          "image": "keys-281474976710659.webp"
+        },
+        "ctrl": true,
+        "alt": false,
+        "shift": false,
+        "win": false,
+        "vkey": 187,
+        "key": "="
+      }
+    },
+    {
+      "sessionId": "recording-autoresponders",
+      "recordedAt": 1791226080967,
+      "sequence": 25,
+      "record": {
+        "kind": "keys",
+        "id": 281474976710660,
+        "tickMs": 423988656,
+        "window": {
+          "title": "Site Tools > Dashboard - Google Chrome",
+          "exe": "chrome.exe",
+          "pid": 12972,
+          "frame": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "elevation": "notElevated",
+          "remoteSession": false,
+          "appName": "Google Chrome",
+          "shell": false
+        },
+        "capture": {
+          "mode": "window",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "monitor": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1080
+          },
+          "scale": 1,
+          "width": 1920,
+          "height": 1032,
+          "image": "keys-281474976710660.webp"
+        },
+        "ctrl": true,
+        "alt": false,
+        "shift": false,
+        "win": false,
+        "vkey": 187,
+        "key": "="
+      }
+    },
+    {
+      "sessionId": "recording-autoresponders",
+      "recordedAt": 1791226081092,
+      "sequence": 26,
+      "record": {
+        "kind": "keys",
+        "id": 281474976710661,
+        "tickMs": 423988781,
+        "window": {
+          "title": "Site Tools > Dashboard - Google Chrome",
+          "exe": "chrome.exe",
+          "pid": 12972,
+          "frame": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "elevation": "notElevated",
+          "remoteSession": false,
+          "appName": "Google Chrome",
+          "shell": false
+        },
+        "capture": {
+          "mode": "window",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "monitor": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1080
+          },
+          "scale": 1,
+          "width": 1920,
+          "height": 1032,
+          "image": "keys-281474976710661.webp"
+        },
+        "ctrl": true,
+        "alt": false,
+        "shift": false,
+        "win": false,
+        "vkey": 187,
+        "key": "="
+      }
+    },
+    {
+      "sessionId": "recording-autoresponders",
+      "recordedAt": 1791226081209,
+      "sequence": 27,
+      "record": {
+        "kind": "keys",
+        "id": 281474976710662,
+        "tickMs": 423988906,
+        "window": {
+          "title": "Site Tools > Dashboard - Google Chrome",
+          "exe": "chrome.exe",
+          "pid": 12972,
+          "frame": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "elevation": "notElevated",
+          "remoteSession": false,
+          "appName": "Google Chrome",
+          "shell": false
+        },
+        "capture": {
+          "mode": "window",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "monitor": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1080
+          },
+          "scale": 1,
+          "width": 1920,
+          "height": 1032,
+          "image": "keys-281474976710662.webp"
+        },
+        "ctrl": true,
+        "alt": false,
+        "shift": false,
+        "win": false,
+        "vkey": 187,
+        "key": "="
+      }
+    },
+    {
+      "sessionId": "recording-autoresponders",
+      "recordedAt": 1791226081320,
+      "sequence": 28,
+      "record": {
+        "kind": "keys",
+        "id": 281474976710663,
+        "tickMs": 423989000,
+        "window": {
+          "title": "Site Tools > Dashboard - Google Chrome",
+          "exe": "chrome.exe",
+          "pid": 12972,
+          "frame": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "elevation": "notElevated",
+          "remoteSession": false,
+          "appName": "Google Chrome",
+          "shell": false
+        },
+        "capture": {
+          "mode": "window",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "monitor": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1080
+          },
+          "scale": 1,
+          "width": 1920,
+          "height": 1032,
+          "image": "keys-281474976710663.webp"
+        },
+        "ctrl": true,
+        "alt": false,
+        "shift": false,
+        "win": false,
+        "vkey": 187,
+        "key": "="
+      }
+    },
+    {
+      "sessionId": "recording-autoresponders",
+      "recordedAt": 1791226082884,
+      "sequence": 29,
+      "record": {
+        "kind": "click",
+        "id": 20,
+        "tickMs": 423990734,
+        "button": "left",
+        "injected": true,
+        "x": 45,
+        "y": 810,
+        "window": {
+          "title": "Site Tools > Dashboard - Google Chrome",
+          "exe": "chrome.exe",
+          "pid": 12972,
+          "frame": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "elevation": "notElevated",
+          "remoteSession": false,
+          "appName": "Google Chrome",
+          "shell": false
+        },
+        "capture": {
+          "mode": "window",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "monitor": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1080
+          },
+          "scale": 1,
+          "width": 1920,
+          "height": 1032,
+          "image": "click-20.webp"
+        },
+        "clickPct": {
+          "x": 2.344,
+          "y": 78.488
+        },
+        "element": {
+          "controlType": "Button",
+          "localizedControlType": "button",
+          "name": "",
+          "automationId": "",
+          "helpText": "",
+          "ariaRole": "button",
+          "ariaProperties": "readonly=true;expanded=false;multiline=false;multiselectable=false;required=false;hasactions=false",
+          "className": "sg-button-base sg-button-base--color-secondary sg-button-base--type-ghost sg-navigation-rail-item__button",
+          "frameworkId": "Chrome",
+          "isPassword": false,
+          "labeledBy": null,
+          "bounds": {
+            "left": 26,
+            "top": 781,
+            "right": 105,
+            "bottom": 829
+          },
+          "parent": {
+            "controlType": "Group",
+            "name": ""
+          },
+          "sensitive": false
+        },
+        "elementPct": {
+          "x": 1.354,
+          "y": 75.678,
+          "w": 4.115,
+          "h": 4.651
+        },
+        "uia": {
+          "status": "ok",
+          "ms": 9.4,
+          "retried": false,
+          "error": null
+        },
+        "screenshotMs": 25.4,
+        "queueDelayMs": 0
+      }
+    },
+    {
+      "sessionId": "recording-autoresponders",
+      "recordedAt": 1791226084527,
+      "sequence": 30,
+      "record": {
+        "kind": "click",
+        "id": 21,
+        "tickMs": 423992375,
+        "button": "left",
+        "injected": true,
+        "x": 327,
+        "y": 494,
+        "window": {
+          "title": "Site Tools > Dashboard - Google Chrome",
+          "exe": "chrome.exe",
+          "pid": 12972,
+          "frame": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "elevation": "notElevated",
+          "remoteSession": false,
+          "appName": "Google Chrome",
+          "shell": false
+        },
+        "capture": {
+          "mode": "window",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "monitor": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1080
+          },
+          "scale": 1,
+          "width": 1920,
+          "height": 1032,
+          "image": "click-21.webp"
+        },
+        "clickPct": {
+          "x": 17.031,
+          "y": 47.868
+        },
+        "element": {
+          "controlType": "Image",
+          "localizedControlType": "graphic",
+          "name": "",
+          "automationId": "",
+          "helpText": "",
+          "ariaRole": "img",
+          "ariaProperties": "readonly=true;expanded=false;multiline=false;multiselectable=false;required=false;hasactions=false",
+          "className": "sg-icon sg-icon--fill-lighter sg-icon--use-css-colors sg-icon--color-primary sg-icon--use-fill-colors",
+          "frameworkId": "Chrome",
+          "isPassword": false,
+          "labeledBy": null,
+          "bounds": {
+            "left": 314,
+            "top": 429,
+            "right": 450,
+            "bottom": 564
+          },
+          "parent": {
+            "controlType": "RadioButton",
+            "name": "File Manager"
+          },
+          "sensitive": false
+        },
+        "elementPct": {
+          "x": 16.354,
+          "y": 41.57,
+          "w": 7.083,
+          "h": 13.081
+        },
+        "uia": {
+          "status": "ok",
+          "ms": 3.7,
+          "retried": false,
+          "error": null
+        },
+        "screenshotMs": 22.5,
+        "queueDelayMs": 15
+      }
+    },
+    {
+      "sessionId": "recording-autoresponders",
+      "recordedAt": 1791226089742,
+      "sequence": 31,
+      "record": {
+        "kind": "click",
+        "id": 22,
+        "tickMs": 423997593,
+        "button": "left",
+        "injected": true,
+        "x": 65,
+        "y": 799,
+        "window": {
+          "title": "Site Tools > Email Autoresponders - Google Chrome",
+          "exe": "chrome.exe",
+          "pid": 12972,
+          "frame": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "elevation": "notElevated",
+          "remoteSession": false,
+          "appName": "Google Chrome",
+          "shell": false
+        },
+        "capture": {
+          "mode": "window",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "monitor": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1080
+          },
+          "scale": 1,
+          "width": 1920,
+          "height": 1032,
+          "image": "click-22.webp"
+        },
+        "clickPct": {
+          "x": 3.385,
+          "y": 77.422
+        },
+        "element": {
+          "controlType": "Button",
+          "localizedControlType": "button",
+          "name": "",
+          "automationId": "",
+          "helpText": "",
+          "ariaRole": "button",
+          "ariaProperties": "readonly=true;expanded=false;multiline=false;multiselectable=false;required=false;hasactions=false;current=page",
+          "className": "sg-button-base sg-button-base--color-secondary sg-button-base--type-contained sg-navigation-rail-item__button",
+          "frameworkId": "Chrome",
+          "isPassword": false,
+          "labeledBy": null,
+          "bounds": {
+            "left": 26,
+            "top": 781,
+            "right": 105,
+            "bottom": 829
+          },
+          "parent": {
+            "controlType": "Group",
+            "name": ""
+          },
+          "sensitive": false
+        },
+        "elementPct": {
+          "x": 1.354,
+          "y": 75.678,
+          "w": 4.115,
+          "h": 4.651
+        },
+        "uia": {
+          "status": "ok",
+          "ms": 5.3,
+          "retried": false,
+          "error": null
+        },
+        "screenshotMs": 24.5,
+        "queueDelayMs": 16
+      }
+    },
+    {
+      "sessionId": "recording-autoresponders",
+      "recordedAt": 1791226091080,
+      "sequence": 32,
+      "record": {
+        "kind": "click",
+        "id": 23,
+        "tickMs": 423998890,
+        "button": "left",
+        "injected": true,
+        "x": 252,
+        "y": 424,
+        "window": {
+          "title": "Site Tools > Email Autoresponders - Google Chrome",
+          "exe": "chrome.exe",
+          "pid": 12972,
+          "frame": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "elevation": "notElevated",
+          "remoteSession": false,
+          "appName": "Google Chrome",
+          "shell": false
+        },
+        "capture": {
+          "mode": "window",
+          "rect": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1032
+          },
+          "monitor": {
+            "left": 0,
+            "top": 0,
+            "right": 1920,
+            "bottom": 1080
+          },
+          "scale": 1,
+          "width": 1920,
+          "height": 1032,
+          "image": "click-23.webp"
+        },
+        "clickPct": {
+          "x": 13.125,
+          "y": 41.085
+        },
+        "element": {
+          "controlType": "Text",
+          "localizedControlType": "text",
+          "name": "Forwarders",
+          "automationId": "",
+          "helpText": "",
+          "ariaRole": "description",
+          "ariaProperties": "readonly=true;expanded=false;multiline=false;multiselectable=false;required=false;hasactions=false",
+          "className": "",
+          "frameworkId": "Chrome",
+          "isPassword": false,
+          "labeledBy": null,
+          "bounds": {
+            "left": 156,
+            "top": 409,
+            "right": 271,
+            "bottom": 435
+          },
+          "parent": {
+            "controlType": "Group",
+            "name": ""
+          },
+          "sensitive": false
+        },
+        "elementPct": {
+          "x": 8.125,
+          "y": 39.632,
+          "w": 5.99,
+          "h": 2.519
+        },
+        "uia": {
+          "status": "ok",
+          "ms": 38.8,
+          "retried": true,
+          "error": null
+        },
+        "screenshotMs": 26,
+        "queueDelayMs": 16
+      }
+    }
+  ]
+}

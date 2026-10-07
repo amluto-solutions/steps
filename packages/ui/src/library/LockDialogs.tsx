@@ -19,32 +19,41 @@ import {
 
 import { Icon } from "../components/icons";
 import { errorMessage } from "../errors";
-import type { GuideStats, LibraryBridge, LibraryInfo } from "../library-bridge";
+import type { GuideFiles, GuideStats, LibraryInfo, Versions } from "../library-bridge";
 import { ModalDialog } from "../ModalDialog";
 import { policy } from "../settings/policy";
 import { formatDate, formatDateTime } from "./dates";
-import type { GuideLocks } from "./guide-locks";
+import type {
+  GuideLocks,
+  ListAttempt,
+  LockedListPrompt,
+  LockTarget,
+  PasswordPrompt,
+  UnlockResult,
+} from "./guide-locks";
 
 /**
  * The screens for password locks on guides (docs/spec/03-data-and-sharing.md#password-locks):
  * locking, the password prompt, the locked guides left over from a batch, typing the number to
  * confirm a delete of several, and Properties. `LockHost` is drawn once in the app; the `ask…`
  * functions open its screens from anywhere and answer when they close, as `askConfirm` does.
+ * What a password does is decided by the guide locks (`guide-locks.ts`), which are given
+ * `askUnlock` and `showLockedList` to ask with: these screens only show what each try answered.
  */
 
 export const GuideLocksContext = createContext<GuideLocks | null>(null);
 export const useGuideLocks = () => useContext(GuideLocksContext);
 
-/** A locked guide, as a screen names it. */
-export interface LockTarget {
-  libraryId: string;
-  guideId: string;
-  title: string;
-  locked: { by: string; at: string };
-}
+export type { LockTarget };
 
 type Request =
-  | { kind: "unlock"; target: LockTarget; action: string; done: (open: boolean) => void }
+  | {
+      kind: "unlock";
+      target: LockTarget;
+      action: string;
+      attempt: (password: string) => Promise<UnlockResult>;
+      done: (open: boolean) => void;
+    }
   | {
       kind: "password";
       title: string;
@@ -57,7 +66,7 @@ type Request =
       kind: "list";
       targets: LockTarget[];
       body: string;
-      act: (target: LockTarget) => Promise<void>;
+      attempt: (target: LockTarget, password: string) => Promise<ListAttempt>;
       done: () => void;
     }
   | {
@@ -71,12 +80,9 @@ let show: ((request: Request | null) => void) | null = null;
 const ask = <T,>(make: (done: (value: T) => void) => Request, fallback: T): Promise<T> =>
   show ? new Promise<T>((done) => show?.(make(done))) : Promise.resolve(fallback);
 
-/**
- * Asks for a locked guide's password, unlocking it for this session; true once it's open.
- * `action` is the button ("Unlock", "Move to Bin"…).
- */
-export const askUnlock = (target: LockTarget, action: string) =>
-  ask<boolean>((done) => ({ kind: "unlock", target, action, done }), false);
+/** The password prompt for one locked guide; true once a password opened it. */
+export const askUnlock: PasswordPrompt = (target, action, attempt) =>
+  ask<boolean>((done) => ({ kind: "unlock", target, action, attempt, done }), false);
 
 /** A new password, typed twice; null when cancelled. */
 export const askNewPassword = (title: string, body: string | null, yes: string) =>
@@ -87,15 +93,11 @@ export const askCount = (title: string, count: number, yes: string) =>
   ask<boolean>((done) => ({ kind: "count", title, count, yes, done }), false);
 
 /** The locked guides a batch left: each can be opened with its password and then done. */
-export const showLockedList = (
-  targets: LockTarget[],
-  body: string,
-  act: (target: LockTarget) => Promise<void>,
-) =>
+export const showLockedList: LockedListPrompt = (targets, body, attempt) =>
   targets.length === 0
     ? Promise.resolve()
     : ask<undefined>(
-        (done) => ({ kind: "list", targets, body, act, done: () => done(undefined) }),
+        (done) => ({ kind: "list", targets, body, attempt, done: () => done(undefined) }),
         undefined,
       );
 
@@ -170,9 +172,9 @@ function Buttons(props: { yes: string; onCancel: () => void; busy?: boolean; can
 }
 
 function UnlockDialog(props: {
-  locks: GuideLocks;
   target: LockTarget;
   action: string;
+  attempt: (password: string) => Promise<UnlockResult>;
   onDone: (open: boolean) => void;
 }) {
   const { t } = useTranslation();
@@ -184,8 +186,7 @@ function UnlockDialog(props: {
   const submit = async () => {
     setBusy(true);
     try {
-      const { libraryId, guideId } = props.target;
-      const result = await props.locks.unlock(libraryId, guideId, password);
+      const result = await props.attempt(password);
       if (result.kind === "unlocked") props.onDone(true);
       else {
         setProblem(
@@ -377,10 +378,9 @@ function CountDialog(props: {
  * done; the password is also tried on the rest, and any it opens are done too.
  */
 function LockedListDialog(props: {
-  locks: GuideLocks;
   targets: LockTarget[];
   body: string;
-  act: (target: LockTarget) => Promise<void>;
+  attempt: (target: LockTarget, password: string) => Promise<ListAttempt>;
   onDone: () => void;
 }) {
   const { t } = useTranslation();
@@ -399,8 +399,8 @@ function LockedListDialog(props: {
   const submit = async (target: LockTarget) => {
     setBusy(true);
     try {
-      const result = await props.locks.unlock(target.libraryId, target.guideId, password);
-      if (result.kind !== "unlocked") {
+      const result = await props.attempt(target, password);
+      if (result.kind !== "done") {
         setMessage({
           text:
             result.kind === "wait"
@@ -410,39 +410,20 @@ function LockedListDialog(props: {
         });
         return;
       }
-      const opened = [target];
-      for (const other of left)
-        if (
-          other.guideId !== target.guideId &&
-          (await props.locks.unlockIfMatches(other.libraryId, other.guideId, password))
-        )
-          opened.push(other);
-      const done: string[] = [];
-      const failed: string[] = [];
-      for (const item of opened) {
-        try {
-          await props.act(item);
-          done.push(item.guideId);
-        } catch (error) {
-          failed.push(
-            t("library.bulk.failed", {
-              title: item.title,
-              reason: errorMessage(error, t("library.actionFailed")),
-            }),
-          );
-        } finally {
-          props.locks.relock(item.libraryId, item.guideId);
-        }
-      }
-      const rest = left.filter((item) => !done.includes(item.guideId));
-      setLeft(rest);
-      setChosen(rest[0]?.guideId ?? null);
+      const failed = result.failed.map(({ target: item, problem }) =>
+        t("library.bulk.failed", {
+          title: item.title,
+          reason: errorMessage(problem, t("library.actionFailed")),
+        }),
+      );
+      setLeft(result.left);
+      setChosen(result.left[0]?.guideId ?? null);
       setPassword("");
       setMessage({
-        text: [t("locks.listDone", { count: done.length }), ...failed].join(" "),
+        text: [t("locks.listDone", { count: result.done.length }), ...failed].join(" "),
         problem: failed.length > 0,
       });
-      if (rest.length === 0) closeRef.current?.focus();
+      if (result.left.length === 0) closeRef.current?.focus();
     } catch (error) {
       setMessage({ text: errorMessage(error, t("library.actionFailed")), problem: true });
     } finally {
@@ -554,7 +535,7 @@ interface PropertiesData {
 /** Properties (04/10/2026): where a guide is, its history, what's in it, and its lock. */
 function PropertiesDialog(props: {
   locks: GuideLocks;
-  library: LibraryBridge;
+  library: GuideFiles & Versions;
   libraries: LibraryInfo[];
   libraryId: string;
   guideId: string;
@@ -572,8 +553,8 @@ function PropertiesDialog(props: {
         library.loadGuide(libraryId, guideId),
         library.listVersions(libraryId, guideId).catch(() => []),
         library.guideStats?.(libraryId, guideId).catch(() => null) ?? Promise.resolve(null),
-        props.locks.history(libraryId, guideId),
-        props.locks.lockOf(libraryId, guideId),
+        props.locks.history({ libraryId, guideId }),
+        props.locks.lockOf({ libraryId, guideId }),
       ]);
       const guide = (doc.guide ?? {}) as PropertiesData["guide"] & {
         title?: string;
@@ -718,7 +699,7 @@ function PropertiesDialog(props: {
 /** Drawn once in the app, with the wrapped library. */
 export function LockHost(props: {
   locks: GuideLocks | null;
-  library: LibraryBridge | undefined;
+  library: (GuideFiles & Versions) | undefined;
   libraries: LibraryInfo[];
 }) {
   const [request, setRequest] = useState<Request | null>(null);
@@ -734,9 +715,9 @@ export function LockHost(props: {
     case "unlock":
       return (
         <UnlockDialog
-          locks={props.locks}
           target={request.target}
           action={request.action}
+          attempt={request.attempt}
           onDone={(open) => {
             close();
             request.done(open);
@@ -770,10 +751,9 @@ export function LockHost(props: {
     case "list":
       return (
         <LockedListDialog
-          locks={props.locks}
           targets={request.targets}
           body={request.body}
-          act={request.act}
+          attempt={request.attempt}
           onDone={() => {
             close();
             request.done();

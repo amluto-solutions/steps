@@ -129,7 +129,9 @@ export function Sidebar(props: SidebarProps) {
             className="h-9 rounded-lg border border-white/15 bg-white/5 px-2 text-sm font-normal tracking-normal text-white"
           >
             {props.libraries.map((library) => (
-              <option key={library.id} value={library.id} className="text-body">
+              // The open list is drawn by the system: both colours from the theme, or dark-theme
+              // text lands on a white list (06/10/2026: the other libraries were nearly invisible).
+              <option key={library.id} value={library.id} className="bg-background text-body">
                 {library.name}
               </option>
             ))}

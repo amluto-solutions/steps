@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { expectNoSeriousAxeViolations } from "../../test/axe";
 import { initI18n } from "../i18n";
-import type { RecorderBridge } from "../recorder-bridge";
+import { fakeSupport } from "../bridge/support-fake";
 import attributions from "./attributions.json";
 import { licenceKey, licenceSummary, OpenSource, type Attribution } from "./OpenSource";
 
@@ -42,10 +42,8 @@ describe("open-source components in Settings > About", () => {
   // Renders all 500-odd rows: about a second alone, but it has passed 5 s with the whole suite
   // running in parallel, so it gets longer.
   it("lists every shipped component, and opens its page", async () => {
-    const openWebPage = vi.fn().mockResolvedValue(undefined);
-    const { container } = render(
-      <OpenSource recorder={{ openWebPage } as unknown as RecorderBridge} />,
-    );
+    const support = fakeSupport();
+    const { container } = render(<OpenSource recorder={support} />);
     expect(screen.getByRole("heading", { name: "Open source" })).toBeTruthy();
     expect(screen.getByText(new RegExp(`work of ${attributions.length} open-source`))).toBeTruthy();
     expect(screen.queryAllByRole("row")).toHaveLength(0);
@@ -68,6 +66,6 @@ describe("open-source components in Settings > About", () => {
     expect(screen.getAllByRole("table")).toHaveLength(2);
     expect(screen.getAllByRole("row")).toHaveLength(attributions.length + 2);
     fireEvent.click(screen.getByRole("button", { name: "Open the page for serde" }));
-    expect(openWebPage).toHaveBeenCalledWith("crate", "serde");
+    expect(support.pagesOpened).toEqual([{ page: "crate", name: "serde" }]);
   }, 20_000);
 });

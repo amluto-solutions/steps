@@ -6,8 +6,9 @@ import { Icon } from "../components/icons";
 import type { ToastMessage } from "../components/Toast";
 import { errorMessage } from "../errors";
 import { safeFileName } from "../files";
-import type { LibraryBridge } from "../library-bridge";
-import type { RecorderBridge } from "../recorder-bridge";
+import type { FileDialogs } from "../library-bridge";
+import type { Brands } from "../bridge/brands";
+import type { Fonts } from "../bridge/fonts";
 import { policy } from "./policy";
 import { BrandEditor } from "./BrandEditor";
 import {
@@ -20,9 +21,9 @@ import {
 } from "./brands";
 
 interface BrandsSectionProps {
-  recorder: RecorderBridge | undefined;
+  recorder: (Brands & Fonts) | undefined;
   /** For the open and save dialogs (brand files). */
-  library?: LibraryBridge | undefined;
+  library?: FileDialogs | undefined;
   /** Brands IT deploys by policy: they can't be edited or deleted here. */
   managedIds?: string[];
   brands: BrandProfile[];
@@ -161,7 +162,7 @@ export function BrandsSection({
           return (
             <li
               key={profile.id}
-              className={`flex items-center gap-3.5 px-4 py-3 ${index > 0 ? "border-t border-subtle" : ""}`}
+              className={`flex flex-wrap items-center gap-3.5 px-4 py-3 ${index > 0 ? "border-t border-subtle" : ""}`}
             >
               <span className="flex h-10 w-24 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white p-1">
                 {logo ? (
@@ -170,8 +171,8 @@ export function BrandsSection({
                   <span className="size-6 rounded" style={{ background: profile.primary }} />
                 )}
               </span>
-              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <div className="flex items-center gap-2">
+              <div className="flex min-w-40 flex-1 flex-col gap-0.5">
+                <div className="flex flex-wrap items-center gap-2">
                   <strong className="text-sm text-navy">{profile.name}</strong>
                   {profile.id === AMLUTO_BRAND_ID && (
                     <span className="chip">{t("brands.builtIn")}</span>
@@ -187,69 +188,72 @@ export function BrandsSection({
                   <Swatch colour={profile.accent} label={t("brands.accent")} />
                 </span>
               </div>
-              {profile.id !== defaultId && policy().defaultPdfBrand === null && (
+              {/* The buttons move under the name when the window is narrow, rather than over it. */}
+              <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+                {profile.id !== defaultId && policy().defaultPdfBrand === null && (
+                  <button
+                    type="button"
+                    className="btn h-8 px-3"
+                    onClick={() => {
+                      saveDefaultBrand(profile.id);
+                      setDefaultId(profile.id);
+                    }}
+                  >
+                    {t("brands.makeDefault")}
+                  </button>
+                )}
+                {managedIds.includes(profile.id) && (
+                  <span className="flex items-center gap-1.5 text-xs text-secondary">
+                    <Icon name="lock" size={14} />
+                    {t("settings.managed")}
+                  </span>
+                )}
+                {/* Any brand, the built-in Amluto one and your organisation's included, can start a new
+                  one (29/09/2026): the copy is yours to change, the original stays as it is. */}
                 <button
                   type="button"
                   className="btn h-8 px-3"
-                  onClick={() => {
-                    saveDefaultBrand(profile.id);
-                    setDefaultId(profile.id);
-                  }}
+                  aria-label={t("brands.duplicateOne", { name: profile.name })}
+                  onClick={() =>
+                    setEditing({
+                      ...profile,
+                      id: newId(),
+                      name: t("brands.copyName", { name: profile.name }),
+                      version: 0,
+                    })
+                  }
                 >
-                  {t("brands.makeDefault")}
+                  {t("brands.duplicate")}
                 </button>
-              )}
-              {managedIds.includes(profile.id) && (
-                <span className="flex items-center gap-1.5 text-xs text-secondary">
-                  <Icon name="lock" size={14} />
-                  {t("settings.managed")}
-                </span>
-              )}
-              {/* Any brand, the built-in Amluto one and your organisation's included, can start a new
-                  one (29/09/2026): the copy is yours to change, the original stays as it is. */}
-              <button
-                type="button"
-                className="btn h-8 px-3"
-                aria-label={t("brands.duplicateOne", { name: profile.name })}
-                onClick={() =>
-                  setEditing({
-                    ...profile,
-                    id: newId(),
-                    name: t("brands.copyName", { name: profile.name }),
-                    version: 0,
-                  })
-                }
-              >
-                {t("brands.duplicate")}
-              </button>
-              {profile.id !== AMLUTO_BRAND_ID && !managedIds.includes(profile.id) && (
-                <>
-                  <button
-                    type="button"
-                    className="btn h-8 px-3"
-                    onClick={() => setEditing(profile)}
-                  >
-                    {t("brands.edit")}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn h-8 px-3"
-                    disabled={!library}
-                    aria-label={t("brands.exportOne", { name: profile.name })}
-                    onClick={() => void exportBrand(profile)}
-                  >
-                    {t("brands.export")}
-                  </button>
-                  <button
-                    type="button"
-                    className="icon-btn size-8"
-                    aria-label={t("brands.delete", { name: profile.name })}
-                    onClick={() => void remove(profile)}
-                  >
-                    <Icon name="trash" size={16} />
-                  </button>
-                </>
-              )}
+                {profile.id !== AMLUTO_BRAND_ID && !managedIds.includes(profile.id) && (
+                  <>
+                    <button
+                      type="button"
+                      className="btn h-8 px-3"
+                      onClick={() => setEditing(profile)}
+                    >
+                      {t("brands.edit")}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn h-8 px-3"
+                      disabled={!library}
+                      aria-label={t("brands.exportOne", { name: profile.name })}
+                      onClick={() => void exportBrand(profile)}
+                    >
+                      {t("brands.export")}
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-btn size-8"
+                      aria-label={t("brands.delete", { name: profile.name })}
+                      onClick={() => void remove(profile)}
+                    >
+                      <Icon name="trash" size={16} />
+                    </button>
+                  </>
+                )}
+              </div>
             </li>
           );
         })}

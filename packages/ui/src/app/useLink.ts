@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { isBrowserEdition, type LinkStatus, type RecorderBridge } from "../recorder-bridge";
+import type { ExtensionLink, LinkStatus } from "../bridge/extension-link";
+import type { Capabilities } from "../capabilities";
 import { readBrowserLink, saveBrowserLink } from "../settings/preferences";
 
 export interface Link {
@@ -15,20 +16,21 @@ export interface Link {
  * side on or off as the app opens, from the person's choice (or the app's default); the browser's
  * side is kept by its background worker, so the page only reads and changes it.
  */
-export function useLink(recorder: RecorderBridge | undefined): Link {
+export function useLink(
+  recorder: (ExtensionLink & { readonly capabilities: Capabilities }) | undefined,
+): Link {
   const [status, setStatus] = useState<LinkStatus | null>(null);
 
   useEffect(() => {
-    if (!recorder?.getLink) return undefined;
+    if (!recorder) return undefined;
     let cancelled = false;
     let unlisten: (() => void) | undefined;
-    const first =
-      !isBrowserEdition(recorder) && recorder.setLink
-        ? recorder.setLink(readBrowserLink())
-        : recorder.getLink();
+    const first = recorder.capabilities.savesLinkChoice
+      ? recorder.setLink(readBrowserLink())
+      : recorder.getLink();
     first.then((value) => !cancelled && setStatus(value)).catch(() => undefined);
     recorder
-      .onLink?.((value) => setStatus(value))
+      .onLink((value) => setStatus(value))
       .then((stop) => {
         if (cancelled) stop();
         else unlisten = stop;
@@ -42,10 +44,10 @@ export function useLink(recorder: RecorderBridge | undefined): Link {
 
   const set = useCallback(
     async (on: boolean) => {
-      if (!recorder?.setLink) return;
+      if (!recorder) return;
       // Straight from the click: the browser asks for Chrome's permission before anything else.
       const next = recorder.setLink(on);
-      if (!isBrowserEdition(recorder)) saveBrowserLink(on);
+      if (recorder.capabilities.savesLinkChoice) saveBrowserLink(on);
       setStatus(await next);
     },
     [recorder],

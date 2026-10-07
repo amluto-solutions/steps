@@ -45,6 +45,7 @@
     "allow-hotkeys-reset",
     "allow-hotkeys-suspend",
     "allow-recorder-get-restart-point",
+    "allow-recorder-get-recording-settings",
     "allow-recorder-save-draft",
     "allow-recorder-save-draft-guide",
     "allow-recorder-save-draft-step",

@@ -1,5 +1,20 @@
 #!/bin/sh
 # Local gate (decision D4): no push without a passing `npm run check`.
 # Enabled by `npm install` (the prepare script sets core.hooksPath). Never bypass with --no-verify.
+#
+# A full pass on a clean tree records that tree (scripts/check.mjs). When every commit being
+# pushed has exactly that tree (main fast-forwarded to dev, a tag on it), the gate already passed
+# for it and isn't run a second time.
+passed=$(cat "$(git rev-parse --git-dir)/amluto-check-passed" 2>/dev/null)
+zero=0000000000000000000000000000000000000000
+all_passed=${passed:+yes}
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue
+  [ "$(git rev-parse "$local_sha^{tree}" 2>/dev/null)" = "$passed" ] || all_passed=
+done
+if [ -n "$all_passed" ]; then
+  echo "pre-push: npm run check already passed for this tree."
+  exit 0
+fi
 echo "pre-push: running npm run check…"
 npm run check

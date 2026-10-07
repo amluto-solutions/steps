@@ -3,9 +3,10 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { newBrandProfile } from "@amluto-steps/core";
 
+import { fakeBrands } from "../bridge/brands-fake";
+import { fakeFonts } from "../bridge/fonts-fake";
 import { initI18n } from "../i18n";
-import type { LibraryBridge } from "../library-bridge";
-import type { RecorderBridge } from "../recorder-bridge";
+import { fakeLibrary } from "../library-fake";
 import { amlbrandFile } from "./brands";
 import { BrandsSection } from "./BrandsSection";
 
@@ -16,20 +17,14 @@ describe("importing a brand file", () => {
   it("can't replace a brand the organisation deploys, whatever its version", async () => {
     const deployed = newBrandProfile("acme", "Acme", "#113355");
     const incoming = { ...deployed, name: "Not Acme", version: 999 };
-    const saveBrand = vi.fn().mockResolvedValue(undefined);
+    const brands = fakeBrands({ managed: [deployed] });
+    await brands.writeBrandFile("C:/In/acme.amlbrand", amlbrandFile(incoming));
+    const saveBrand = vi.spyOn(brands, "saveBrand");
     const notify = vi.fn();
     render(
       <BrandsSection
-        recorder={
-          {
-            readBrandFile: vi.fn().mockResolvedValue(amlbrandFile(incoming)),
-            checkFont: vi.fn().mockResolvedValue({ embeddable: true }),
-            saveBrand,
-          } as unknown as RecorderBridge
-        }
-        library={
-          { pickFile: vi.fn().mockResolvedValue("C:/In/acme.amlbrand") } as unknown as LibraryBridge
-        }
+        recorder={{ ...brands, ...fakeFonts() }}
+        library={fakeLibrary({ picks: { file: "C:/In/acme.amlbrand" } })}
         managedIds={["acme"]}
         brands={[deployed]}
         onChanged={vi.fn().mockResolvedValue(undefined)}

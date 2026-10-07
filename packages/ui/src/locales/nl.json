@@ -28,7 +28,6 @@
     "settings": "Instellingen",
     "guides": "Handleidingen",
     "recordingNow": "Er loopt een opname",
-    "saveFirst": "Sla je laatste opname eerst op of gooi die weg",
     "needsReview": "Controle nodig"
   },
   "dates": {
@@ -258,8 +257,8 @@
     "drawing": "Voorbereiden…",
     "checklist": "Controlelijst",
     "personalData": "Controleer elke schermopname op persoonsgegevens voordat je die deelt. Automatische suggesties kunnen dingen missen.",
-    "flagged_one": "{{count}} stap moet worden gecontroleerd: een klik zonder naam, gemiste klikken, getypte tekst die mogelijk niet klopt of een schermopname om te controleren.",
-    "flagged_other": "{{count}} stappen moeten worden gecontroleerd: klikken zonder naam, gemiste klikken, getypte tekst die mogelijk niet klopt of schermopnamen om te controleren.",
+    "flagged_one": "{{count}} stap moet worden gecontroleerd: een klik zonder naam, een naam die uit de schermopname is afgelezen, gemiste klikken, getypte tekst die mogelijk niet klopt of een schermopname om te controleren.",
+    "flagged_other": "{{count}} stappen moeten worden gecontroleerd: klikken zonder naam, namen die uit schermopnamen zijn afgelezen, gemiste klikken, getypte tekst die mogelijk niet klopt of schermopnamen om te controleren.",
     "noFlagged": "Er zijn geen stappen gemarkeerd om te controleren.",
     "stepNumber": "Stap {{number}}",
     "quickEdit": {
@@ -502,6 +501,7 @@
     "reviewRequired": "Controleer deze stap: de opname kon niet benoemen waarop is geklikt, hier zijn klikken gemist, de getypte tekst klopt misschien niet precies, of een geheim gegeven is niet gevonden in de schermopname om te vervagen.",
     "review": {
       "unnamed": "Controleer deze stap: de opname kon niet benoemen waarop is geklikt. Schrijf op wat het was, of kies “Klopt”.",
+      "checkName": "Controleer deze naam: die is uit de schermopname gelezen.",
       "missed": "Controleer deze stap: hier zijn klikken gemist.",
       "typing": "Controleer deze stap: de getypte tekst klopt misschien niet precies.",
       "code": "Controleer deze stap: een geheim gegeven daarin is niet gevonden in de schermopname om te vervagen, of de tekst klopt misschien niet precies.",
@@ -791,6 +791,7 @@
       "managed": "Je organisatie beheert deze instellingen, dus importeren is uitgeschakeld.",
       "tour": "Rondleiding tonen",
       "tourHelp": "Een korte rondleiding door het hoofdvenster, in vensters van 1024 pixels breed of meer.",
+      "tourNarrow": "Een korte rondleiding door het hoofdvenster. Dit venster is hiervoor te smal: maak het 1024 pixels breed of meer en de rondleiding verschijnt.",
       "tourStartAgain": "Opnieuw beginnen",
       "tourContinue": "Rondleiding voortzetten ({{progress}})"
     },
@@ -1240,6 +1241,7 @@
   "privacy": {
     "intro": "Steps leest de tekst in je schermopnamen op deze pc (met de eigen offline tekstherkenning van Windows) om voor te stellen wat je kunt vervagen. Er wordt niets verstuurd.",
     "introLinux": "Steps leest de tekst in je schermopnamen op deze computer (met Tesseract, als dat is geïnstalleerd) om voor te stellen wat je kunt vervagen. Er wordt niets verstuurd.",
+    "introPage": "Steps leest de tekst op de pagina’s die je opneemt, zoals de browser die toont, om voor te stellen wat je kunt vervagen. Er wordt niets verstuurd.",
     "strength": "Vervagingssuggesties",
     "strengths": {
       "light": "Licht",

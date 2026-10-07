@@ -14,10 +14,11 @@ use serde_json::Value;
 #[cfg(test)]
 use super::GuideSummary;
 use super::files::{
-    read_records, read_restart, read_steps, step_sequence, write_json_atomic, write_json_new,
-    write_new_bytes,
+    read_recording_settings, read_records, read_restart, read_steps, step_sequence,
+    write_json_atomic, write_json_new, write_new_bytes,
 };
 use super::journal::screenshot_webp;
+use super::recording::RecordingSettings;
 use super::{
     CommandError, GuideDocument, Inner, RecorderService, RecorderSnapshot, RecoverySession,
     Session, lock, manual_media_id, safe_segment, session_directory, snapshot_locked,
@@ -48,6 +49,18 @@ impl RecorderService {
     pub(super) fn restart_point(&self, session_id: &str) -> Result<Option<u64>, CommandError> {
         let inner = lock(&self.inner);
         Ok(read_restart(&session_directory(&inner, session_id)?))
+    }
+
+    /// The settings a recording started with, for building its steps again; None for one made
+    /// before they were kept.
+    pub(super) fn recording_settings(
+        &self,
+        session_id: &str,
+    ) -> Result<Option<RecordingSettings>, CommandError> {
+        let inner = lock(&self.inner);
+        Ok(read_recording_settings(&session_directory(
+            &inner, session_id,
+        )?))
     }
 
     /// Saves the whole draft of a stopped recording (the editor's copy before it is published),

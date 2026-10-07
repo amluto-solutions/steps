@@ -1,10 +1,16 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { RecorderBridge, RecorderSnapshot } from "./recorder-bridge";
+import type { RecordingFact } from "@amluto-steps/core";
+
+import { fakeAppWindows } from "./bridge/app-windows-fake";
+import { fakeHotkeys } from "./bridge/hotkeys-fake";
+import { fakeRecorder } from "./bridge/recorder-fake";
+import type { RecorderSnapshot, Recording } from "./bridge/recording";
 import { errorMessage, RecorderBar } from "./App";
 import { expectNoSeriousAxeViolations } from "../test/axe";
+import { fakeCapabilities } from "./bridge/capabilities-fake";
 import { initI18n } from "./i18n";
 
 initI18n();
@@ -20,22 +26,56 @@ const recording: RecorderSnapshot = {
   keysRecorded: false,
 };
 
-function createRecorder(pause: ReturnType<typeof vi.fn>): RecorderBridge {
-  return {
-    getState: vi.fn().mockResolvedValue(recording),
-    onState: vi.fn().mockResolvedValue(() => undefined),
-    onFact: vi.fn().mockResolvedValue(() => undefined),
-    heartbeat: vi.fn().mockResolvedValue(undefined),
-    onHeartbeatRequest: vi.fn().mockResolvedValue(() => undefined),
-    resizeBar: vi.fn().mockResolvedValue(undefined),
-    startAgain: vi.fn().mockResolvedValue({ ...recording, stepCount: 0 }),
-    undoStartAgain: vi.fn().mockResolvedValue(recording),
-    getHotkeys: vi
-      .fn()
-      .mockResolvedValue([{ action: "addShortcut", keys: "ctrl+alt+j", registered: true }]),
+/**
+ * The bar's recorder part-way through a recording, with "Show a keyboard shortcut" set to
+ * Ctrl+Alt+J. `pause` stands in for its Pause; its heartbeat, Start again and undo are watched.
+ */
+function createRecorder(pause: Recording["pause"] = vi.fn()) {
+  const live = fakeRecorder({ state: recording });
+  const recorder = {
+    capabilities: fakeCapabilities(),
+    ...live,
+    ...fakeAppWindows(),
+    ...fakeHotkeys([{ action: "addShortcut", keys: "ctrl+alt+j", registered: true }]),
     pause,
-  } as unknown as RecorderBridge;
+  };
+  vi.spyOn(recorder, "heartbeat");
+  vi.spyOn(recorder, "startAgain").mockResolvedValue({ ...recording, stepCount: 0 });
+  vi.spyOn(recorder, "undoStartAgain").mockResolvedValue(recording);
+  return recorder;
 }
+
+/** A screenshot taken in `exe`, as the recorder reports one. */
+const shotIn = (exe: string): RecordingFact => ({
+  sessionId: "session-1",
+  recordedAt: 1_790_246_400_000,
+  sequence: 4,
+  record: {
+    kind: "manual",
+    id: 7,
+    tickMs: 100,
+    purpose: "captureNow",
+    actionText: "Screenshot",
+    window: {
+      title: "New tab",
+      exe,
+      pid: 10,
+      frame: { left: 0, top: 0, right: 100, bottom: 100 },
+      elevation: "notElevated",
+      remoteSession: false,
+    },
+    capture: {
+      mode: "window",
+      rect: { left: 0, top: 0, right: 100, bottom: 100 },
+      monitor: { left: 0, top: 0, right: 100, bottom: 100 },
+      scale: 1,
+      width: 100,
+      height: 100,
+      image: "manual-7.webp",
+    },
+    clickPct: { x: 50, y: 50 },
+  },
+});
 
 describe("errorMessage", () => {
   it("words Rust errors from en.json by their code, and falls back otherwise", () => {
@@ -60,7 +100,7 @@ describe("errorMessage", () => {
 
 describe("RecorderBar", () => {
   it("says keys are recorded, and drops the shortcut popup, only when they are", async () => {
-    const recorder = createRecorder(vi.fn());
+    const recorder = createRecorder();
     const { unmount } = render(<RecorderBar recorder={recorder} />);
     await screen.findByText("Recording");
     expect(screen.queryByText("Keys recorded")).toBeNull();
@@ -95,7 +135,7 @@ describe("RecorderBar", () => {
           message: "The recorder refused this command.",
         })
         .mockResolvedValue(next);
-      const recorder = createRecorder(vi.fn());
+      const recorder = createRecorder();
       recorder.getState = vi.fn().mockResolvedValue(initial);
       recorder[command] = action;
       render(<RecorderBar recorder={recorder} />);
@@ -118,7 +158,7 @@ describe("RecorderBar", () => {
   );
 
   it("exposes the live recording state and named controls to assistive technology", async () => {
-    const { container } = render(<RecorderBar recorder={createRecorder(vi.fn())} />);
+    const { container } = render(<RecorderBar recorder={createRecorder()} />);
 
     expect(await screen.findByText("Recording")).toBeDefined();
     expect(screen.getByRole("button", { name: "Capture now" })).toBeDefined();
@@ -157,12 +197,11 @@ describe("RecorderBar", () => {
   });
 
   it("names the exclude action with its visible words (WCAG 2.5.3)", async () => {
-    const recorder = createRecorder(vi.fn());
-    recorder.onFact = vi.fn((listener: (fact: unknown) => void) => {
-      listener({ record: { kind: "click", window: { exe: "msedge.exe" } } });
-      return Promise.resolve(() => undefined);
-    }) as unknown as RecorderBridge["onFact"];
+    const recorder = createRecorder();
+    const onFact = vi.spyOn(recorder, "onFact");
     render(<RecorderBar recorder={recorder} />);
+    await waitFor(() => expect(onFact).toHaveBeenCalled());
+    act(() => recorder.fire.fact(shotIn("msedge.exe")));
     fireEvent.click(await screen.findByRole("button", { name: "More actions" }));
 
     const exclude = await screen.findByRole("menuitem", { name: "Never record msedge.exe" });
@@ -170,7 +209,7 @@ describe("RecorderBar", () => {
   });
 
   it("starts again and offers an undo until the next step is recorded", async () => {
-    const recorder = createRecorder(vi.fn());
+    const recorder = createRecorder();
     render(<RecorderBar recorder={recorder} />);
     fireEvent.click(await screen.findByRole("button", { name: "More actions" }));
     fireEvent.click(screen.getByRole("menuitem", { name: /Start again/ }));
@@ -184,7 +223,7 @@ describe("RecorderBar", () => {
 
   it("asks before discarding from the bar, starting on the safe choice", async () => {
     const discard = vi.fn().mockResolvedValue({ ...recording, state: "stopping" });
-    const recorder = createRecorder(vi.fn());
+    const recorder = createRecorder();
     recorder.discard = discard;
     render(<RecorderBar recorder={recorder} />);
     fireEvent.click(await screen.findByRole("button", { name: "More actions" }));
@@ -198,7 +237,7 @@ describe("RecorderBar", () => {
   it("tells the recorder it is still showing, once a second", async () => {
     vi.useFakeTimers();
     try {
-      const recorder = createRecorder(vi.fn());
+      const recorder = createRecorder();
       render(<RecorderBar recorder={recorder} />);
       expect(recorder.heartbeat).toHaveBeenCalledTimes(1);
       await vi.advanceTimersByTimeAsync(3000);
@@ -213,7 +252,7 @@ describe("RecorderBar", () => {
 
   it("answers the recorder's heartbeat request even without timers", async () => {
     let request: () => void = () => undefined;
-    const recorder = createRecorder(vi.fn());
+    const recorder = createRecorder();
     recorder.onHeartbeatRequest = vi.fn((handler: () => void) => {
       request = handler;
       return Promise.resolve(() => undefined);
@@ -234,5 +273,34 @@ describe("RecorderBar", () => {
     fireEvent.click(pauseButton);
 
     await waitFor(() => expect(pause).toHaveBeenCalledOnce());
+  });
+
+  it("offers the other way of detecting clicks when they stop, only where there is one", async () => {
+    const stopped = { ...recording, state: "paused", reason: "InputStopped" } as const;
+    const setInputSource = vi.fn().mockResolvedValue({ ...stopped, inputSource: "hook" });
+    const bar = (inputSources: boolean) => {
+      const recorder = createRecorder();
+      recorder.getState = vi.fn().mockResolvedValue(stopped);
+      return render(
+        <RecorderBar
+          recorder={{
+            ...recorder,
+            capabilities: fakeCapabilities({ inputSources }),
+            setInputSource,
+          }}
+        />,
+      );
+    };
+    const { unmount } = bar(true);
+    await screen.findByText("Clicks stopped arriving");
+    fireEvent.click(screen.getByRole("button", { name: "Try the other way of detecting clicks" }));
+    await waitFor(() => expect(setInputSource).toHaveBeenCalledWith("hook"));
+    unmount();
+
+    bar(false);
+    await screen.findByText("Clicks stopped arriving");
+    expect(
+      screen.queryByRole("button", { name: "Try the other way of detecting clicks" }),
+    ).toBeNull();
   });
 });

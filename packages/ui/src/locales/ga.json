@@ -28,7 +28,6 @@
     "settings": "Socruithe",
     "guides": "Treoracha",
     "recordingNow": "Tá taifeadadh ar siúl",
-    "saveFirst": "Sábháil nó cuileáil do thaifeadadh deireanach ar dtús",
     "needsReview": "Le hathbhreithniú"
   },
   "dates": {
@@ -324,11 +323,11 @@
     "drawing": "Á ullmhú…",
     "checklist": "Seicliosta",
     "personalData": "Seiceáil gach gabháil scáileáin ar eagla sonraí pearsanta sula gcomhroinneann tú í. D’fhéadfadh moltaí uathoibríocha rudaí a chailleadh.",
-    "flagged_one": "Ní mór {{count}} chéim a sheiceáil: cliceáil gan ainm, cliceálacha a cailleadh, clóscríobh nach mbeadh ag teacht go beacht, nó gabháil scáileáin le seiceáil.",
-    "flagged_two": "Ní mór {{count}} chéim a sheiceáil: cliceálacha gan ainm, cliceálacha a cailleadh, clóscríobh nach mbeadh ag teacht go beacht, nó gabhálacha scáileáin le seiceáil.",
-    "flagged_few": "Ní mór {{count}} chéim a sheiceáil: cliceálacha gan ainm, cliceálacha a cailleadh, clóscríobh nach mbeadh ag teacht go beacht, nó gabhálacha scáileáin le seiceáil.",
-    "flagged_many": "Ní mór {{count}} gcéim a sheiceáil: cliceálacha gan ainm, cliceálacha a cailleadh, clóscríobh nach mbeadh ag teacht go beacht, nó gabhálacha scáileáin le seiceáil.",
-    "flagged_other": "Ní mór {{count}} céim a sheiceáil: cliceálacha gan ainm, cliceálacha a cailleadh, clóscríobh nach mbeadh ag teacht go beacht, nó gabhálacha scáileáin le seiceáil.",
+    "flagged_one": "Ní mór {{count}} chéim a sheiceáil: cliceáil gan ainm, ainm a léadh ó ghabháil scáileáin, cliceálacha a cailleadh, clóscríobh nach mbeadh ag teacht go beacht, nó gabháil scáileáin le seiceáil.",
+    "flagged_two": "Ní mór {{count}} chéim a sheiceáil: cliceálacha gan ainm, ainmneacha a léadh ó ghabhálacha scáileáin, cliceálacha a cailleadh, clóscríobh nach mbeadh ag teacht go beacht, nó gabhálacha scáileáin le seiceáil.",
+    "flagged_few": "Ní mór {{count}} chéim a sheiceáil: cliceálacha gan ainm, ainmneacha a léadh ó ghabhálacha scáileáin, cliceálacha a cailleadh, clóscríobh nach mbeadh ag teacht go beacht, nó gabhálacha scáileáin le seiceáil.",
+    "flagged_many": "Ní mór {{count}} gcéim a sheiceáil: cliceálacha gan ainm, ainmneacha a léadh ó ghabhálacha scáileáin, cliceálacha a cailleadh, clóscríobh nach mbeadh ag teacht go beacht, nó gabhálacha scáileáin le seiceáil.",
+    "flagged_other": "Ní mór {{count}} céim a sheiceáil: cliceálacha gan ainm, ainmneacha a léadh ó ghabhálacha scáileáin, cliceálacha a cailleadh, clóscríobh nach mbeadh ag teacht go beacht, nó gabhálacha scáileáin le seiceáil.",
     "noFlagged": "Níl aon chéim marcáilte le seiceáil.",
     "stepNumber": "Céim {{number}}",
     "quickEdit": {
@@ -631,6 +630,7 @@
     "reviewRequired": "Seiceáil an chéim seo: níorbh fhéidir leis an taifeadadh an rud a cliceáladh a ainmniú, cailleadh roinnt cliceálacha anseo, b’fhéidir nach bhfuil an clóscríobh ag teacht go beacht, nó níorbh fhéidir rún a aimsiú sa ghabháil scáileáin lena dhoiléiriú.",
     "review": {
       "unnamed": "Seiceáil an chéim seo: níorbh fhéidir leis an taifeadadh an rud a cliceáladh a ainmniú. Scríobh cad a bhí ann, nó roghnaigh “Tá sé ceart”.",
+      "checkName": "Seiceáil an t-ainm seo: léadh é ón ghabháil scáileáin.",
       "missed": "Seiceáil an chéim seo: cailleadh roinnt cliceálacha anseo.",
       "typing": "Seiceáil an chéim seo: b’fhéidir nach bhfuil an clóscríobh ag teacht go beacht.",
       "code": "Seiceáil an chéim seo: níorbh fhéidir rún atá inti a aimsiú sa ghabháil scáileáin lena dhoiléiriú, nó b’fhéidir nach bhfuil an téacs ag teacht go beacht.",
@@ -932,6 +932,7 @@
       "managed": "Bainistíonn d’eagraíocht na socruithe seo, mar sin tá iompórtáil múchta.",
       "tour": "Taispeáin an rang teagaisc",
       "tourHelp": "Turas gearr ar an bpríomhfhuinneog, i bhfuinneoga atá 1024 picteilín ar leithead nó níos mó.",
+      "tourNarrow": "Turas gearr ar an bpríomhfhuinneog. Tá an fhuinneog seo ró-chaol dó: déan í 1024 picteilín ar leithead nó níos mó agus beidh an turas le feiceáil.",
       "tourStartAgain": "Tosaigh arís",
       "tourContinue": "Lean leis an turas ({{progress}})"
     },
@@ -1417,6 +1418,7 @@
   "privacy": {
     "intro": "Léann Steps an téacs i do ghabhálacha scáileáin ar an ríomhaire seo (le haithint téacs as líne Windows féin) chun moladh cad ba cheart a dhoiléiriú. Ní sheoltar faic áit ar bith.",
     "introLinux": "Léann Steps an téacs i do ghabhálacha scáileáin ar an ríomhaire seo (le Tesseract, má tá sé suiteáilte) chun moladh cad ba cheart a dhoiléiriú. Ní sheoltar faic áit ar bith.",
+    "introPage": "Léann Steps an téacs ar na leathanaigh a thaifeadann tú, mar a thaispeánann an brabhsálaí é, chun moladh cad ba cheart a dhoiléiriú. Ní sheoltar faic áit ar bith.",
     "strength": "Moltaí doiléirithe",
     "strengths": {
       "light": "Éadrom",

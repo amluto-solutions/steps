@@ -1,6 +1,9 @@
 import { z } from "zod";
 
 import type { StepCode } from "./code.ts";
+import { isLanguage } from "./languages.ts";
+import { TONES } from "./step-text/phrase.ts";
+import type { ClickNaming } from "./step-text/click-naming.ts";
 
 export const recorderPreferencesSchema = z
   .object({
@@ -9,6 +12,30 @@ export const recorderPreferencesSchema = z
   })
   .strict();
 export type RecorderPreferences = z.infer<typeof recorderPreferencesSchema>;
+
+/**
+ * The settings a recording's steps are built with, read once at Record (IT policy applied) and
+ * saved with the recording (docs/spec/02-capture.md#recording-settings). Its live steps and a
+ * draft rebuilt from its journal later use the same value, so a setting changed mid-recording
+ * applies from the next recording.
+ */
+export const recordingSettingsSchema = z.object({
+  /** Typing into something unnamed shows its text in the step (A1); off unless chosen. */
+  showUnnamedTyping: z.boolean(),
+  /**
+   * The language and tone its steps are worded in, kept so a rebuild after a restart words them
+   * as the live steps were. Steps take it as its own value (`useStepWording`).
+   */
+  wording: z
+    .object({
+      language: z.string().refine((code): boolean => isLanguage(code)),
+      tone: z.enum(TONES),
+    })
+    .optional(),
+});
+export type RecordingSettings = z.infer<typeof recordingSettingsSchema>;
+/** Settings as they start, unless the person or IT changed them. */
+export const DEFAULT_RECORDING_SETTINGS: RecordingSettings = { showUnnamedTyping: false };
 
 const rect = z.object({ left: z.number(), top: z.number(), right: z.number(), bottom: z.number() });
 /**
@@ -31,22 +58,32 @@ const siteOrigin = z
       return false;
     }
   });
-const element = z.object({
-  controlType: z.string(),
-  localizedControlType: z.string(),
-  name: z.string(),
-  automationId: z.string(),
-  helpText: z.string(),
-  ariaRole: z.string(),
-  ariaProperties: z.string(),
-  className: z.string(),
-  frameworkId: z.string(),
-  isPassword: z.boolean(),
-  labeledBy: z.string().nullable(),
-  bounds: rect.nullable(),
-  parent: z.object({ controlType: z.string(), name: z.string() }).nullable(),
-  sensitive: z.boolean(),
-});
+const ancestor = z.object({ controlType: z.string(), name: z.string() });
+/** What UI Automation or AT-SPI said about an element (`UiaElementFacts`). */
+const element = z
+  .object({
+    controlType: z.string(),
+    localizedControlType: z.string(),
+    name: z.string(),
+    automationId: z.string(),
+    helpText: z.string(),
+    ariaRole: z.string(),
+    ariaProperties: z.string(),
+    className: z.string(),
+    frameworkId: z.string(),
+    isPassword: z.boolean(),
+    labeledBy: z.string().nullable(),
+    bounds: rect.nullable(),
+    /** Nearest first, up to four (06/10/2026). */
+    ancestors: z.array(ancestor).optional(),
+    /** Recordings made before then kept only the nearest, here; one may still be opened. */
+    parent: ancestor.nullable().optional(),
+    sensitive: z.boolean(),
+  })
+  .transform(({ ancestors, parent, ...facts }) => ({
+    ...facts,
+    ancestors: ancestors ?? (parent ? [parent] : []),
+  }));
 
 /**
  * What the Chrome edition records (docs/spec/02-capture.md#chrome-edition): facts from the page
@@ -349,6 +386,8 @@ export interface RecordedStep {
   updatedBy: string;
   formatVersion: 1;
   reviewRequired?: boolean;
+  /** What a click is called (docs/spec/02-capture.md#click-naming). */
+  naming?: ClickNaming;
 }
 
 /** Validate journal step files before they cross from the desktop bridge into review. */

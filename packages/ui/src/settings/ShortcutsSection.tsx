@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
-import type { HotkeyAction, HotkeyBinding, RecorderBridge } from "../recorder-bridge";
+import type { HotkeyAction, HotkeyBinding, Hotkeys } from "../bridge/hotkeys";
 import { errorMessage } from "../errors";
 import { displayKeys, keysFromEvent } from "./preferences";
 import type { SettingsProps } from "./settings-props";
@@ -13,7 +13,7 @@ export function ShortcutsSection({
   recorder,
   notify,
 }: {
-  recorder: RecorderBridge | undefined;
+  recorder: Hotkeys | undefined;
   notify: SettingsProps["notify"];
 }) {
   const { t, i18n } = useTranslation();

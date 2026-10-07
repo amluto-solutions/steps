@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ToastMessage } from "../components/Toast";
-import type { RecorderBridge } from "../recorder-bridge";
+import type { Hotkeys } from "../bridge/hotkeys";
 import { displayKeys } from "../settings/preferences";
 import { useLatest } from "../useLatest";
 
@@ -41,7 +41,7 @@ const focused = (): Promise<void> =>
  * repeated at every start; a different one is, and once nothing clashes the memory is cleared.
  */
 export function useShortcutWarning(
-  recorder: RecorderBridge | undefined,
+  recorder: Hotkeys | undefined,
   notify: (toast: Omit<ToastMessage, "id">) => void,
   showShortcuts: () => void,
 ) {
@@ -55,11 +55,9 @@ export function useShortcutWarning(
       await new Promise((resolve) => window.setTimeout(resolve, SETTLE_MS));
       await focused();
       if (cancelled) return;
-      // Test and preview bridges may not have it; then there's nothing to say.
-      const bindings = await Promise.resolve()
-        .then(() => recorder.getHotkeys())
-        .catch(() => null);
-      if (cancelled || !Array.isArray(bindings)) return;
+      // Shortcuts that can't be read have nothing to say.
+      const bindings = await recorder.getHotkeys().catch(() => null);
+      if (cancelled || !bindings) return;
       const clashes = bindings.filter((binding) => binding.keys && !binding.registered);
       const key = clashes
         .map((binding) => `${binding.action}=${binding.keys}`)

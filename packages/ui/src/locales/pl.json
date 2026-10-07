@@ -28,7 +28,6 @@
     "settings": "Ustawienia",
     "guides": "Instrukcje",
     "recordingNow": "Trwa nagrywanie",
-    "saveFirst": "Najpierw zapisz lub odrzuć ostatnie nagranie",
     "needsReview": "Do przeglądu"
   },
   "dates": {
@@ -302,10 +301,10 @@
     "drawing": "Przygotowywanie…",
     "checklist": "Lista kontrolna",
     "personalData": "Przed udostępnieniem sprawdź każdy zrzut ekranu pod kątem danych osobowych. Automatyczne sugestie mogą coś przeoczyć.",
-    "flagged_one": "{{count}} krok wymaga sprawdzenia: nienazwane kliknięcie, pominięte kliknięcia, wpisany tekst, który może się nie zgadzać, lub zrzut ekranu do sprawdzenia.",
-    "flagged_few": "{{count}} kroki wymagają sprawdzenia: nienazwane kliknięcia, pominięte kliknięcia, wpisany tekst, który może się nie zgadzać, lub zrzuty ekranu do sprawdzenia.",
-    "flagged_many": "{{count}} kroków wymaga sprawdzenia: nienazwane kliknięcia, pominięte kliknięcia, wpisany tekst, który może się nie zgadzać, lub zrzuty ekranu do sprawdzenia.",
-    "flagged_other": "{{count}} kroków wymaga sprawdzenia: nienazwane kliknięcia, pominięte kliknięcia, wpisany tekst, który może się nie zgadzać, lub zrzuty ekranu do sprawdzenia.",
+    "flagged_one": "{{count}} krok wymaga sprawdzenia: nienazwane kliknięcie, nazwa odczytana ze zrzutu ekranu, pominięte kliknięcia, wpisany tekst, który może się nie zgadzać, lub zrzut ekranu do sprawdzenia.",
+    "flagged_few": "{{count}} kroki wymagają sprawdzenia: nienazwane kliknięcia, nazwy odczytane ze zrzutów ekranu, pominięte kliknięcia, wpisany tekst, który może się nie zgadzać, lub zrzuty ekranu do sprawdzenia.",
+    "flagged_many": "{{count}} kroków wymaga sprawdzenia: nienazwane kliknięcia, nazwy odczytane ze zrzutów ekranu, pominięte kliknięcia, wpisany tekst, który może się nie zgadzać, lub zrzuty ekranu do sprawdzenia.",
+    "flagged_other": "{{count}} kroków wymaga sprawdzenia: nienazwane kliknięcia, nazwy odczytane ze zrzutów ekranu, pominięte kliknięcia, wpisany tekst, który może się nie zgadzać, lub zrzuty ekranu do sprawdzenia.",
     "noFlagged": "Żaden krok nie jest oznaczony do sprawdzenia.",
     "stepNumber": "Krok {{number}}",
     "quickEdit": {
@@ -588,6 +587,7 @@
     "reviewRequired": "Sprawdź ten krok: nagranie nie rozpoznało nazwy klikniętego elementu, pominięto tu niektóre kliknięcia, wpisany tekst może nie zgadzać się dokładnie albo nie udało się znaleźć na zrzucie ekranu poufnej wartości do rozmycia.",
     "review": {
       "unnamed": "Sprawdź ten krok: nagranie nie rozpoznało nazwy klikniętego elementu. Wpisz, co to było, lub wybierz Wygląda dobrze.",
+      "checkName": "Sprawdź tę nazwę: odczytano ją ze zrzutu ekranu.",
       "missed": "Sprawdź ten krok: pominięto tu niektóre kliknięcia.",
       "typing": "Sprawdź ten krok: wpisany tekst może nie zgadzać się dokładnie.",
       "code": "Sprawdź ten krok: nie udało się znaleźć na zrzucie ekranu poufnej wartości do rozmycia albo tekst może nie zgadzać się dokładnie.",
@@ -885,6 +885,7 @@
       "managed": "Te ustawienia są zarządzane przez Twoją organizację, więc importowanie jest wyłączone.",
       "tour": "Pokaż samouczek",
       "tourHelp": "Krótki przewodnik po oknie głównym, w oknach o szerokości co najmniej 1024 pikseli.",
+      "tourNarrow": "Krótki przewodnik po oknie głównym. To okno jest na niego za wąskie: po poszerzeniu go do co najmniej 1024 pikseli przewodnik się pojawi.",
       "tourStartAgain": "Zacznij od nowa",
       "tourContinue": "Kontynuuj samouczek ({{progress}})"
     },
@@ -1358,6 +1359,7 @@
   "privacy": {
     "intro": "Steps odczytuje tekst na zrzutach ekranu na tym komputerze (za pomocą wbudowanego w system Windows rozpoznawania tekstu offline), aby zasugerować, co rozmyć. Nic nie jest nigdzie wysyłane.",
     "introLinux": "Steps odczytuje tekst na zrzutach ekranu na tym komputerze (za pomocą programu Tesseract, jeśli jest zainstalowany), aby zasugerować, co rozmyć. Nic nie jest nigdzie wysyłane.",
+    "introPage": "Steps odczytuje tekst na stronach, które nagrywasz, tak jak pokazuje go przeglądarka, aby zasugerować, co rozmyć. Nic nie jest nigdzie wysyłane.",
     "strength": "Sugestie rozmycia",
     "strengths": {
       "light": "Lekkie",

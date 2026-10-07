@@ -28,7 +28,6 @@
     "settings": "Inställningar",
     "guides": "Guider",
     "recordingNow": "En inspelning pågår",
-    "saveFirst": "Spara eller kassera din senaste inspelning först",
     "needsReview": "Behöver granskas"
   },
   "dates": {
@@ -258,8 +257,8 @@
     "drawing": "Förbereder…",
     "checklist": "Checklista",
     "personalData": "Kontrollera varje skärmbild efter personuppgifter innan du delar den. Automatiska förslag kan missa saker.",
-    "flagged_one": "{{count}} steg behöver kontrolleras: ett klick utan namn, missade klick, inskriven text som kanske inte stämmer eller en skärmbild att kontrollera.",
-    "flagged_other": "{{count}} steg behöver kontrolleras: klick utan namn, missade klick, inskriven text som kanske inte stämmer eller skärmbilder att kontrollera.",
+    "flagged_one": "{{count}} steg behöver kontrolleras: ett klick utan namn, ett namn som lästs från skärmbilden, missade klick, inskriven text som kanske inte stämmer eller en skärmbild att kontrollera.",
+    "flagged_other": "{{count}} steg behöver kontrolleras: klick utan namn, namn som lästs från skärmbilder, missade klick, inskriven text som kanske inte stämmer eller skärmbilder att kontrollera.",
     "noFlagged": "Inga steg är flaggade för kontroll.",
     "stepNumber": "Steg {{number}}",
     "quickEdit": {
@@ -502,6 +501,7 @@
     "reviewRequired": "Kontrollera det här steget: inspelningen kunde inte namnge det som klickades på, några klick missades här, den inskrivna texten kanske inte stämmer exakt, eller så hittades inte en hemlighet i skärmbilden som skulle göras suddig.",
     "review": {
       "unnamed": "Kontrollera det här steget: inspelningen kunde inte namnge det som klickades på. Skriv vad det var eller välj ”Ser rätt ut”.",
+      "checkName": "Kontrollera det här namnet: det lästes från skärmbilden.",
       "missed": "Kontrollera det här steget: några klick missades här.",
       "typing": "Kontrollera det här steget: den inskrivna texten kanske inte stämmer exakt.",
       "code": "Kontrollera det här steget: en hemlighet i det hittades inte i skärmbilden för att göras oskarp, eller så kanske texten inte stämmer exakt.",
@@ -791,6 +791,7 @@
       "managed": "Din organisation hanterar de här inställningarna, så import är avstängt.",
       "tour": "Visa introduktionen",
       "tourHelp": "En kort rundtur i huvudfönstret, i fönster som är minst 1024 bildpunkter breda.",
+      "tourNarrow": "En kort rundtur i huvudfönstret. Det här fönstret är för smalt för den: gör det minst 1024 bildpunkter brett, så visas rundturen.",
       "tourStartAgain": "Börja om",
       "tourContinue": "Fortsätt rundturen ({{progress}})"
     },
@@ -1240,6 +1241,7 @@
   "privacy": {
     "intro": "Steps läser texten i dina skärmbilder på den här datorn (med Windows egen textigenkänning offline) för att föreslå vad som ska göras suddigt. Inget skickas någonstans.",
     "introLinux": "Steps läser texten i dina skärmbilder på den här datorn (med Tesseract, om det är installerat) för att föreslå vad som ska göras suddigt. Inget skickas någonstans.",
+    "introPage": "Steps läser texten på sidorna du spelar in, så som webbläsaren visar den, för att föreslå vad som ska göras suddigt. Inget skickas någonstans.",
     "strength": "Förslag på oskärpa",
     "strengths": {
       "light": "Lätt",

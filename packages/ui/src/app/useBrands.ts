@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import type { BrandProfile } from "@amluto-steps/core";
 
-import type { RecorderBridge } from "../recorder-bridge";
+import type { Brands } from "../bridge/brands";
+import type { Fonts } from "../bridge/fonts";
 import { applyAppColours, readAppColours, saveAppColours } from "../settings/appColours";
 import { parseBrands, syncPolicyBrands } from "../settings/brands";
 import { policy } from "../settings/policy";
@@ -14,7 +15,7 @@ const BRAND_RETRY_MS = 3 * 60_000;
  * The brand profiles on this PC, the ones IT deployed (read-only), and the one whose colours theme
  * the app (docs/spec/06-brands-and-theming.md).
  */
-export function useBrands(recorder: RecorderBridge | undefined, theme: Theme) {
+export function useBrands(recorder: (Brands & Fonts) | undefined, theme: Theme) {
   const [brands, setBrands] = useState<BrandProfile[]>([]);
   /** Brands deployed by IT policy: shown read-only in Settings. */
   const [managedBrandIds, setManagedBrandIds] = useState<string[]>([]);
@@ -63,7 +64,7 @@ export function useBrands(recorder: RecorderBridge | undefined, theme: Theme) {
             },
           )
         : { managedIds: [], changed: false, unread: 0 };
-    const marked = await (recorder.managedBrandIds?.() ?? Promise.resolve([])).catch(() => []);
+    const marked = await recorder.managedBrandIds().catch(() => []);
     setManagedBrandIds([...new Set([...synced.managedIds, ...marked])]);
     setUnread(synced.unread);
     if (synced.changed) await refreshBrands();

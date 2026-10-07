@@ -1,6 +1,5 @@
 import { LANGUAGES, isLanguage, languageName } from "@amluto-steps/core";
 import { useState } from "react";
-import { isBrowserEdition, isLinux } from "../recorder-bridge";
 import { useTranslation } from "react-i18next";
 import { Icon } from "../components/icons";
 import { useTour } from "../tour/TourProvider";
@@ -25,9 +24,14 @@ import type { SettingsProps } from "./settings-props";
 
 export function GeneralSection(props: SettingsProps) {
   const { t } = useTranslation();
+  const { autoStart } = props.capabilities;
   const [name, setName] = useState(props.displayName);
   const [madeWith, setMadeWith] = useState(readMadeWith);
   const tour = useTour();
+  const tourAnd = (action: () => void) => {
+    action();
+    if (!tour.wide) props.notify({ text: t("settings.general.tourNarrow") });
+  };
   return (
     <>
       <h2 className="mb-3.5 font-heading text-xl text-navy">{t("settings.sections.general")}</h2>
@@ -99,15 +103,15 @@ export function GeneralSection(props: SettingsProps) {
           </span>
         </Row>
       )}
-      {!isBrowserEdition(props.recorder) && (
+      {autoStart && (
         <Row
           label={t(
-            isLinux(props.recorder)
+            autoStart === "signIn"
               ? "settings.general.autoStartLinux"
               : "settings.general.autoStart",
           )}
           help={t(
-            isLinux(props.recorder)
+            autoStart === "signIn"
               ? "settings.general.autoStartHelpLinux"
               : "settings.general.autoStartHelp",
           )}
@@ -122,13 +126,19 @@ export function GeneralSection(props: SettingsProps) {
           />
         </Row>
       )}
-      <Row label={t("settings.general.tour")} help={t("settings.general.tourHelp")} id="tour-label">
+      {/* In a window too narrow for it the tour waits, and says so (06/10/2026: "Continue the
+          tour" seemed to do nothing in a window 940 pixels wide). */}
+      <Row
+        label={t("settings.general.tour")}
+        help={t(tour.wide ? "settings.general.tourHelp" : "settings.general.tourNarrow")}
+        id="tour-label"
+      >
         {tour.progress && (
-          <button type="button" className="btn" onClick={tour.resume}>
+          <button type="button" className="btn" onClick={() => tourAnd(tour.resume)}>
             {t("settings.general.tourContinue", { progress: tour.progress })}
           </button>
         )}
-        <button type="button" className="btn" onClick={tour.start}>
+        <button type="button" className="btn" onClick={() => tourAnd(tour.start)}>
           {t("settings.general.tourStartAgain")}
         </button>
         <Switch

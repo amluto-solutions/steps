@@ -28,19 +28,33 @@ describe("the words each screenshot showed", () => {
     const store = await open({ now: 0 });
     await store.keep(new Blob([image]), lines);
     expect(await store.read(image.slice())).toEqual(lines);
-    expect(await store.read(new Uint8Array([9, 9]))).toEqual([]);
+  });
+
+  it("are unavailable for a screenshot this browser kept none for, not none", async () => {
+    // A screenshot from elsewhere, or one changed since, was never read: the export review must
+    // call it not checked rather than clear (docs/spec/03-data-and-sharing.md#ocr-cache).
+    const store = await open({ now: 0 });
+    expect(await store.read(new Uint8Array([9, 9]))).toBe("unavailable");
+  });
+
+  it("are none for a page that showed no words", async () => {
+    const store = await open({ now: 0 });
+    await store.keep(new Blob([image]), []);
+    expect(await store.read(image)).toEqual([]);
   });
 
   it("drop text under a blur for good", async () => {
     const store = await open({ now: 0 });
     await store.keep(new Blob([image]), lines);
     const blurred = await store.read(image, [{ x: 15, y: 9, w: 20, h: 4 }]);
+    if (blurred === "unavailable") throw new Error("kept words were unavailable");
     expect(blurred.flatMap((line) => line.words.map((word) => word.text))).toEqual([
       "Email",
       "Total",
     ]);
     // Taking the blur off doesn't bring the words back: they were never kept.
-    expect((await store.read(image)).flatMap((line) => line.words)).toHaveLength(2);
+    const again = await store.read(image);
+    expect(again === "unavailable" ? again : again.flatMap((line) => line.words)).toHaveLength(2);
   });
 
   it("are deleted after 30 days unused, and on clearing", async () => {
@@ -53,8 +67,8 @@ describe("the words each screenshot showed", () => {
     clock.now = KEEP_TEXT_MS + 1;
     await store.prune();
     expect(await store.read(image)).toEqual(lines);
-    expect(await store.read(new Uint8Array([5]))).toEqual([]);
+    expect(await store.read(new Uint8Array([5]))).toBe("unavailable");
     await store.clear();
-    expect(await store.read(image)).toEqual([]);
+    expect(await store.read(image)).toBe("unavailable");
   });
 });

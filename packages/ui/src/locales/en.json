@@ -28,7 +28,6 @@
     "settings": "Settings",
     "guides": "Guides",
     "recordingNow": "A recording is running",
-    "saveFirst": "Save or discard your last recording first",
     "needsReview": "Needs review"
   },
   "dates": {
@@ -258,8 +257,8 @@
     "drawing": "Preparing…",
     "checklist": "Checklist",
     "personalData": "Check every screenshot for personal data before you share it. Automatic suggestions can miss things.",
-    "flagged_one": "{{count}} step needs checking: an unnamed click, missed clicks, typing that may not match, or a screenshot to check.",
-    "flagged_other": "{{count}} steps need checking: unnamed clicks, missed clicks, typing that may not match, or screenshots to check.",
+    "flagged_one": "{{count}} step needs checking: an unnamed click, a name read from the screenshot, missed clicks, typing that may not match, or a screenshot to check.",
+    "flagged_other": "{{count}} steps need checking: unnamed clicks, names read from screenshots, missed clicks, typing that may not match, or screenshots to check.",
     "noFlagged": "No steps are flagged for checking.",
     "stepNumber": "Step {{number}}",
     "quickEdit": {
@@ -502,6 +501,7 @@
     "reviewRequired": "Check this step: the recording couldn’t name what was clicked, some clicks were missed here, the typing may not match exactly, or a secret couldn’t be found in the screenshot to blur.",
     "review": {
       "unnamed": "Check this step: the recording couldn’t name what was clicked. Write what it was, or choose Looks right.",
+      "checkName": "Check this name: it was read from the screenshot.",
       "missed": "Check this step: some clicks were missed here.",
       "typing": "Check this step: what was typed may not match exactly.",
       "code": "Check this step: a secret in it couldn’t be found in the screenshot to blur, or the text may not match exactly.",
@@ -791,6 +791,7 @@
       "managed": "Your organisation manages these settings, so importing is switched off.",
       "tour": "Show the tutorial",
       "tourHelp": "A short tour of the main window, in windows 1024 pixels wide or more.",
+      "tourNarrow": "A short tour of the main window. This window is too narrow for it: make it 1024 pixels wide or more and the tour appears.",
       "tourStartAgain": "Start again",
       "tourContinue": "Continue the tour ({{progress}})"
     },
@@ -1240,6 +1241,7 @@
   "privacy": {
     "intro": "Steps reads the text in your screenshots on this PC (with Windows’ own offline text recognition) to suggest what to blur. Nothing is sent anywhere.",
     "introLinux": "Steps reads the text in your screenshots on this computer (with Tesseract, if it’s installed) to suggest what to blur. Nothing is sent anywhere.",
+    "introPage": "Steps reads the text on the pages you record, as the browser shows it, to suggest what to blur. Nothing is sent anywhere.",
     "strength": "Blur suggestions",
     "strengths": {
       "light": "Light",

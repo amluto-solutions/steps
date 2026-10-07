@@ -281,7 +281,6 @@ export function createLibraryRouter(options: RouterOptions): LibraryRouter {
 
   const bridge: LibraryRouter = {
     session,
-    folderLibraries: Boolean(options.pickFolder),
 
     async listLibraries() {
       const chosen = await defaultId();

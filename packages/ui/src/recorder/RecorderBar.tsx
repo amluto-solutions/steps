@@ -3,7 +3,10 @@ import { useTranslation } from "react-i18next";
 
 import { Icon } from "../components/icons";
 import { errorMessage } from "../errors";
-import { isLinux, type RecorderBridge, type RecorderSnapshot } from "../recorder-bridge";
+import type { AppWindows } from "../bridge/app-windows";
+import type { Hotkeys } from "../bridge/hotkeys";
+import type { RecorderSnapshot, Recording } from "../bridge/recording";
+import type { Capabilities } from "../capabilities";
 import { displayKeys, EXCLUDED_APPS_KEY, readExcludedApps } from "../settings/preferences";
 
 export const EMPTY_SNAPSHOT: RecorderSnapshot = {
@@ -37,7 +40,12 @@ const pauseNote = (
  * its status, with Capture now, Pause/Resume and Stop on it and everything else under More. The
  * window grows to fit a menu or a note and shrinks back afterwards.
  */
-export function RecorderBar({ recorder }: { recorder: RecorderBridge }) {
+/** What the recording bar needs of the recorder bridge. */
+export type BarRecorder = Recording &
+  AppWindows &
+  Hotkeys & { readonly capabilities: Capabilities };
+
+export function RecorderBar({ recorder }: { recorder: BarRecorder }) {
   const { t, i18n } = useTranslation();
   const [snapshot, setSnapshot] = useState<RecorderSnapshot>(EMPTY_SNAPSHOT);
   const [busy, setBusy] = useState(false);
@@ -502,7 +510,7 @@ export function RecorderBar({ recorder }: { recorder: RecorderBridge }) {
               {t(`recorder.pausedFor.${note}.body`)}
             </span>
             {/* Linux has one way of detecting clicks: nothing to switch to. */}
-            {note === "input" && !isLinux(recorder) && (
+            {note === "input" && recorder.capabilities.inputSources && (
               <button
                 type="button"
                 className="mt-1 self-start text-[13px] text-link underline"

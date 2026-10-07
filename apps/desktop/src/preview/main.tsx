@@ -12,7 +12,8 @@ import {
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
-import { previewBarRecorder, previewLibrary, previewRecorder } from "./bridges";
+import { previewLibrary } from "./library";
+import { previewBarRecorder, previewRecorder } from "./recorder";
 
 // The main window with made-up guides, for checking screens in a browser without Tauri. Only the
 // Vite dev server serves it (`/preview.html`); the app build contains index.html alone. Add
@@ -32,7 +33,10 @@ if (root) {
           recorder={previewBarRecorder({ keys: params.has("keys"), paused: params.has("paused") })}
         />
       ) : (
-        <App recorder={previewRecorder} library={previewLibrary} />
+        <App
+          recorder={previewRecorder({ manySuggestions: params.has("many-suggestions") })}
+          library={previewLibrary}
+        />
       )}
     </StrictMode>,
   );

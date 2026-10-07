@@ -16,6 +16,7 @@ pub mod keys;
 pub mod lookup;
 pub mod navigation;
 pub mod pipeline;
+pub mod queued_sink;
 pub mod screen_text;
 pub mod screenshot;
 pub mod secrets;

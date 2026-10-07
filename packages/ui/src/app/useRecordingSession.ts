@@ -1,30 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { nameFromScreen } from "../recorder/screen-names";
-import { dataUrlBytes } from "../editor/suggestions";
+import { recordingToDraft, type RecordingData } from "../recorder/recording-to-draft";
+import { screenWords } from "../screen-words";
 import { useLatest } from "../useLatest";
 import { useTranslation } from "react-i18next";
-import {
-  parseStep,
-  type GuideStep,
-  type RecordedStep,
-  type RecordingFact,
-} from "@amluto-steps/core";
+import type { RecordedStep, RecordingFact, RecordingSettings } from "@amluto-steps/core";
 
 import type { ToastMessage } from "../components/Toast";
 import type { EditorDoc } from "../editor/document";
-import { sortSteps } from "../editor/document";
 import { errorMessage } from "../errors";
 import { formatDate } from "../library/dates";
 import type { PendingRecording } from "../library/LibraryHome";
-import {
-  applyDrags,
-  dropReplacedValues,
-  dropTrailingOpens,
-  borrowScreenshots,
-  factToStep,
-  imageFileOf,
-  orderRecordedSteps,
-} from "../recorded-step";
+import { factToStep, imageFileOf } from "../recorded-step";
 import { EMPTY_SNAPSHOT } from "../recorder/RecorderBar";
 import { useStepWording } from "../recorder/ShortcutPopup";
 import type {
@@ -34,10 +20,23 @@ import type {
   RecoverySession,
 } from "../recorder-bridge";
 import { policy } from "../settings/policy";
-import { monitorKey } from "../settings/preferences";
+import { monitorKey, readRecordingSettings } from "../settings/preferences";
 import type { StartChoices } from "./dialogs";
-import { afterRestart, mergeRecordedSteps, newGuide, toDoc } from "./documents";
+import { newGuide, toDoc } from "./documents";
 import type { Settings } from "./useSettings";
+
+/** A recording's facts from its journal, with any more of them a window saw, in order. */
+const withFacts = (
+  journal: readonly RecordingFact[],
+  seen: readonly RecordingFact[],
+  sessionId: string,
+): RecordingFact[] => {
+  const known = new Set(journal.map((fact) => fact.sequence));
+  const more = seen.filter((fact) => fact.sessionId === sessionId && !known.has(fact.sequence));
+  return more.length === 0
+    ? [...journal]
+    : [...journal, ...more].sort((left, right) => left.sequence - right.sequence);
+};
 
 /** What the session needs from the rest of the app; read at the moment it's used. */
 export interface RecordingSessionContext {
@@ -65,7 +64,7 @@ export interface RecordingSessionContext {
  * state through refs rather than the values of the render they were registered in.
  */
 export function useRecordingSession(context: RecordingSessionContext) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const wording = useStepWording();
   const wordingRef = useLatest(wording);
   const { recorder, notify, setBusy } = context;
@@ -77,8 +76,41 @@ export function useRecordingSession(context: RecordingSessionContext) {
   const [startOpen, setStartOpen] = useState(false);
   const [discardTarget, setDiscardTarget] = useState<PendingRecording | null>(null);
   const [fatal, setFatal] = useState<string | null>(null);
-  const stepsRef = useRef<RecordedStep[]>([]);
+  /**
+   * The live recording as this window has it: its facts as they arrived, and the steps that came
+   * another way (the shortcut popup's). Its steps are made from these by `recordingToDraft`, as
+   * Steps for Chrome's side panel makes the ones it shows, so live and draft can't disagree.
+   */
+  const liveRef = useRef<{ facts: RecordingFact[]; added: RecordedStep[] }>({
+    facts: [],
+    added: [],
+  });
+  /** Steps written to the journal from this window, so none is written twice. */
+  const journalledRef = useRef(new Set<string>());
+  const forgetLive = () => {
+    liveRef.current = { facts: [], added: [] };
+    journalledRef.current = new Set();
+  };
   const restartRef = useRef<number | null>(null);
+  /**
+   * The current recording's settings, saved with it when it started; a setting changed during it
+   * applies from the next one (docs/spec/02-capture.md#recording-settings).
+   */
+  const settingsRef = useRef<{ sessionId: string | null; settings: RecordingSettings } | null>(
+    null,
+  );
+  /**
+   * A recording's own settings when they're known here; else today's, read once for that
+   * recording and kept, so a setting changed during it can't change its later steps, and storage
+   * isn't read at every step.
+   */
+  const settingsOf = (sessionId: string) => {
+    const known = settingsRef.current;
+    if (known && (known.sessionId === sessionId || known.sessionId === null)) return known.settings;
+    const settings = readRecordingSettings();
+    settingsRef.current = { sessionId, settings };
+    return settings;
+  };
   const writeQueue = useRef<Promise<void>>(Promise.resolve());
   const discardRequested = useRef(false);
   const currentSessionId = useRef<string | null>(null);
@@ -94,35 +126,45 @@ export function useRecordingSession(context: RecordingSessionContext) {
 
   // ----- Facts become draft steps as they arrive -----
 
-  /** A recording's steps from its journal, with the facts they came from. */
-  const loadRecording = useCallback(
-    async (sessionId: string): Promise<{ steps: RecordedStep[]; facts: RecordingFact[] }> => {
-      if (!recorder) return { steps: [], facts: [] };
-      const [facts, persisted, restart] = await Promise.all([
-        recorder.getRecoveryRecords(sessionId),
-        recorder.getSessionSteps(sessionId),
-        recorder.getRestartPoint(sessionId),
-      ]);
-      restartRef.current = restart;
-      const fromFacts = facts
-        .map((fact) => factToStep(fact, wordingRef.current()))
-        .filter((step): step is RecordedStep => step !== null);
-      // Persisted steps carry popup-only shortcuts and the recording author.
-      return { steps: afterRestart(mergeRecordedSteps(fromFacts, persisted), restart), facts };
-    },
-    [recorder, wordingRef],
-  );
-  const restoreSteps = useCallback(
-    async (sessionId: string) => (await loadRecording(sessionId)).steps,
-    [loadRecording],
-  );
+  /**
+   * A recording as its journal holds it, with the settings and wording it was recorded with
+   * (`recordingToDraft` makes its steps). The journalled steps carry the popup's shortcuts and the
+   * recording's author.
+   */
+  const loadRecording = async (
+    recorder: RecorderBridge,
+    sessionId: string,
+  ): Promise<Omit<RecordingData, "live" | "words">> => {
+    const [facts, journalled, restart, saved] = await Promise.all([
+      recorder.getRecoveryRecords(sessionId),
+      recorder.getSessionSteps(sessionId),
+      recorder.getRestartPoint(sessionId),
+      recorder.getRecordingSettings(sessionId),
+    ]);
+    restartRef.current = restart;
+    // A recording made before its settings were saved with it takes today's, read once.
+    const settings = saved ?? readRecordingSettings();
+    if (settings.wording) wordingRef.current.keep(sessionId, settings.wording);
+    if (sessionId === currentSessionId.current) settingsRef.current = { sessionId, settings };
+    const wording = wordingRef.current(sessionId);
+    return { facts, saved: journalled, restart, wording, settings };
+  };
 
   const addFact = (fact: RecordingFact) => {
     if (fact.record.kind === "manual" && fact.record.purpose === "shortcut") return;
+    const live = liveRef.current;
+    if (
+      !live.facts.some(
+        (seen) => seen.sequence === fact.sequence && seen.sessionId === fact.sessionId,
+      )
+    )
+      live.facts = [...live.facts, fact];
     if (restartRef.current !== null && fact.sequence <= restartRef.current) return;
-    const step = factToStep(fact, wording());
-    if (!step || stepsRef.current.some((current) => current.id === step.id)) return;
-    stepsRef.current = [...stepsRef.current, step];
+    // Until a reopened recording's own settings have loaded, today's stand in.
+    const step = factToStep(fact, wording(fact.sessionId), settingsOf(fact.sessionId));
+    // Its own step goes in the journal, which recovery and saving without a draft read.
+    if (!step || journalledRef.current.has(step.id)) return;
+    journalledRef.current.add(step.id);
     writeQueue.current = writeQueue.current
       .then(() => recorder?.appendStep(fact.sessionId, step))
       .then(() => undefined)
@@ -138,44 +180,21 @@ export function useRecordingSession(context: RecordingSessionContext) {
     if (saved) {
       doc = toDoc(saved);
     } else {
-      const restored = await loadRecording(sessionId);
-      const live =
-        sessionId === currentSessionId.current
-          ? afterRestart(stepsRef.current, restartRef.current)
-          : [];
-      // A step that doesn't fit the format (say, from before a limit existed) is left out and
-      // reported, rather than stopping the whole recording from opening.
-      const steps: GuideStep[] = [];
-      let skipped = 0;
-      const merged = applyDrags(
-        dropReplacedValues(mergeRecordedSteps(restored.steps, live), restored.facts),
-        restored.facts,
-      );
-      const ordered = borrowScreenshots(
-        dropTrailingOpens(orderRecordedSteps(merged, restored.facts)),
-      );
-      for (const step of ordered) {
-        try {
-          steps.push(parseStep(step));
-        } catch {
-          skipped += 1;
-        }
-      }
+      const recording = await loadRecording(recorder, sessionId);
+      const live = sessionId === currentSessionId.current ? liveRef.current : null;
+      const { steps, skipped } = await recordingToDraft({
+        ...recording,
+        // Every fact this window saw, as well as the journal's (it may have been read before the
+        // last ones reached it), so the draft is made as the live steps are.
+        facts: live ? withFacts(recording.facts, live.facts, sessionId) : recording.facts,
+        live: live ? live.added : [],
+        words: screenWords(recorder, (mediaId) =>
+          recorder.loadImage(sessionId, imageFileOf(mediaId)),
+        ),
+      });
       if (skipped > 0) notify({ text: t("recorder.stepsSkipped", { count: skipped }) });
       const author = latest.current.settings.author;
-      // Clicks the app didn't name are named from their screenshots' words (F016).
-      const named = await nameFromScreen(
-        steps,
-        async (mediaId) =>
-          recorder.readText(
-            dataUrlBytes(await recorder.loadImage(sessionId, imageFileOf(mediaId))),
-          ),
-        wordingRef.current(),
-      );
-      doc = {
-        guide: newGuide(sessionId, title, author, wordingRef.current()),
-        steps: sortSteps(named),
-      };
+      doc = { guide: newGuide(sessionId, title, author, recording.wording), steps };
       await writeQueue.current;
       await recorder.saveDraft(sessionId, doc.guide, doc.steps);
     }
@@ -211,7 +230,7 @@ export function useRecordingSession(context: RecordingSessionContext) {
               void recorder.showMain().catch(() => undefined);
               if (discardRequested.current) {
                 discardRequested.current = false;
-                stepsRef.current = [];
+                forgetLive();
                 void refreshRecoveries();
                 return;
               }
@@ -226,19 +245,15 @@ export function useRecordingSession(context: RecordingSessionContext) {
             ),
             recorder.onStepAdded(({ sessionId, step }) => {
               if (sessionId !== currentSessionId.current) return;
-              if (stepsRef.current.some((current) => current.id === step.id)) return;
-              stepsRef.current = [...stepsRef.current, step];
+              if (journalledRef.current.has(step.id)) return;
+              journalledRef.current.add(step.id);
+              liveRef.current.added = [...liveRef.current.added, step];
             }),
+            // The live steps are kept whole: the draft leaves out what came before the restart
+            // point the recorder holds when it opens, so an undone Start again loses nothing.
             recorder.onRestarted(({ sessionId, afterSequence }) => {
               if (sessionId !== currentSessionId.current) return;
               restartRef.current = afterSequence;
-              if (afterSequence === null) {
-                void restoreSteps(sessionId).then((steps) => {
-                  stepsRef.current = mergeRecordedSteps(steps, stepsRef.current);
-                });
-              } else {
-                stepsRef.current = afterRestart(stepsRef.current, afterSequence);
-              }
             }),
             recorder.onStartRequested(() => startRef.current()),
           ]);
@@ -262,9 +277,20 @@ export function useRecordingSession(context: RecordingSessionContext) {
             if (cancelled) return;
             const session = sessions.find((item) => item.sessionId === current.sessionId);
             if (!session?.savedGuideId) {
-              const restored = await restoreSteps(current.sessionId);
+              // What was journalled before this window (re)loaded, so no step is written twice.
+              const [journalled, restart, own] = await Promise.all([
+                recorder.getSessionSteps(current.sessionId),
+                recorder.getRestartPoint(current.sessionId),
+                recorder.getRecordingSettings(current.sessionId).catch(() => null),
+              ]);
               if (cancelled) return;
-              stepsRef.current = mergeRecordedSteps(restored, stepsRef.current);
+              restartRef.current = restart;
+              // The running recording's own settings, saved when it started, for its next steps.
+              if (own) {
+                settingsRef.current = { sessionId: current.sessionId, settings: own };
+                if (own.wording) wordingRef.current.keep(current.sessionId, own.wording);
+              }
+              for (const step of journalled) journalledRef.current.add(step.id);
             }
           }
           // The recorder's own settings: native set-up may still be finishing, so these are
@@ -326,10 +352,14 @@ export function useRecordingSession(context: RecordingSessionContext) {
     if (!recorder || starting.current) return;
     starting.current = true;
     const { choices } = latest.current.settings;
+    // Read once, here, and saved with the recording: its steps are built with these throughout.
+    const settings = readRecordingSettings(i18n.language);
     setBusy(true);
     setStartOpen(false);
-    stepsRef.current = [];
+    forgetLive();
     restartRef.current = null;
+    // Its session id is known once the recorder answers; its first facts can arrive before that.
+    settingsRef.current = { sessionId: null, settings };
     writeQueue.current = Promise.resolve();
     try {
       await recorder.setCaptureMode(choices.captureMode);
@@ -347,9 +377,12 @@ export function useRecordingSession(context: RecordingSessionContext) {
           settleMs: choices.outputSettleMs,
           appSwitchSteps: choices.appSwitchSteps,
           quality: choices.screenshotQuality,
+          settings,
         },
       );
       currentSessionId.current = next.sessionId;
+      settingsRef.current = { sessionId: next.sessionId, settings };
+      if (next.sessionId && settings.wording) wording.keep(next.sessionId, settings.wording);
       setSnapshot(next);
       latest.current.showGuides();
       void recorder.minimizeMain().catch(() => undefined);
@@ -367,8 +400,9 @@ export function useRecordingSession(context: RecordingSessionContext) {
       recorder.openRecorder();
       return;
     }
-    if (!recorder || recording || hasPending || fatal) {
-      if (hasPending && !recording) notify({ text: t("nav.saveFirst") });
+    // A draft waiting to be saved doesn't stop a new recording (07/10/2026): it stays with the
+    // others.
+    if (!recorder || recording || fatal) {
       return;
     }
     // Each recording asks (its boxes start as Settings or IT say), unless IT has switched keys off.
@@ -412,7 +446,7 @@ export function useRecordingSession(context: RecordingSessionContext) {
       if (snapshot.sessionId !== item.sessionId) {
         setSnapshot(await recorder.recoverSession(item.sessionId));
         currentSessionId.current = item.sessionId;
-        stepsRef.current = [];
+        forgetLive();
       }
       await openDraft(item.sessionId, item.title);
     } catch (problem) {
@@ -445,7 +479,7 @@ export function useRecordingSession(context: RecordingSessionContext) {
       const guide = { ...doc.guide, updatedAt: new Date().toISOString() };
       await recorder.finalize(sessionId, guide, target?.id);
       currentSessionId.current = null;
-      stepsRef.current = [];
+      forgetLive();
       setSnapshot((current) => ({ ...current, sessionId: null, stepCount: 0, missedCount: 0 }));
       await refreshRecoveries();
       await latest.current.openSaved(sessionId, target?.id);
@@ -474,7 +508,7 @@ export function useRecordingSession(context: RecordingSessionContext) {
       const next = await recorder.discard();
       setSnapshot(next);
       if (next.state === "idle") {
-        stepsRef.current = [];
+        forgetLive();
         currentSessionId.current = null;
         await refreshRecoveries();
         latest.current.showGuides();

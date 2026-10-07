@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  DEFAULT_LANGUAGE,
-  matchLanguage,
+  DEFAULT_RECORDING_SETTINGS,
   renderPhrase,
   type RecordingFact,
   type StepWording,
@@ -10,8 +9,9 @@ import {
 
 import { Icon } from "../components/icons";
 import { factToStep } from "../recorded-step";
-import { readStepTone } from "../settings/preferences";
-import type { RecorderBridge } from "../recorder-bridge";
+import { readWording } from "../settings/preferences";
+import type { Recording } from "../bridge/recording";
+import type { RecordingJournal } from "../bridge/recording-journal";
 
 /**
  * The key's name for a shortcut step, from its physical position where that is a letter or digit
@@ -25,22 +25,39 @@ export const shortcutKeyName = (event: Pick<KeyboardEvent, "code" | "key">): str
 };
 
 /**
- * How new steps are worded: in the app's language, in the tone Settings chose
- * (docs/spec/02-capture.md#step-wording). A function, called as each step is worded, so a change
- * in Settings applies to the next step recorded: a value read while rendering was kept by the
- * React Compiler, and Settings' tone never reached new recordings (F063, 01/10/2026).
+ * How a recording's steps are worded: in the app's language and the tone Settings chose
+ * (docs/spec/02-capture.md#step-wording), read once, when the recording's first step is worded,
+ * and kept for the rest of it. The live steps and the draft built from them then agree, and a
+ * change in Settings applies from the next recording (decision of 06/10/2026). Kept per window,
+ * not per render: a value read while rendering was kept by the React Compiler, and Settings' tone
+ * never reached new recordings (F063, 01/10/2026).
  */
-export const useStepWording = (): (() => StepWording) => {
+export interface RecordingWording {
+  (sessionId: string): StepWording;
+  /** A recording's wording as it started, saved with it: kept for it from now on. */
+  keep(sessionId: string, wording: StepWording): void;
+}
+
+export const useStepWording = (): RecordingWording => {
   const { i18n } = useTranslation();
-  const language = i18n.language;
-  return () => ({ language: matchLanguage(language) ?? DEFAULT_LANGUAGE, tone: readStepTone() });
+  const [kept] = useState(() => new Map<string, StepWording>());
+  const wording = (sessionId: string) => {
+    const known = kept.get(sessionId);
+    if (known) return known;
+    const read = readWording(i18n.language);
+    kept.set(sessionId, read);
+    return read;
+  };
+  return Object.assign(wording, {
+    keep: (sessionId: string, saved: StepWording) => void kept.set(sessionId, saved),
+  });
 };
 
 /**
  * "Add a keyboard shortcut step" (design canvas, board 5). It reads keys only while it has focus;
  * Steps never listens to the keyboard anywhere else (docs/spec/02-capture.md).
  */
-export function ShortcutPopup({ recorder }: { recorder: RecorderBridge }) {
+export function ShortcutPopup({ recorder }: { recorder: Recording & RecordingJournal }) {
   const { t } = useTranslation();
   const wording = useStepWording();
   const [fact, setFact] = useState<RecordingFact | null>(null);
@@ -83,8 +100,9 @@ export function ShortcutPopup({ recorder }: { recorder: RecorderBridge }) {
         ...fact,
         record: { ...fact.record, purpose: "captureNow" },
       };
-      const words = wording();
-      const step = factToStep(displayFact, words);
+      const words = wording(fact.sessionId);
+      // A screenshot with no typing in it: the recording's settings don't change its step.
+      const step = factToStep(displayFact, words, DEFAULT_RECORDING_SETTINGS);
       if (!step) return;
       step.action = "keypress";
       step.actionText = renderPhrase({ key: "press", keys: combo }, words.language, words.tone);

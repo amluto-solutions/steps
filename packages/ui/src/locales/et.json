@@ -28,7 +28,6 @@
     "settings": "Sätted",
     "guides": "Juhendid",
     "recordingNow": "Lindistamine käib",
-    "saveFirst": "Salvestage või hüljake esmalt eelmine lindistus",
     "needsReview": "Vajab ülevaatust"
   },
   "dates": {
@@ -258,8 +257,8 @@
     "drawing": "Ettevalmistamine…",
     "checklist": "Kontroll-loend",
     "personalData": "Enne jagamist kontrollige iga kuvatõmmist isikuandmete suhtes. Automaatsed soovitused võivad midagi märkamata jätta.",
-    "flagged_one": "{{count}} samm vajab kontrolli: nimetu klõps, vahelejäänud klõpsud, trükitud tekst, mis ei pruugi kattuda, või kontrollimist vajav kuvatõmmis.",
-    "flagged_other": "{{count}} sammu vajavad kontrolli: nimetud klõpsud, vahelejäänud klõpsud, trükitud tekst, mis ei pruugi kattuda, või kontrollimist vajavad kuvatõmmised.",
+    "flagged_one": "{{count}} samm vajab kontrolli: nimetu klõps, kuvatõmmiselt loetud nimi, vahelejäänud klõpsud, trükitud tekst, mis ei pruugi kattuda, või kontrollimist vajav kuvatõmmis.",
+    "flagged_other": "{{count}} sammu vajavad kontrolli: nimetud klõpsud, kuvatõmmistelt loetud nimed, vahelejäänud klõpsud, trükitud tekst, mis ei pruugi kattuda, või kontrollimist vajavad kuvatõmmised.",
     "noFlagged": "Ükski samm pole kontrollimiseks märgitud.",
     "stepNumber": "Samm {{number}}",
     "quickEdit": {
@@ -502,6 +501,7 @@
     "reviewRequired": "Kontrollige seda sammu: lindistus ei suutnud klõpsatud kohta nimetada, mõni klõps jäi siin vahele, trükitud tekst ei pruugi täpselt kattuda või saladust ei leitud kuvatõmmiselt hägustamiseks.",
     "review": {
       "unnamed": "Kontrollige seda sammu: lindistus ei suutnud klõpsatud kohta nimetada. Kirjutage, mis see oli, või valige „Tundub õige“.",
+      "checkName": "Kontrollige seda nime: see loeti kuvatõmmiselt.",
       "missed": "Kontrollige seda sammu: mõni klõps jäi siin vahele.",
       "typing": "Kontrollige seda sammu: trükitud tekst ei pruugi täpselt kattuda.",
       "code": "Kontrollige seda sammu: selles olevat saladust ei leitud kuvatõmmiselt hägustamiseks või tekst ei pruugi täpselt kattuda.",
@@ -791,6 +791,7 @@
       "managed": "Neid sätteid haldab teie organisatsioon, seega on importimine välja lülitatud.",
       "tour": "Näita tutvustust",
       "tourHelp": "Lühike ringkäik peaaknas, kui aken on vähemalt 1024 pikslit lai.",
+      "tourNarrow": "Lühike ringkäik peaaknas. See aken on selle jaoks liiga kitsas: tehke see vähemalt 1024 pikslit laiaks ja ringkäik ilmub.",
       "tourStartAgain": "Alusta uuesti",
       "tourContinue": "Jätka tutvustust ({{progress}})"
     },
@@ -1240,6 +1241,7 @@
   "privacy": {
     "intro": "Steps loeb teie kuvatõmmistel olevat teksti selles arvutis (Windowsi enda võrguühenduseta tekstituvastusega), et soovitada, mida hägustada. Midagi ei saadeta kuhugi.",
     "introLinux": "Steps loeb teie kuvatõmmistel olevat teksti selles arvutis (Tesseractiga, kui see on installitud), et soovitada, mida hägustada. Midagi ei saadeta kuhugi.",
+    "introPage": "Steps loeb teie salvestatavate lehtede teksti sellisena, nagu brauser seda näitab, et soovitada, mida hägustada. Midagi ei saadeta kuhugi.",
     "strength": "Hägustamisettepanekud",
     "strengths": {
       "light": "Kerge",

@@ -28,7 +28,6 @@
     "settings": "Definições",
     "guides": "Guias",
     "recordingNow": "Está a decorrer uma gravação",
-    "saveFirst": "Guarde ou descarte primeiro a última gravação",
     "needsReview": "Requer revisão"
   },
   "dates": {
@@ -280,9 +279,9 @@
     "drawing": "A preparar…",
     "checklist": "Lista de verificação",
     "personalData": "Verifique se há dados pessoais em todas as capturas de ecrã antes de partilhar. As sugestões automáticas podem deixar escapar algumas coisas.",
-    "flagged_one": "{{count}} passo tem de ser verificado: um clique sem nome, cliques perdidos, texto escrito que pode não corresponder ou uma captura de ecrã a verificar.",
-    "flagged_many": "{{count}} passos têm de ser verificados: cliques sem nome, cliques perdidos, texto escrito que pode não corresponder ou capturas de ecrã a verificar.",
-    "flagged_other": "{{count}} passos têm de ser verificados: cliques sem nome, cliques perdidos, texto escrito que pode não corresponder ou capturas de ecrã a verificar.",
+    "flagged_one": "{{count}} passo tem de ser verificado: um clique sem nome, um nome lido da captura de ecrã, cliques perdidos, texto escrito que pode não corresponder ou uma captura de ecrã a verificar.",
+    "flagged_many": "{{count}} passos têm de ser verificados: cliques sem nome, nomes lidos das capturas de ecrã, cliques perdidos, texto escrito que pode não corresponder ou capturas de ecrã a verificar.",
+    "flagged_other": "{{count}} passos têm de ser verificados: cliques sem nome, nomes lidos das capturas de ecrã, cliques perdidos, texto escrito que pode não corresponder ou capturas de ecrã a verificar.",
     "noFlagged": "Nenhum passo está assinalado para verificação.",
     "stepNumber": "Passo {{number}}",
     "quickEdit": {
@@ -545,6 +544,7 @@
     "reviewRequired": "Verifique este passo: a gravação não conseguiu identificar o que foi clicado, alguns cliques perderam-se aqui, o texto escrito pode não corresponder exatamente ou não foi possível encontrar na captura de ecrã um segredo para desfocar.",
     "review": {
       "unnamed": "Verifique este passo: a gravação não conseguiu identificar o que foi clicado. Escreva o que era ou escolha «Está certo».",
+      "checkName": "Verifique este nome: foi lido a partir da captura de ecrã.",
       "missed": "Verifique este passo: perderam-se aqui alguns cliques.",
       "typing": "Verifique este passo: o texto escrito pode não corresponder exatamente.",
       "code": "Verifique este passo: não foi possível encontrar um segredo na captura de ecrã para o desfocar, ou o texto pode não corresponder exatamente.",
@@ -838,6 +838,7 @@
       "managed": "A sua organização gere estas definições, por isso a importação está desativada.",
       "tour": "Mostrar o tutorial",
       "tourHelp": "Uma visita guiada rápida pela janela principal, em janelas com 1024 píxeis de largura ou mais.",
+      "tourNarrow": "Uma visita guiada rápida pela janela principal. Esta janela é demasiado estreita para a mostrar: alargue-a para 1024 píxeis de largura ou mais e a visita guiada aparece.",
       "tourStartAgain": "Recomeçar",
       "tourContinue": "Continuar a visita guiada ({{progress}})"
     },
@@ -1299,6 +1300,7 @@
   "privacy": {
     "intro": "O Steps lê o texto das suas capturas de ecrã neste PC (com o reconhecimento de texto offline do próprio Windows) para sugerir o que desfocar. Nada é enviado para lado nenhum.",
     "introLinux": "O Steps lê o texto das suas capturas de ecrã neste computador (com o Tesseract, se estiver instalado) para sugerir o que desfocar. Nada é enviado para lado nenhum.",
+    "introPage": "O Steps lê o texto das páginas que grava, tal como o navegador as mostra, para sugerir o que desfocar. Nada é enviado para lado nenhum.",
     "strength": "Sugestões de desfocagem",
     "strengths": {
       "light": "Ligeira",

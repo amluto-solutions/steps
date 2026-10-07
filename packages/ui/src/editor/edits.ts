@@ -80,24 +80,29 @@ export function updateStep(
 }
 
 /** Rewording by hand marks the step so "Reword all steps" leaves it alone. */
-/** Why a recorded step asks to be checked, so the editor names that one reason (F031). */
-export type ReviewReason = "unnamed" | "missed" | "typing" | "code";
+/**
+ * Why a recorded step asks to be checked, so the editor names that one reason (F031).
+ * `checkName`: a click named from its screenshot's words, which text recognition may misread.
+ */
+export type ReviewReason = "unnamed" | "checkName" | "missed" | "typing" | "code";
 
 export function reviewReason(step: GuideStep): ReviewReason | null {
   if (!step.reviewRequired) return null;
   if (step.textParts.kind === "warning") return "missed";
   if (["command", "code", "formula"].includes(step.action)) return "code";
   if (step.action === "type") return "typing";
+  if (step.action === "click" && step.naming?.source === "screen") return "checkName";
   return "unnamed";
 }
 
 /**
- * The wording, written by hand. A click that couldn't be named has been named by the person now,
- * so it no longer asks to be checked.
+ * The wording, written by hand. A click that couldn't be named, or whose name was read from the
+ * screenshot, has been named by the person now, so it no longer asks to be checked.
  */
 export const setStepText = (doc: EditorDoc, id: string, text: string, stamp: Stamp) => {
   const step = findStep(doc, id);
-  const named = step && reviewReason(step) === "unnamed" ? { reviewRequired: false } : {};
+  const reason = step && reviewReason(step);
+  const named = reason === "unnamed" || reason === "checkName" ? { reviewRequired: false } : {};
   return updateStep(
     doc,
     id,

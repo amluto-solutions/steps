@@ -28,7 +28,6 @@
     "settings": "Configuración",
     "guides": "Guías",
     "recordingNow": "Hay una grabación en curso",
-    "saveFirst": "Primero guarda o descarta tu última grabación",
     "needsReview": "Pendiente de revisión"
   },
   "dates": {
@@ -280,9 +279,9 @@
     "drawing": "Preparando…",
     "checklist": "Lista de comprobación",
     "personalData": "Revisa todas las capturas en busca de datos personales antes de compartir la guía. Las sugerencias automáticas pueden pasar cosas por alto.",
-    "flagged_one": "{{count}} paso necesita revisión: un clic sin nombre, clics perdidos, texto escrito que puede no coincidir o una captura que revisar.",
-    "flagged_many": "{{count}} pasos necesitan revisión: clics sin nombre, clics perdidos, texto escrito que puede no coincidir o capturas que revisar.",
-    "flagged_other": "{{count}} pasos necesitan revisión: clics sin nombre, clics perdidos, texto escrito que puede no coincidir o capturas que revisar.",
+    "flagged_one": "{{count}} paso necesita revisión: un clic sin nombre, un nombre leído de la captura, clics perdidos, texto escrito que puede no coincidir o una captura que revisar.",
+    "flagged_many": "{{count}} pasos necesitan revisión: clics sin nombre, nombres leídos de las capturas, clics perdidos, texto escrito que puede no coincidir o capturas que revisar.",
+    "flagged_other": "{{count}} pasos necesitan revisión: clics sin nombre, nombres leídos de las capturas, clics perdidos, texto escrito que puede no coincidir o capturas que revisar.",
     "noFlagged": "No hay pasos marcados para revisar.",
     "stepNumber": "Paso {{number}}",
     "quickEdit": {
@@ -545,6 +544,7 @@
     "reviewRequired": "Revisa este paso: la grabación no ha podido identificar en qué se hizo clic, aquí se perdieron algunos clics, puede que el texto escrito no coincida exactamente o no se ha encontrado en la captura un secreto que desenfocar.",
     "review": {
       "unnamed": "Revisa este paso: la grabación no ha podido identificar en qué se hizo clic. Escribe qué era o elige “Es correcto”.",
+      "checkName": "Revisa este nombre: se leyó de la captura.",
       "missed": "Revisa este paso: aquí se perdieron algunos clics.",
       "typing": "Revisa este paso: puede que lo escrito no coincida exactamente.",
       "code": "Revisa este paso: no se encontró un secreto en la captura para desenfocarlo, o puede que el texto no coincida exactamente.",
@@ -838,6 +838,7 @@
       "managed": "Tu organización administra esta configuración, así que la importación está desactivada.",
       "tour": "Mostrar el tutorial",
       "tourHelp": "Un breve recorrido por la ventana principal, en ventanas de 1024 píxeles de ancho o más.",
+      "tourNarrow": "Un breve recorrido por la ventana principal. Esta ventana es demasiado estrecha para mostrarlo: haz que tenga 1024 píxeles de ancho o más y el recorrido aparecerá.",
       "tourStartAgain": "Empezar de nuevo",
       "tourContinue": "Continuar el recorrido ({{progress}})"
     },
@@ -1299,6 +1300,7 @@
   "privacy": {
     "intro": "Steps lee el texto de tus capturas en este equipo (con el reconocimiento de texto sin conexión del propio Windows) para sugerir qué desenfocar. No se envía nada a ningún sitio.",
     "introLinux": "Steps lee el texto de tus capturas en este equipo (con Tesseract, si está instalado) para sugerir qué desenfocar. No se envía nada a ningún sitio.",
+    "introPage": "Steps lee el texto de las páginas que grabas, tal como lo muestra el navegador, para sugerir qué desenfocar. No se envía nada a ningún sitio.",
     "strength": "Sugerencias de desenfoque",
     "strengths": {
       "light": "Ligero",

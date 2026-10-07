@@ -28,7 +28,6 @@
     "settings": "Ayarlar",
     "guides": "Kılavuzlar",
     "recordingNow": "Kayıt sürüyor",
-    "saveFirst": "Önce son kaydınızı kaydedin ya da atın",
     "needsReview": "Gözden geçirilmeli"
   },
   "dates": {
@@ -258,8 +257,8 @@
     "drawing": "Hazırlanıyor…",
     "checklist": "Denetim listesi",
     "personalData": "Paylaşmadan önce her ekran görüntüsünde kişisel veri olup olmadığını denetleyin. Otomatik öneriler bazı şeyleri gözden kaçırabilir.",
-    "flagged_one": "{{count}} adımın denetlenmesi gerekiyor: adsız bir tıklama, kaçırılan tıklamalar, eşleşmeyebilecek yazılanlar veya denetlenecek bir ekran görüntüsü.",
-    "flagged_other": "{{count}} adımın denetlenmesi gerekiyor: adsız tıklamalar, kaçırılan tıklamalar, eşleşmeyebilecek yazılanlar veya denetlenecek ekran görüntüleri.",
+    "flagged_one": "{{count}} adımın denetlenmesi gerekiyor: adsız bir tıklama, ekran görüntüsünden okunan bir ad, kaçırılan tıklamalar, eşleşmeyebilecek yazılanlar veya denetlenecek bir ekran görüntüsü.",
+    "flagged_other": "{{count}} adımın denetlenmesi gerekiyor: adsız tıklamalar, ekran görüntülerinden okunan adlar, kaçırılan tıklamalar, eşleşmeyebilecek yazılanlar veya denetlenecek ekran görüntüleri.",
     "noFlagged": "Denetlenmesi gereken adım yok.",
     "stepNumber": "Adım {{number}}",
     "quickEdit": {
@@ -502,6 +501,7 @@
     "reviewRequired": "Bu adımı denetleyin: kayıt neye tıklandığını adlandıramadı, burada bazı tıklamalar kaçırıldı, yazılanlar tam eşleşmeyebilir ya da bulanıklaştırılacak bir gizli bilgi ekran görüntüsünde bulunamadı.",
     "review": {
       "unnamed": "Bu adımı denetleyin: kayıt neye tıklandığını adlandıramadı. Ne olduğunu yazın ya da “Doğru görünüyor” düğmesini seçin.",
+      "checkName": "Bu adı denetleyin: ekran görüntüsünden okundu.",
       "missed": "Bu adımı denetleyin: burada bazı tıklamalar kaçırıldı.",
       "typing": "Bu adımı denetleyin: yazılanlar tam eşleşmeyebilir.",
       "code": "Bu adımı denetleyin: içindeki bir gizli bilgi bulanıklaştırılmak üzere ekran görüntüsünde bulunamadı ya da metin tam eşleşmeyebilir.",
@@ -791,6 +791,7 @@
       "managed": "Bu ayarları kuruluşunuz yönetiyor, bu yüzden içeri aktarma kapalı.",
       "tour": "Öğreticiyi göster",
       "tourHelp": "Ana pencerenin kısa bir turu; 1024 piksel veya daha geniş pencerelerde.",
+      "tourNarrow": "Ana pencerenin kısa bir turu. Bu pencere tur için çok dar: genişliğini 1024 piksel veya daha fazla yaparsanız tur görünür.",
       "tourStartAgain": "Baştan başlat",
       "tourContinue": "Tura devam et ({{progress}})"
     },
@@ -1240,6 +1241,7 @@
   "privacy": {
     "intro": "Steps, neyin bulanıklaştırılacağını önermek için ekran görüntülerinizdeki metni bu bilgisayarda (Windows'un kendi çevrimdışı metin tanıma özelliğiyle) okur. Hiçbir şey hiçbir yere gönderilmez.",
     "introLinux": "Steps, neyin bulanıklaştırılacağını önermek için ekran görüntülerinizdeki metni bu bilgisayarda (yüklüyse Tesseract ile) okur. Hiçbir şey hiçbir yere gönderilmez.",
+    "introPage": "Steps, neyin bulanıklaştırılacağını önermek için kaydettiğiniz sayfalardaki metni, tarayıcının gösterdiği biçimiyle okur. Hiçbir şey hiçbir yere gönderilmez.",
     "strength": "Bulanıklaştırma önerileri",
     "strengths": {
       "light": "Hafif",

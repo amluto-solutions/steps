@@ -2,7 +2,8 @@ import { z } from "zod";
 
 import { codeSchema } from "./code.ts";
 import { FORMAT_VERSION } from "./format.ts";
-import { TONES } from "./step-text/phrase.ts";
+import { NAMING_SOURCES } from "./step-text/click-naming.ts";
+import { ELEMENT_KINDS, TONES } from "./step-text/phrase.ts";
 
 /**
  * The on-disk guide and step files, format version 1 (docs/spec/03-data-and-sharing.md). Every
@@ -209,6 +210,20 @@ const translations = <T extends z.ZodTypeAny>(text: T) =>
     .refine((record) => Object.keys(record).length <= 64, "Too many languages.")
     .optional();
 
+/**
+ * What a click is called (docs/spec/02-capture.md#click-naming), stored on click steps from
+ * 06/10/2026 with no format change. One a newer version wrote that this one can't read is left
+ * out, and the step's naming is worked out from its other facts, as for a 1.0.0 step.
+ */
+export const clickNamingSchema = z
+  .object({
+    name: z.string().max(2_000),
+    kind: z.enum(ELEMENT_KINDS),
+    source: z.enum(NAMING_SOURCES),
+    needsReview: z.boolean(),
+  })
+  .strip();
+
 const formatVersion = z
   .number()
   .int()
@@ -267,6 +282,7 @@ export const guideStepSchema = z
     updatedBy: z.string().max(200),
     formatVersion,
     reviewRequired: z.boolean().optional(),
+    naming: clickNamingSchema.optional().catch(undefined),
     /** Its words in other languages, where someone wrote them (01/10/2026). */
     translations: translations(stepTextSchema),
   })

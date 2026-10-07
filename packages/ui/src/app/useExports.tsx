@@ -10,9 +10,10 @@ import type { Stamp } from "../editor/edits";
 import type { EditorHooks } from "../editor/useGuideEditor";
 import { errorMessage } from "../errors";
 import { ExportDialog, type ExportFormat } from "../export/ExportDialog";
-import type { LibraryBridge } from "../library-bridge";
+import type { FileDialogs, GuideFiles, StepsFiles, Versions } from "../library-bridge";
 import { formatDate } from "../library/dates";
 import type { RecorderBridge } from "../recorder-bridge";
+import { readExportChoices, type ExportChoices } from "../settings/preferences";
 import { toDoc, type GuideRef } from "./documents";
 import { draftStore, libraryStore } from "./stores";
 
@@ -30,7 +31,7 @@ export type ExportSource =
  */
 export function useExports(context: {
   recorder: RecorderBridge | undefined;
-  library: LibraryBridge | undefined;
+  library: (GuideFiles & Versions & StepsFiles & FileDialogs) | undefined;
   notify: (message: Omit<ToastMessage, "id">) => void;
   run: (action: () => Promise<unknown>, done?: string) => Promise<void>;
   author: string;
@@ -49,6 +50,8 @@ export function useExports(context: {
     flush: () => Promise<void>;
     /** The open editor, when exporting from it. */
     editor?: EditorHooks | undefined;
+    /** Settings and IT policy, read once as this export started. */
+    choices: ExportChoices;
   } | null>(null);
   const [firstExport, setFirstExport] = useState(true);
   /**
@@ -84,7 +87,7 @@ export function useExports(context: {
           : null);
       if (!doc) return;
       setReview(emptyHistory());
-      setExporting({ format, source, doc, flush, editor });
+      setExporting({ format, source, doc, flush, editor, choices: readExportChoices() });
     } catch (problem) {
       notify({ kind: "error", text: errorMessage(problem, t("library.actionFailed")) });
     }
@@ -278,9 +281,11 @@ export function useExports(context: {
         doc={exporting.doc}
         preparedBy={author}
         recorder={recorder}
+        textReader={recorder}
         firstExport={firstExport}
         brands={brands}
         blurTerms={blurTerms}
+        choices={exporting.choices}
         pickSaveLocation={(title, name, filters) => library.pickSaveLocation(title, name, filters)}
         loadImage={(mediaId) =>
           (exporting.source.kind === "guide"

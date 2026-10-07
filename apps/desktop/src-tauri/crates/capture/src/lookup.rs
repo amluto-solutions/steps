@@ -12,7 +12,7 @@ use std::sync::mpsc::{Receiver, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use crate::facts::ElementFacts;
+use crate::facts::{AncestorFacts, ElementFacts};
 use crate::platform::window::WindowInfo;
 use crate::state_machine::RecorderStateMachine;
 
@@ -200,6 +200,20 @@ pub(crate) fn is_editable(facts: &ElementFacts) -> bool {
             && !facts.aria_properties.contains("readonly=true"))
 }
 
+/// How many of an element's parents a click's evidence carries (docs/spec/02-capture.md#click-naming).
+pub(crate) const MAX_ANCESTORS: usize = 4;
+
+/// An element's parents for a click's evidence, nearest first: up to four, stopping below the
+/// window or the web page, which the click's window facts already speak for. Web pages wrap an
+/// item's insides a few levels deep, so the named item can be two or three parents up. `parents`
+/// is walked lazily: each parent is a cross-process call, and no more are asked for than are kept.
+pub(crate) fn ancestors(parents: impl Iterator<Item = AncestorFacts>) -> Vec<AncestorFacts> {
+    parents
+        .take_while(|parent| !matches!(parent.control_type.as_str(), "Window" | "Document"))
+        .take(MAX_ANCESTORS)
+        .collect()
+}
+
 /// The longest typed value a step holds (`textParts.value` in packages/core/src/guide.ts).
 pub(crate) const MAX_VALUE_CHARS: usize = 2_000;
 
@@ -256,6 +270,49 @@ mod tests {
     use std::sync::mpsc::{self, Sender};
 
     use super::*;
+
+    fn parent(control_type: &str, name: &str) -> AncestorFacts {
+        AncestorFacts {
+            control_type: control_type.into(),
+            name: name.into(),
+        }
+    }
+
+    #[test]
+    fn an_element_carries_up_to_four_parents_nearest_first() {
+        let chain = [
+            parent("Group", ""),
+            parent("Group", ""),
+            parent("ListItem", "Forwarders"),
+            parent("List", ""),
+            parent("Group", "Site Tools"),
+        ];
+        assert_eq!(ancestors(chain.iter().cloned()), chain[..4].to_vec());
+        assert_eq!(ancestors(std::iter::empty()), Vec::new());
+    }
+
+    #[test]
+    fn the_parents_stop_below_the_window_or_the_page() {
+        let in_page = [
+            parent("Group", ""),
+            parent("Document", "Site Tools"),
+            parent("Pane", "Google Chrome"),
+        ];
+        assert_eq!(ancestors(in_page.into_iter()), vec![parent("Group", "")]);
+        let in_window = [parent("Window", "Untitled - Notepad"), parent("Pane", "")];
+        assert_eq!(ancestors(in_window.into_iter()), Vec::new());
+    }
+
+    #[test]
+    fn no_more_parents_are_asked_for_than_are_kept() {
+        let asked = std::cell::Cell::new(0);
+        let endless = std::iter::repeat_with(|| {
+            asked.set(asked.get() + 1);
+            parent("Group", "")
+        });
+        assert_eq!(ancestors(endless).len(), MAX_ANCESTORS);
+        assert_eq!(asked.get(), MAX_ANCESTORS);
+    }
 
     #[test]
     fn fingerprints_tell_changed_values_apart() {

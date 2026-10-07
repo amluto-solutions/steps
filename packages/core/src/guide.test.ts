@@ -49,6 +49,15 @@ describe("step files", () => {
     expect(() => parseStep({ ...recordedStep, formatVersion: 2 })).toThrow(/newer version/);
   });
 
+  it("keep a click's naming, and open as before without one or with one a newer version wrote", () => {
+    const naming = { name: "Save", kind: "button", source: "element", needsReview: false };
+    expect(parseStep({ ...recordedStep, naming }).naming).toEqual(naming);
+    expect("naming" in parseStep(recordedStep)).toBe(false);
+    const newer = parseStep({ ...recordedStep, naming: { ...naming, source: "hologram" } });
+    expect(newer.naming).toBeUndefined();
+    expect(newer.actionText).toBe('Click "Save"');
+  });
+
   it("keep annotations, blur and crop in percentages", () => {
     const step = guideStepSchema.parse({
       ...recordedStep,

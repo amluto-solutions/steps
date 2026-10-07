@@ -146,6 +146,7 @@ pub fn run() {
             recorder::commands::recorder_start_again,
             recorder::commands::recorder_undo_start_again,
             recorder::commands::recorder_get_restart_point,
+            recorder::commands::recorder_get_recording_settings,
             recorder::commands::recorder_save_draft,
             recorder::commands::recorder_save_draft_guide,
             recorder::commands::recorder_save_draft_step,

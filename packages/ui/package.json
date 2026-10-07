@@ -6,7 +6,10 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./styles.css": "./src/styles.css"
+    "./fakes": "./src/bridge/fakes.ts",
+    "./contracts": "./src/bridge/contracts/index.ts",
+    "./styles.css": "./src/styles.css",
+    "./library-contract": "./src/library-contract.ts"
   },
   "dependencies": {
     "@amluto-steps/core": "*",

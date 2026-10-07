@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 
-import type { LibraryBridge } from "../library-bridge";
+import type { SharedEditing } from "../library-bridge";
 import { useLatest } from "../useLatest";
 
 /** How often an open library or read-only guide checks for synced changes. */
@@ -42,7 +42,7 @@ export function useFingerprintWatch(
 
 /** The guide list follows synced changes while it's on screen. */
 export function useLibraryWatch(
-  library: LibraryBridge | undefined,
+  library: SharedEditing | undefined,
   libraryId: string | null | undefined,
   active: boolean,
   onChange: () => void,

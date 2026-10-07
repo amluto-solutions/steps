@@ -1,7 +1,7 @@
 // `npm run check`: the local gate before every push (docs/engineering.md#gates).
 // Runs every step even after a failure, prints a summary, and exits 1 if anything failed.
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { closeSync, existsSync, openSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { delimiter, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -29,6 +29,30 @@ if (targetGb > TARGET_LIMIT_GB) {
   );
   if (!removeFolder(target))
     console.log(`  Couldn't clear all of ${target}: close the app and retry.`);
+}
+
+// `npm run dev` keeps the development build of the app open, and Windows won't let `cargo test`
+// replace a running program ("Access is denied"). Then the Rust checks build in a folder of their
+// own instead of failing; it stays for the next time (and counts towards the limit above).
+const devApp = join(
+  target,
+  "debug",
+  process.platform === "win32" ? "amluto-steps.exe" : "amluto-steps",
+);
+const devAppRunning = (() => {
+  if (process.platform !== "win32" || !existsSync(devApp)) return false;
+  try {
+    closeSync(openSync(devApp, "r+"));
+    return false;
+  } catch {
+    return true;
+  }
+})();
+if (devAppRunning) {
+  env.CARGO_TARGET_DIR = join(target, "check-while-dev");
+  console.log(
+    `\n• The app's development build is running: the Rust checks build in ${env.CARGO_TARGET_DIR}.`,
+  );
 }
 
 const steps = [
@@ -67,3 +91,12 @@ if (failed.length > 0) {
   process.exit(1);
 }
 console.log("\nAll checks passed.");
+
+// With nothing uncommitted, what passed is exactly HEAD's tree: the pre-push hook needn't run
+// all this again for commits with that tree (.githooks/pre-push).
+const git = (args) => spawnSync("git", args, { cwd: root, encoding: "utf8" });
+const status = git(["status", "--porcelain"]);
+const tree = git(["rev-parse", "HEAD^{tree}"]);
+const gitDir = git(["rev-parse", "--absolute-git-dir"]);
+if (status.status === 0 && status.stdout.trim() === "" && tree.status === 0 && gitDir.status === 0)
+  writeFileSync(join(gitDir.stdout.trim(), "amluto-check-passed"), tree.stdout.trim() + "\n");

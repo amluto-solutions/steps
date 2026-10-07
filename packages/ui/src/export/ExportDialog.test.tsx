@@ -1,13 +1,16 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { newBrandProfile, type Guide, type GuideStep } from "@amluto-steps/core";
+import { newBrandProfile, type Guide, type GuideStep, type OcrLine } from "@amluto-steps/core";
 import { renderStepImage } from "@amluto-steps/export";
 
 import { initI18n } from "../i18n";
 import { blankStep } from "../editor/edits";
-import type { RecorderBridge } from "../recorder-bridge";
-import { NO_POLICY, setPolicy } from "../settings/policy";
+import { fakeCapabilities } from "../bridge/capabilities-fake";
+import { fakeFonts } from "../bridge/fonts-fake";
+import { fakeExportFiles } from "../bridge/export-files-fake";
+import { fakeScreenshot, fakeTextReader } from "../bridge/screen-words-fake";
+import type { ExportChoices } from "../settings/preferences";
 import { ExportDialog } from "./ExportDialog";
 
 // jsdom has no canvas: drawing a screenshot is stubbed, everything else is real.
@@ -22,6 +25,13 @@ vi.mock("@amluto-steps/export", async (original) => ({
 
 initI18n();
 afterEach(cleanup);
+
+/** What the dialog needs of the recorder bridge: Steps for Windows' export files and fonts. */
+const exportBridge = () => ({
+  capabilities: fakeCapabilities(),
+  ...fakeExportFiles({ downloads: String.raw`C:\Users\Robin\Downloads` }),
+  ...fakeFonts(),
+});
 
 const guide = {
   id: "g",
@@ -38,22 +48,42 @@ const shot = (id: string): GuideStep => ({
   media: { id: `m-${id}`, width: 10, height: 10, scale: 1, captureRect: null },
 });
 
+const screenshot = (id: string) => Promise.resolve(fakeScreenshot(id));
+const email: OcrLine[] = [{ words: [{ text: "jane@acme.com", x: 10, y: 10, w: 20, h: 3 }] }];
+
+/**
+ * Settings and IT policy as an export uses them, built here as a value: these tests set up no
+ * browser storage and no policy.
+ */
+const choices = (overrides: Partial<ExportChoices> = {}): ExportChoices => ({
+  folder: null,
+  askEveryTime: false,
+  optimiseForSharing: true,
+  madeWith: true,
+  originalsLocked: false,
+  defaultBrand: "amluto",
+  findings: { strength: "standard", safe: [] },
+  ...overrides,
+});
+
 function open(options: {
-  loadImage: (id: string) => Promise<string>;
-  readText: () => Promise<unknown>;
+  loadImage?: (id: string) => Promise<string>;
+  /** The words on each screenshot (none unless given). */
+  screens?: Record<string, OcrLine[] | "unavailable">;
   format?: "pdf" | "amlsteps";
   pickSaveLocation?: () => Promise<string | null>;
   saveAmlsteps?: (path: string, includeOriginals: boolean) => Promise<void>;
   onExported?: () => void;
+  choices?: ExportChoices;
 }) {
-  const recorder = { readText: options.readText } as unknown as RecorderBridge;
   render(
     <ExportDialog
       format={options.format ?? "pdf"}
       doc={{ guide, steps: [shot("a"), shot("b")] }}
       preparedBy="Robin"
-      recorder={recorder}
-      loadImage={options.loadImage}
+      recorder={exportBridge()}
+      textReader={fakeTextReader(options.screens ?? {})}
+      loadImage={options.loadImage ?? screenshot}
       pickSaveLocation={options.pickSaveLocation ?? vi.fn()}
       saveAmlsteps={options.saveAmlsteps}
       firstExport={false}
@@ -62,6 +92,7 @@ function open(options: {
       onShowStep={vi.fn()}
       brands={[]}
       blurTerms={[]}
+      choices={options.choices ?? choices()}
     />,
   );
 }
@@ -81,8 +112,9 @@ describe("pages before the steps", () => {
         format={format}
         doc={{ guide, steps }}
         preparedBy="Robin"
-        recorder={{ readText: () => Promise.resolve([]) } as unknown as RecorderBridge}
-        loadImage={() => Promise.resolve("data:image/png;base64,AAAA")}
+        recorder={exportBridge()}
+        textReader={fakeTextReader({})}
+        loadImage={screenshot}
         pickSaveLocation={vi.fn()}
         listVersions={() => Promise.resolve([])}
         firstExport={false}
@@ -91,6 +123,7 @@ describe("pages before the steps", () => {
         onShowStep={vi.fn()}
         brands={[]}
         blurTerms={[]}
+        choices={choices()}
       />,
     );
 
@@ -118,9 +151,7 @@ describe("pages before the steps", () => {
 describe("review before export", () => {
   it("lets a guide export when one screenshot can't be loaded, and says which", async () => {
     open({
-      loadImage: (id) =>
-        id === "m-b" ? Promise.reject(new Error("gone")) : Promise.resolve("data:x"),
-      readText: () => Promise.resolve([]),
+      loadImage: (id) => (id === "m-b" ? Promise.reject(new Error("gone")) : screenshot(id)),
     });
     await waitFor(() => expect(exportButton().disabled).toBe(false));
     expect(screen.getByText(/1 screenshot couldn’t be loaded/)).toBeTruthy();
@@ -129,13 +160,18 @@ describe("review before export", () => {
   });
 
   it("never reports screenshots as clean when they couldn't be checked", async () => {
-    open({
-      loadImage: () => Promise.resolve("data:x"),
-      readText: () => Promise.reject(new Error("no OCR language")),
-    });
+    open({ screens: { "m-a": "unavailable", "m-b": "unavailable" } });
     await waitFor(() => expect(exportButton().disabled).toBe(false));
     expect(screen.getByText(/2 screenshots couldn’t be checked for personal data/)).toBeTruthy();
     expect(screen.queryByText(/No personal data was found/)).toBeNull();
+  });
+
+  it("marks only the screenshot whose words couldn't be read as not checked", async () => {
+    open({ screens: { "m-a": email, "m-b": "unavailable" } });
+    await waitFor(() => expect(exportButton().disabled).toBe(false));
+    expect(screen.getByText(/1 screenshot couldn’t be checked for personal data/)).toBeTruthy();
+    // The one that was read is checked as usual.
+    expect(await screen.findByText(/possible personal details? (isn|aren)/)).toBeTruthy();
   });
 });
 
@@ -146,8 +182,6 @@ describe("Steps file export", () => {
     const pickSaveLocation = vi.fn(() => Promise.resolve("C:/Out/Add a supplier.amlsteps"));
     open({
       format: "amlsteps",
-      loadImage: () => Promise.resolve("data:x"),
-      readText: () => Promise.resolve([]),
       pickSaveLocation,
       saveAmlsteps,
       onExported,
@@ -171,21 +205,12 @@ describe("Steps file export", () => {
   });
 
   it("keeps originals out when the organisation locks them", async () => {
-    setPolicy({ ...NO_POLICY, locked: ["IncludeOriginals"] });
-    try {
-      open({
-        format: "amlsteps",
-        loadImage: () => Promise.resolve("data:x"),
-        readText: () => Promise.resolve([]),
-      });
-      const originals = await screen.findByRole("checkbox", {
-        name: /Include unblurred originals/,
-      });
-      expect((originals as HTMLInputElement).disabled).toBe(true);
-      expect(screen.getByText("Set by your organisation")).toBeDefined();
-    } finally {
-      setPolicy(NO_POLICY);
-    }
+    open({ format: "amlsteps", choices: choices({ originalsLocked: true }) });
+    const originals = await screen.findByRole("checkbox", {
+      name: /Include unblurred originals/,
+    });
+    expect((originals as HTMLInputElement).disabled).toBe(true);
+    expect(screen.getByText("Set by your organisation")).toBeDefined();
   });
 });
 
@@ -203,16 +228,15 @@ describe("the review's checklist", () => {
     steps: GuideStep[] = [shot("a"), typed],
     onShowStep: ((id: string) => void) | null = vi.fn(),
   ) {
-    const readText = vi.fn(() =>
-      Promise.resolve([{ words: [{ text: "jane@acme.com", x: 10, y: 10, w: 20, h: 3 }] }]),
-    );
+    const reader = fakeTextReader({}, email);
     const view = render(
       <ExportDialog
         format="pdf"
         doc={{ guide, steps }}
         preparedBy="Robin"
-        recorder={{ readText } as unknown as RecorderBridge}
-        loadImage={() => Promise.resolve("data:image/png;base64,AAAA")}
+        recorder={exportBridge()}
+        textReader={reader}
+        loadImage={screenshot}
         pickSaveLocation={vi.fn()}
         firstExport={false}
         onClose={vi.fn()}
@@ -220,10 +244,11 @@ describe("the review's checklist", () => {
         onShowStep={onShowStep ?? undefined}
         brands={[{ ...newBrandProfile("client", "Client", "#113355"), accent: "#225577" }]}
         blurTerms={[]}
+        choices={choices()}
         edit={(edit ?? undefined) as ((make: unknown) => void) | undefined}
       />,
     );
-    return { view, readText };
+    return { view, reader };
   }
 
   it("warns about a shown value that looks like a password, and hides it in one press (A1)", async () => {
@@ -361,21 +386,21 @@ describe("the review's checklist", () => {
   });
 
   it("redraws the pictures in a new brand's colours without reading them again", async () => {
-    const { readText } = review();
+    const { reader } = review();
     await waitFor(() =>
       expect(
         (screen.getByRole("button", { name: /^Export PDF$/ }) as HTMLButtonElement).disabled,
       ).toBe(false),
     );
     const drawn = vi.mocked(renderStepImage).mock.calls.length;
-    const reads = readText.mock.calls.length;
+    const reads = reader.reads.length;
     fireEvent.change(screen.getByRole("combobox", { name: "Brand" }), {
       target: { value: "client" },
     });
     await waitFor(() => expect(vi.mocked(renderStepImage).mock.calls.length).toBe(drawn + 2));
     const lastLook = vi.mocked(renderStepImage).mock.calls.at(-1)?.[2];
     expect(lastLook?.primary.toLowerCase()).toBe("#113355");
-    expect(readText.mock.calls.length).toBe(reads);
+    expect(reader.reads.length).toBe(reads);
   });
 });
 
@@ -386,8 +411,9 @@ describe("languages", () => {
         format={format}
         doc={{ guide, steps: [shot("a"), shot("b")] }}
         preparedBy="Robin"
-        recorder={{ readText: () => Promise.resolve([]) } as unknown as RecorderBridge}
-        loadImage={() => Promise.resolve("data:image/png;base64,AAAA")}
+        recorder={exportBridge()}
+        textReader={fakeTextReader({})}
+        loadImage={screenshot}
         pickSaveLocation={vi.fn()}
         firstExport={false}
         onClose={vi.fn()}
@@ -395,6 +421,7 @@ describe("languages", () => {
         onShowStep={vi.fn()}
         brands={[]}
         blurTerms={[]}
+        choices={choices()}
       />,
     );
 
@@ -438,5 +465,188 @@ describe("languages", () => {
       "Just English",
     ]);
     expect(screen.queryByRole("combobox", { name: "Language" })).toBeNull();
+  });
+});
+
+describe("the export's choices (read once, as the export starts)", () => {
+  const exportWord = (given: ExportChoices, openExports = true) => {
+    const files = fakeExportFiles({ downloads: String.raw`C:\Users\Robin\Downloads` });
+    const recorder = {
+      capabilities: fakeCapabilities({ openExports }),
+      ...files,
+      ...fakeFonts(),
+      writeExportTo: vi.spyOn(files, "writeExportTo"),
+      writeExport: vi.spyOn(files, "writeExport"),
+      defaultExportFolder: vi.spyOn(files, "defaultExportFolder"),
+    };
+    const pickSaveLocation = vi.fn(() =>
+      Promise.resolve(String.raw`D:\Chosen\Add a supplier.docx`),
+    );
+    const onExported = vi.fn();
+    render(
+      <ExportDialog
+        format="docx"
+        doc={{ guide, steps: [shot("a")] }}
+        preparedBy="Robin"
+        recorder={recorder}
+        textReader={fakeTextReader({})}
+        loadImage={screenshot}
+        pickSaveLocation={pickSaveLocation}
+        firstExport={false}
+        onClose={vi.fn()}
+        onExported={onExported}
+        brands={[]}
+        blurTerms={[]}
+        choices={given}
+      />,
+    );
+    return { recorder, pickSaveLocation, onExported };
+  };
+  const exportIt = async () => {
+    const button = () => screen.getByRole("button", { name: /^Export Word$/ }) as HTMLButtonElement;
+    await waitFor(() => expect(button().disabled).toBe(false));
+    fireEvent.click(button());
+  };
+
+  it("saves to the folder the choices name, without asking", async () => {
+    const { recorder, pickSaveLocation, onExported } = exportWord(
+      choices({ folder: String.raw`C:\Exports` }),
+    );
+    await exportIt();
+    await waitFor(() => expect(onExported).toHaveBeenCalled());
+    expect(recorder.writeExportTo).toHaveBeenCalledWith(
+      String.raw`C:\Exports`,
+      expect.stringMatching(/^Add a supplier - \d\d-\d\d-\d{4}\.docx$/),
+      expect.any(Uint8Array),
+    );
+    expect(pickSaveLocation).not.toHaveBeenCalled();
+    expect(recorder.defaultExportFolder).not.toHaveBeenCalled();
+  });
+
+  it("saves to Downloads when no folder is chosen, and asks when the choices say to", async () => {
+    const first = exportWord(choices());
+    await exportIt();
+    await waitFor(() => expect(first.onExported).toHaveBeenCalled());
+    expect(first.recorder.writeExportTo).toHaveBeenCalledWith(
+      String.raw`C:\Users\Robin\Downloads`,
+      expect.any(String),
+      expect.any(Uint8Array),
+    );
+    cleanup();
+    const asked = exportWord(choices({ folder: String.raw`C:\Exports`, askEveryTime: true }));
+    await exportIt();
+    await waitFor(() => expect(asked.onExported).toHaveBeenCalled());
+    expect(asked.pickSaveLocation).toHaveBeenCalledTimes(1);
+    expect(asked.recorder.writeExport).toHaveBeenCalledWith(
+      String.raw`D:\Chosen\Add a supplier.docx`,
+      expect.any(Uint8Array),
+    );
+    expect(asked.recorder.writeExportTo).not.toHaveBeenCalled();
+  });
+
+  it("hands back the saved file to open, unless this copy can't open its exports", async () => {
+    const opens = exportWord(choices({ folder: String.raw`C:\Exports` }));
+    await exportIt();
+    await waitFor(() => expect(opens.onExported).toHaveBeenCalled());
+    expect(opens.onExported).toHaveBeenCalledWith(
+      "docx",
+      expect.any(String),
+      expect.stringMatching(/^C:\\Exports\\Add a supplier/),
+    );
+    cleanup();
+    // A browser saves by name only: nothing to open or show in a folder.
+    const browser = exportWord(choices(), false);
+    await exportIt();
+    await waitFor(() => expect(browser.onExported).toHaveBeenCalled());
+    expect(browser.onExported).toHaveBeenCalledWith("docx", expect.any(String), null);
+  });
+
+  it("starts in the brand the choices name, for a guide without one of its own", async () => {
+    render(
+      <ExportDialog
+        format="pdf"
+        doc={{ guide, steps: [shot("a")] }}
+        preparedBy="Robin"
+        recorder={exportBridge()}
+        textReader={fakeTextReader({})}
+        loadImage={screenshot}
+        pickSaveLocation={vi.fn()}
+        firstExport={false}
+        onClose={vi.fn()}
+        onExported={vi.fn()}
+        brands={[newBrandProfile("client", "Client", "#113355")]}
+        blurTerms={[]}
+        choices={choices({ defaultBrand: "client" })}
+      />,
+    );
+    expect((screen.getByRole("combobox", { name: "Brand" }) as HTMLSelectElement).value).toBe(
+      "client",
+    );
+    await waitFor(() => expect(exportButton().disabled).toBe(false));
+  });
+
+  it("leaves out “Made with Steps” when the choices say so", async () => {
+    const copied: string[] = [];
+    vi.stubGlobal(
+      "ClipboardItem",
+      class {
+        constructor(readonly parts: Record<string, Blob>) {}
+      },
+    );
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        write: async (items: { parts: Record<string, Blob> }[]) => {
+          for (const item of items) copied.push(await (item.parts["text/html"] as Blob).text());
+        },
+      },
+    });
+    try {
+      const copy = async (madeWith: boolean) => {
+        const onExported = vi.fn();
+        render(
+          <ExportDialog
+            format="copy"
+            doc={{ guide, steps: [shot("a")] }}
+            preparedBy="Robin"
+            recorder={exportBridge()}
+            textReader={fakeTextReader({})}
+            loadImage={screenshot}
+            pickSaveLocation={vi.fn()}
+            firstExport={false}
+            onClose={vi.fn()}
+            onExported={onExported}
+            brands={[]}
+            blurTerms={[]}
+            choices={choices({ madeWith })}
+          />,
+        );
+        const button = await screen.findByRole("button", { name: /^Copy/ });
+        await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
+        fireEvent.click(button);
+        await waitFor(() => expect(onExported).toHaveBeenCalled());
+        cleanup();
+      };
+      await copy(true);
+      await copy(false);
+      expect(copied[0]).toContain("Made with Steps");
+      expect(copied[1]).not.toContain("Made with Steps");
+    } finally {
+      vi.unstubAllGlobals();
+      Reflect.deleteProperty(navigator, "clipboard");
+    }
+  });
+
+  it("reads no settings from browser storage while it prepares and exports", async () => {
+    const getItem = vi.spyOn(Storage.prototype, "getItem");
+    try {
+      const { onExported } = exportWord(choices({ folder: String.raw`C:\Exports` }));
+      await exportIt();
+      await waitFor(() => expect(onExported).toHaveBeenCalled());
+      const settingsRead = getItem.mock.calls.filter(([key]) => key.startsWith("amluto-steps-"));
+      expect(settingsRead).toEqual([]);
+    } finally {
+      getItem.mockRestore();
+    }
   });
 });

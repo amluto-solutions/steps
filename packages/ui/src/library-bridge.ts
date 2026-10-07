@@ -4,6 +4,12 @@
  * come back unparsed and are validated by the `packages/core` schemas before use.
  */
 
+/** A guide in a library: the two ids always travel together. */
+export interface GuideRef {
+  libraryId: string;
+  guideId: string;
+}
+
 export interface LibraryInfo {
   id: string;
   name: string;
@@ -165,12 +171,16 @@ export interface FileFilter {
   extensions: string[];
 }
 
-export interface LibraryBridge {
-  /**
-   * Steps for Chrome and Edge: folders can be added as libraries (Firefox has no folder picker).
-   * Absent on the desktop, where they always can.
-   */
-  readonly folderLibraries?: boolean;
+/*
+ * The library bridge is split into small interfaces by what they're for (07/10/2026), so a part of
+ * the UI can ask for only what it uses, and each has its own fake (`library-fake.ts`) and its own
+ * laws in the contract suite (`packages/ui/src/library-contract.ts`), run against every edition's
+ * adapter. `LibraryBridge` is all of them: what an edition provides, and what the guide locks wrap
+ * (`CHANGES_GUIDE` classes every method of every part).
+ */
+
+/** The list of libraries (Settings > Libraries). */
+export interface Libraries {
   /** Steps for Chrome: asks the browser again for a library's folder; true when it's allowed. */
   allowAccess?(libraryId: string): Promise<boolean>;
   listLibraries(): Promise<LibraryInfo[]>;
@@ -180,68 +190,16 @@ export interface LibraryBridge {
   setDefaultLibrary(libraryId: string): Promise<LibraryInfo>;
   /** The desktop: opens a library's folder in Explorer. Absent in the browser, which can't. */
   openFolder?(libraryId: string): Promise<void>;
+  /** Steps for Chrome (docs/spec/03-data-and-sharing.md#chrome-edition-storage). */
+  storageUse?(libraryId: string): Promise<StorageUse>;
+}
 
-  /**
-   * A guide's password lock and history (`password-lock.json`, `history.json`). Storage only:
-   * what a lock allows is decided by `withGuideLocks` (library/guide-locks.ts). Neither file goes
-   * with a copy; a move takes both, and the Bin takes the lock off.
-   */
-  guideMeta(libraryId: string, guideId: string): Promise<GuideMetaFiles>;
-  /** Writes the lock, or takes it off (`null`). */
-  writeGuideLock(libraryId: string, guideId: string, lock: unknown): Promise<void>;
-  writeGuideHistory(libraryId: string, guideId: string, history: unknown): Promise<void>;
-  /** Pictures and size, for Properties; absent where it can't be told. */
-  guideStats?(libraryId: string, guideId: string): Promise<GuideStats>;
-
+/** A library's guides and their pictures: listing, searching, opening and changing them. */
+export interface GuideFiles {
   listGuides(libraryId: string): Promise<LibraryGuideSummary[]>;
   searchGuides(libraryId: string, query: string): Promise<GuideSearchHit[]>;
   loadGuide(libraryId: string, guideId: string): Promise<RawGuideDocument>;
   createGuide(libraryId: string, title: string): Promise<RawGuideDocument>;
-  /** Takes the guide's edit lock, or says who holds it (docs/spec/03-data-and-sharing.md). */
-  openForEditing(libraryId: string, guideId: string, takeOver: boolean): Promise<Editing>;
-  releaseLock(libraryId: string, guideId: string): Promise<void>;
-  /** Changes whenever the library's guides change on disk (live refresh). */
-  fingerprint(libraryId: string): Promise<string>;
-  guideFingerprint(libraryId: string, guideId: string): Promise<string>;
-  listConflicts(libraryId: string, guideId: string): Promise<GuideConflict[]>;
-  /** `conflict` is the copy's file, or a restored step's id. */
-  resolveConflict(
-    libraryId: string,
-    guideId: string,
-    conflict: string,
-    choice: ConflictChoice,
-  ): Promise<void>;
-  /** Review comments need no edit lock: anyone can comment while someone else edits. */
-  listComments(libraryId: string, guideId: string): Promise<CommentThread[]>;
-  /** Starts a thread (`replyTo` null) or replies to one; returns the new comment's id. */
-  addComment(
-    libraryId: string,
-    guideId: string,
-    stepId: string | null,
-    replyTo: string | null,
-    text: string,
-  ): Promise<string>;
-  resolveComment(
-    libraryId: string,
-    guideId: string,
-    thread: string,
-    resolved: boolean,
-  ): Promise<void>;
-  deleteComment(libraryId: string, guideId: string, comment: string): Promise<void>;
-  onLockLost(handler: (lost: LockLost) => void): Promise<() => void>;
-  saveDraft(
-    libraryId: string,
-    guideId: string,
-    draft: { guide: unknown; steps: unknown[] },
-  ): Promise<void>;
-  listDrafts(libraryId: string, guideId: string): Promise<DraftInfo[]>;
-  discardDraft(libraryId: string, guideId: string, draftId: string): Promise<void>;
-  draftToCopy(
-    libraryId: string,
-    guideId: string,
-    draftId: string,
-    title: string,
-  ): Promise<LibraryGuideSummary>;
   saveGuide(libraryId: string, guideId: string, guide: unknown): Promise<void>;
   saveStep(libraryId: string, guideId: string, step: unknown): Promise<void>;
   deleteStep(libraryId: string, guideId: string, stepId: string): Promise<void>;
@@ -263,7 +221,79 @@ export interface LibraryBridge {
     mediaId: string,
     thumbnail: boolean,
   ): Promise<string>;
+  /** Pictures and size, for Properties; absent where it can't be told. */
+  guideStats?(libraryId: string, guideId: string): Promise<GuideStats>;
+}
 
+/**
+ * A guide's password lock and history (`password-lock.json`, `history.json`). Storage only:
+ * what a lock allows is decided by `withGuideLocks` (library/guide-locks.ts). Neither file goes
+ * with a copy; a move takes both, and the Bin takes the lock off.
+ */
+export interface GuideLockFiles {
+  guideMeta(libraryId: string, guideId: string): Promise<GuideMetaFiles>;
+  /** Writes the lock, or takes it off (`null`). */
+  writeGuideLock(libraryId: string, guideId: string, lock: unknown): Promise<void>;
+  writeGuideHistory(libraryId: string, guideId: string, history: unknown): Promise<void>;
+}
+
+/**
+ * Editing a guide in a library others share (docs/spec/03-data-and-sharing.md): the edit lock,
+ * changes made elsewhere, sync conflicts, and the drafts of anyone displaced.
+ */
+export interface SharedEditing {
+  /** Takes the guide's edit lock, or says who holds it. */
+  openForEditing(libraryId: string, guideId: string, takeOver: boolean): Promise<Editing>;
+  releaseLock(libraryId: string, guideId: string): Promise<void>;
+  onLockLost(handler: (lost: LockLost) => void): Promise<() => void>;
+  /** Changes whenever the library's guides change on disk (live refresh). */
+  fingerprint(libraryId: string): Promise<string>;
+  guideFingerprint(libraryId: string, guideId: string): Promise<string>;
+  listConflicts(libraryId: string, guideId: string): Promise<GuideConflict[]>;
+  /** `conflict` is the copy's file, or a restored step's id. */
+  resolveConflict(
+    libraryId: string,
+    guideId: string,
+    conflict: string,
+    choice: ConflictChoice,
+  ): Promise<void>;
+  saveDraft(
+    libraryId: string,
+    guideId: string,
+    draft: { guide: unknown; steps: unknown[] },
+  ): Promise<void>;
+  listDrafts(libraryId: string, guideId: string): Promise<DraftInfo[]>;
+  discardDraft(libraryId: string, guideId: string, draftId: string): Promise<void>;
+  draftToCopy(
+    libraryId: string,
+    guideId: string,
+    draftId: string,
+    title: string,
+  ): Promise<LibraryGuideSummary>;
+}
+
+/** Review comments. They need no edit lock: anyone can comment while someone else edits. */
+export interface Comments {
+  listComments(libraryId: string, guideId: string): Promise<CommentThread[]>;
+  /** Starts a thread (`replyTo` null) or replies to one; returns the new comment's id. */
+  addComment(
+    libraryId: string,
+    guideId: string,
+    stepId: string | null,
+    replyTo: string | null,
+    text: string,
+  ): Promise<string>;
+  resolveComment(
+    libraryId: string,
+    guideId: string,
+    thread: string,
+    resolved: boolean,
+  ): Promise<void>;
+  deleteComment(libraryId: string, guideId: string, comment: string): Promise<void>;
+}
+
+/** A library's Bin. */
+export interface Bin {
   trashGuide(libraryId: string, guideId: string): Promise<TrashEntry>;
   listTrash(libraryId: string): Promise<TrashEntry[]>;
   restoreGuide(libraryId: string, trashId: string): Promise<LibraryGuideSummary>;
@@ -271,6 +301,10 @@ export interface LibraryBridge {
   deleteTrashed(libraryId: string, trashId: string): Promise<void>;
   /** Empties the Bin for good; answers how many guides were deleted. */
   emptyTrash(libraryId: string): Promise<number>;
+}
+
+/** Guides made from others (Duplicate, Copy to, Merge guides), and Move to. */
+export interface GuideCopies {
   duplicateGuide(libraryId: string, guideId: string, title: string): Promise<LibraryGuideSummary>;
   /**
    * Merge guides: writes a new guide (its id new) worked out from parts of others, in any
@@ -292,17 +326,23 @@ export interface LibraryBridge {
     guideId: string,
     toLibraryId: string,
   ): Promise<LibraryGuideSummary>;
+}
 
+/** A guide's saved versions, and burning its blurs in. */
+export interface Versions {
   saveVersion(libraryId: string, guideId: string, note: string): Promise<VersionInfo>;
+  listVersions(libraryId: string, guideId: string): Promise<VersionInfo[]>;
+  loadVersion(libraryId: string, guideId: string, versionId: string): Promise<RawGuideDocument>;
+  restoreVersion(libraryId: string, guideId: string, versionId: string): Promise<RawGuideDocument>;
   /**
    * Burns every blur into its screenshot for good, in the guide and its saved versions, and
    * deletes the unblurred originals. Returns how many screenshots changed.
    */
   applyRedactions(libraryId: string, guideId: string): Promise<number>;
-  listVersions(libraryId: string, guideId: string): Promise<VersionInfo[]>;
-  loadVersion(libraryId: string, guideId: string, versionId: string): Promise<RawGuideDocument>;
-  restoreVersion(libraryId: string, guideId: string, versionId: string): Promise<RawGuideDocument>;
+}
 
+/** Steps files (`.amlsteps`): a guide saved as one file, and opened from one. */
+export interface StepsFiles {
   exportAmlsteps(
     libraryId: string,
     guideId: string,
@@ -310,19 +350,6 @@ export interface LibraryBridge {
     includeOriginals: boolean,
   ): Promise<void>;
   importAmlsteps(libraryId: string, source: string): Promise<LibraryGuideSummary>;
-
-  /** The standard Windows folder picker; null when cancelled. */
-  pickFolder(title: string): Promise<string | null>;
-  /** The standard open-file dialog; null when cancelled. */
-  pickFile(title: string, filters: FileFilter[]): Promise<string | null>;
-  /** The standard save-file dialog; null when cancelled. */
-  pickSaveLocation(
-    title: string,
-    defaultName: string,
-    filters: FileFilter[],
-  ): Promise<string | null>;
-  /** Steps for Chrome (docs/spec/03-data-and-sharing.md#chrome-edition-storage). */
-  storageUse?(libraryId: string): Promise<StorageUse>;
   /** Steps for Chrome: a folder to export into, asked for once; null when cancelled or unavailable. */
   pickExportFolder?(title: string): Promise<string | null>;
   /**
@@ -332,3 +359,35 @@ export interface LibraryBridge {
    */
   exportAndRemove?(libraryId: string, guideId: string, folder: string): Promise<string>;
 }
+
+/** The standard file dialogs; each answers null when cancelled. */
+export interface FileDialogs {
+  /** The folder picker. */
+  pickFolder(title: string): Promise<string | null>;
+  /** The open-file dialog. */
+  pickFile(title: string, filters: FileFilter[]): Promise<string | null>;
+  /** The save-file dialog. */
+  pickSaveLocation(
+    title: string,
+    defaultName: string,
+    filters: FileFilter[],
+  ): Promise<string | null>;
+}
+
+/**
+ * How the UI reaches guide libraries: every part above, as each edition provides it (the
+ * desktop's `library_*` commands; Steps for Chrome's library in the browser and its shared
+ * folders, `apps/chrome/src/folder/router.ts`).
+ */
+export interface LibraryBridge
+  extends
+    Libraries,
+    GuideFiles,
+    GuideLockFiles,
+    SharedEditing,
+    Comments,
+    Bin,
+    GuideCopies,
+    Versions,
+    StepsFiles,
+    FileDialogs {}

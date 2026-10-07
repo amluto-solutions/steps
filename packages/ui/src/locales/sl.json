@@ -28,7 +28,6 @@
     "settings": "Nastavitve",
     "guides": "Vodniki",
     "recordingNow": "Snemanje poteka",
-    "saveFirst": "Najprej shranite ali zavrzite zadnji posnetek",
     "needsReview": "Potreben pregled"
   },
   "dates": {
@@ -302,10 +301,10 @@
     "drawing": "Pripravljanje …",
     "checklist": "Kontrolni seznam",
     "personalData": "Pred deljenjem preverite, ali kateri od posnetkov zaslona vsebuje osebne podatke. Samodejni predlogi lahko kaj spregledajo.",
-    "flagged_one": "{{count}} korak je treba preveriti: neimenovan klik, zgrešeni kliki, vtipkano besedilo, ki se morda ne ujema, ali posnetek zaslona za preverjanje.",
-    "flagged_two": "{{count}} koraka je treba preveriti: neimenovani kliki, zgrešeni kliki, vtipkano besedilo, ki se morda ne ujema, ali posnetki zaslona za preverjanje.",
-    "flagged_few": "{{count}} korake je treba preveriti: neimenovani kliki, zgrešeni kliki, vtipkano besedilo, ki se morda ne ujema, ali posnetki zaslona za preverjanje.",
-    "flagged_other": "{{count}} korakov je treba preveriti: neimenovani kliki, zgrešeni kliki, vtipkano besedilo, ki se morda ne ujema, ali posnetki zaslona za preverjanje.",
+    "flagged_one": "{{count}} korak je treba preveriti: neimenovan klik, ime, prebrano s posnetka zaslona, zgrešeni kliki, vtipkano besedilo, ki se morda ne ujema, ali posnetek zaslona za preverjanje.",
+    "flagged_two": "{{count}} koraka je treba preveriti: neimenovani kliki, imena, prebrana s posnetkov zaslona, zgrešeni kliki, vtipkano besedilo, ki se morda ne ujema, ali posnetki zaslona za preverjanje.",
+    "flagged_few": "{{count}} korake je treba preveriti: neimenovani kliki, imena, prebrana s posnetkov zaslona, zgrešeni kliki, vtipkano besedilo, ki se morda ne ujema, ali posnetki zaslona za preverjanje.",
+    "flagged_other": "{{count}} korakov je treba preveriti: neimenovani kliki, imena, prebrana s posnetkov zaslona, zgrešeni kliki, vtipkano besedilo, ki se morda ne ujema, ali posnetki zaslona za preverjanje.",
     "noFlagged": "Noben korak ni označen za preverjanje.",
     "stepNumber": "Korak {{number}}",
     "quickEdit": {
@@ -588,6 +587,7 @@
     "reviewRequired": "Preverite ta korak: snemanje ni moglo poimenovati elementa, ki je bil kliknjen, nekateri kliki tukaj so bili zgrešeni, vtipkano besedilo se morda ne ujema natančno ali pa skrivnega podatka ni bilo mogoče najti na posnetku zaslona, da bi ga zameglili.",
     "review": {
       "unnamed": "Preverite ta korak: snemanje ni moglo poimenovati elementa, ki je bil kliknjen. Napišite, kaj je bil, ali izberite Videti je dobro.",
+      "checkName": "Preverite to ime: prebrano je bilo s posnetka zaslona.",
       "missed": "Preverite ta korak: nekateri kliki tukaj so bili zgrešeni.",
       "typing": "Preverite ta korak: vtipkano besedilo se morda ne ujema natančno.",
       "code": "Preverite ta korak: skrivnega podatka ni bilo mogoče najti na posnetku zaslona, da bi ga zameglili, ali pa se besedilo morda ne ujema natančno.",
@@ -885,6 +885,7 @@
       "managed": "Te nastavitve upravlja vaša organizacija, zato je uvoz izklopljen.",
       "tour": "Prikaži uvodni ogled",
       "tourHelp": "Kratek ogled glavnega okna v oknih, širokih 1024 slikovnih pik ali več.",
+      "tourNarrow": "Kratek ogled glavnega okna. To okno je zanj preozko: razširite ga na 1024 slikovnih pik ali več in ogled se prikaže.",
       "tourStartAgain": "Začni znova",
       "tourContinue": "Nadaljuj ogled ({{progress}})"
     },
@@ -1358,6 +1359,7 @@
   "privacy": {
     "intro": "Steps prebere besedilo na posnetkih zaslona v tem računalniku (z lastnim prepoznavanjem besedila sistema Windows, ki deluje brez povezave) in predlaga, kaj zameglite. Nič se ne pošilja nikamor.",
     "introLinux": "Steps prebere besedilo na posnetkih zaslona v tem računalniku (s programom Tesseract, če je nameščen) in predlaga, kaj zameglite. Nič se ne pošilja nikamor.",
+    "introPage": "Steps prebere besedilo na straneh, ki jih snemate, tako kot ga prikaže brskalnik, in predlaga, kaj zameglite. Nič se ne pošilja nikamor.",
     "strength": "Predlogi zameglitve",
     "strengths": {
       "light": "Lahko",

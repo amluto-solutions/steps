@@ -28,7 +28,6 @@
     "settings": "Cài đặt",
     "guides": "Hướng dẫn",
     "recordingNow": "Đang có một bản ghi chạy",
-    "saveFirst": "Hãy lưu hoặc loại bỏ bản ghi gần nhất trước",
     "needsReview": "Cần xem xét"
   },
   "dates": {
@@ -236,7 +235,7 @@
     "drawing": "Đang chuẩn bị…",
     "checklist": "Danh sách kiểm tra",
     "personalData": "Kiểm tra dữ liệu cá nhân trong mọi ảnh chụp màn hình trước khi chia sẻ. Gợi ý tự động có thể bỏ sót.",
-    "flagged_other": "{{count}} bước cần kiểm tra: lần bấm không có tên, lần bấm bị bỏ sót, nội dung nhập có thể không khớp hoặc ảnh chụp màn hình cần kiểm tra.",
+    "flagged_other": "{{count}} bước cần kiểm tra: lần bấm không có tên, tên được đọc từ ảnh chụp màn hình, lần bấm bị bỏ sót, nội dung nhập có thể không khớp hoặc ảnh chụp màn hình cần kiểm tra.",
     "noFlagged": "Không có bước nào được đánh dấu cần kiểm tra.",
     "stepNumber": "Bước {{number}}",
     "quickEdit": {
@@ -459,6 +458,7 @@
     "reviewRequired": "Hãy kiểm tra bước này: bản ghi không xác định được tên của mục đã bấm, một số lần bấm ở đây bị bỏ sót, nội dung nhập có thể không khớp hoàn toàn, hoặc không tìm thấy thông tin bí mật trong ảnh chụp màn hình để làm mờ.",
     "review": {
       "unnamed": "Hãy kiểm tra bước này: bản ghi không xác định được tên của mục đã bấm. Hãy ghi rõ đó là gì, hoặc chọn “Đúng rồi”.",
+      "checkName": "Hãy kiểm tra tên này: tên được đọc từ ảnh chụp màn hình.",
       "missed": "Hãy kiểm tra bước này: một số lần bấm ở đây bị bỏ sót.",
       "typing": "Hãy kiểm tra bước này: nội dung nhập có thể không khớp hoàn toàn.",
       "code": "Hãy kiểm tra bước này: không tìm thấy thông tin bí mật trong ảnh chụp màn hình để làm mờ, hoặc văn bản có thể không khớp hoàn toàn.",
@@ -744,6 +744,7 @@
       "managed": "Tổ chức của bạn quản lý các cài đặt này, nên tính năng nhập đã bị tắt.",
       "tour": "Hiện phần tham quan",
       "tourHelp": "Một chuyến tham quan ngắn về cửa sổ chính, khi cửa sổ rộng từ 1024 pixel trở lên.",
+      "tourNarrow": "Một chuyến tham quan ngắn về cửa sổ chính. Cửa sổ này quá hẹp để hiển thị: hãy kéo rộng từ 1024 pixel trở lên rồi chuyến tham quan sẽ xuất hiện.",
       "tourStartAgain": "Bắt đầu lại",
       "tourContinue": "Tiếp tục tham quan ({{progress}})"
     },
@@ -1181,6 +1182,7 @@
   "privacy": {
     "intro": "Steps đọc văn bản trong ảnh chụp màn hình ngay trên PC này (bằng tính năng nhận dạng văn bản ngoại tuyến của chính Windows) để gợi ý những gì cần làm mờ. Không có gì được gửi đi.",
     "introLinux": "Steps đọc văn bản trong ảnh chụp màn hình ngay trên máy tính này (bằng Tesseract, nếu đã cài) để gợi ý những gì cần làm mờ. Không có gì được gửi đi.",
+    "introPage": "Steps đọc văn bản trên các trang bạn ghi, đúng như trình duyệt hiển thị, để gợi ý những gì cần làm mờ. Không có gì được gửi đi.",
     "strength": "Gợi ý làm mờ",
     "strengths": {
       "light": "Nhẹ",

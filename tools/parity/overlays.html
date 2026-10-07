@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Amluto Steps overlay fixture</title>
+    <!--
+      Chrome answers a UI Automation hit test from its previous answer, or a guess that ignores
+      what's on top, and works the real one out in the background. A web control panel (06/10/2026)
+      showed every way that went wrong: a tab named as the whole page, a menu row named as the item
+      below, a drop-down's choice named as the tile underneath, and a button named as the loading
+      screen it brought up. Each is here, and each step must be named for what was clicked.
+    -->
+    <style>
+      body {
+        font:
+          15px system-ui,
+          sans-serif;
+        margin: 0;
+        background: #111;
+        color: #eee;
+      }
+      nav {
+        display: flex;
+        gap: 4px;
+        padding: 10px 16px;
+        background: #222;
+      }
+      nav a {
+        color: #eee;
+        padding: 8px 14px;
+        text-decoration: none;
+        border-radius: 6px;
+      }
+      main {
+        display: grid;
+        grid-template-columns: 260px 1fr;
+        gap: 16px;
+        padding: 16px;
+      }
+      ul.menu {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      ul.menu .item {
+        display: block;
+        width: 240px;
+        padding: 10px 12px;
+        border-radius: 6px;
+      }
+      ul.menu .item:hover {
+        background: #333;
+      }
+      .picker {
+        position: relative;
+        margin-bottom: 12px;
+      }
+      [role="listbox"] {
+        position: absolute;
+        top: 36px;
+        left: 0;
+        z-index: 5;
+        width: 260px;
+        margin: 0;
+        padding: 4px 0;
+        list-style: none;
+        background: #fff;
+        color: #111;
+        border-radius: 6px;
+      }
+      [role="option"] {
+        padding: 8px 12px;
+      }
+      .tiles {
+        display: grid;
+        grid-template-columns: repeat(3, 150px);
+        gap: 10px;
+      }
+      .tiles button {
+        height: 110px;
+      }
+      #loader {
+        position: fixed;
+        inset: 0;
+        z-index: 10;
+        display: grid;
+        place-items: center;
+        background: rgb(0 0 0 / 0.6);
+      }
+      #loader[hidden],
+      [role="listbox"][hidden] {
+        display: none;
+      }
+      #amluto-plan {
+        width: 100%;
+        height: 40px;
+        font-size: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <a id="tab-home" href="#home">Home</a>
+      <a id="tab-websites" href="#websites">Websites</a>
+      <a id="tab-billing" href="#billing">Billing</a>
+    </nav>
+    <main>
+      <ul class="menu" aria-label="Email">
+        <li aria-label="Accounts"><div class="item" tabindex="-1">Accounts</div></li>
+        <li aria-label="Forwarders">
+          <div class="item" id="menu-forwarders" tabindex="-1">Forwarders</div>
+        </li>
+        <li aria-label="Autoresponders"><div class="item" tabindex="-1">Autoresponders</div></li>
+      </ul>
+      <section id="content">
+        <div class="picker">
+          <button id="site-picker" type="button" aria-haspopup="listbox">
+            50plusflintshire.co.uk
+          </button>
+          <ul role="listbox" id="sites" hidden>
+            <li role="option" id="opt-amluto-com">amluto.com</li>
+            <li role="option" id="opt-amluto">amluto.co.uk</li>
+            <li role="option" id="opt-truwood">truwood.co.uk</li>
+          </ul>
+        </div>
+        <div class="tiles">
+          <button type="button">File Manager</button>
+          <button type="button">FTP Accounts</button>
+          <button type="button">Backups</button>
+        </div>
+        <p><button id="btn-signin" type="button">SIGN IN</button></p>
+      </section>
+    </main>
+    <div id="loader" aria-label="loading" hidden>Loading…</div>
+
+    <label for="amluto-plan">Test plan (read by the driver)</label>
+    <textarea id="amluto-plan" readonly></textarea>
+
+    <script>
+      // The page changes as the button goes down, as these control panels do: by the time the
+      // click is read, what was clicked may be gone or covered.
+      const loader = document.getElementById("loader");
+      const busy = () => {
+        loader.hidden = false;
+        setTimeout(() => (loader.hidden = true), 600);
+      };
+      document.getElementById("tab-websites").addEventListener("mousedown", () => {
+        busy();
+        document.querySelector(".tiles").replaceChildren(
+          ...["Site Tools", "WordPress Admin", "Settings"].map((name) => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.textContent = name;
+            return button;
+          }),
+        );
+      });
+      const sites = document.getElementById("sites");
+      document.getElementById("site-picker").addEventListener("click", () => {
+        sites.hidden = !sites.hidden;
+      });
+      for (const option of sites.querySelectorAll("[role=option]"))
+        option.addEventListener("mousedown", () => {
+          document.getElementById("site-picker").textContent = option.textContent;
+          sites.hidden = true;
+          busy();
+        });
+      document.getElementById("btn-signin").addEventListener("mousedown", busy);
+
+      // Each pointer rests on its target first, as a hand does (hoverMs), which is when Steps
+      // asks Chrome what's there.
+      const steps = [
+        {
+          target: "tab-websites",
+          action: "click",
+          hoverMs: 400,
+          expected: { click: 'Click "Websites"' },
+        },
+        {
+          target: "menu-forwarders",
+          action: "click",
+          hoverMs: 400,
+          expected: { click: 'Click "Forwarders"' },
+        },
+        {
+          target: "site-picker",
+          action: "click",
+          hoverMs: 400,
+          expected: { click: 'Click "50plusflintshire.co.uk"' },
+        },
+        {
+          target: "opt-amluto",
+          action: "click",
+          hoverMs: 400,
+          expected: { click: 'Click "amluto.co.uk"' },
+        },
+        {
+          target: "btn-signin",
+          action: "click",
+          hoverMs: 400,
+          expected: { click: 'Click "SIGN IN"' },
+        },
+      ];
+      document.getElementById("amluto-plan").value = JSON.stringify({ steps });
+    </script>
+  </body>
+</html>

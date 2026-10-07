@@ -17,8 +17,8 @@ use capture::screenshot::CaptureMode;
 use capture::state_machine::{PauseReason, RecorderState};
 use capture::typing::{KeyOptions, KeyWorker, SharedFocus};
 use capture::uia::{FocusOptions, UiaClient};
-use serde::Deserialize;
-use serde_json::json;
+use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
 use tauri::{AppHandle, Emitter, Manager};
 
 use super::commands::available_monitors;
@@ -33,6 +33,7 @@ use super::{
     nothing_to_undo, publish_state, safe_executable_name, snapshot_locked,
     spawn_indicator_watchdog, storage_error, unique_id, unix_millis,
 };
+use capture::queued_sink::QueuedSink;
 
 /// After this many capture-worker panics in one recording, it is stopped rather than restarted.
 const MAX_WORKER_RESTARTS: u32 = 5;
@@ -42,7 +43,7 @@ const MIN_OUTPUT_SETTLE_MS: u32 = 500;
 const MAX_OUTPUT_SETTLE_MS: u32 = 10_000;
 
 /// The choices on the start-a-recording dialog (docs/spec/02-capture.md#keys).
-#[derive(Debug, Clone, Copy, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StartOptions {
     /// "Record what's typed": keys, commands and field values.
@@ -57,10 +58,66 @@ pub struct StartOptions {
     /// Settings > Recording, "Screenshot quality": Balanced unless Original is chosen.
     #[serde(default)]
     pub quality: library::ScreenshotQuality,
+    /// The settings the recording's steps are built with, kept in its `session.json`.
+    #[serde(default)]
+    pub settings: RecordingSettings,
 }
 
 const fn on() -> bool {
     true
+}
+
+/// The settings a recording's steps are built with (docs/spec/02-capture.md#recording-settings).
+/// The window reads them once at Record and the recorder keeps them with the recording, so its
+/// live steps and a draft rebuilt from its journal later agree. The steps are built in the
+/// window; the recorder only keeps these.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecordingSettings {
+    /// Typing into something unnamed shows its text in the step (A1).
+    pub show_unnamed_typing: bool,
+    /// The language and tone its steps are worded in. The window checks both when it reads them
+    /// back (IT policy already applied), so they're kept as given.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wording: Option<RecordingWording>,
+}
+
+/// A recording's wording: a language code from packages/core/src/languages.ts and a tone.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RecordingWording {
+    pub language: String,
+    pub tone: String,
+}
+
+impl RecordingSettings {
+    /// These settings with IT policy's in place wherever it sets one, as the window applies them:
+    /// a recording can't keep a setting the organisation decides otherwise.
+    #[must_use]
+    pub fn under(self, policy: &crate::policy::Policy) -> Self {
+        Self {
+            show_unnamed_typing: policy
+                .show_unnamed_typing
+                .unwrap_or(self.show_unnamed_typing),
+            ..self
+        }
+    }
+}
+
+/// A recording's `session.json`: its id, title, author, start time and settings.
+pub(super) fn session_metadata(
+    session_id: &str,
+    title: &str,
+    author: &str,
+    started_at: u64,
+    settings: RecordingSettings,
+) -> Value {
+    json!({
+        "sessionId": session_id,
+        "title": title,
+        "author": author,
+        "startedAt": started_at,
+        "settings": settings,
+    })
 }
 
 impl RecorderService {
@@ -144,7 +201,9 @@ impl RecorderService {
     ) -> Result<RecorderPreferences, CommandError> {
         let preferences = validate_preferences(preferences)?;
         let mut inner = lock(&self.inner);
-        if lock(&inner.machine).state() != &RecorderState::Idle || inner.session.is_some() {
+        // Only while recording: a recording keeps the settings it started with (#16), so a
+        // stopped one waiting as a draft doesn't hold the settings.
+        if lock(&inner.machine).state() != &RecorderState::Idle {
             return Err(CommandError::new(
                 "recordingActive",
                 "Save or discard the current recording before changing these settings.",
@@ -202,12 +261,10 @@ impl RecorderService {
                 "A recording is already in progress.",
             ));
         }
-        if inner.session.is_some() {
-            return Err(CommandError::new(
-                "pendingReview",
-                "Save or discard the previous recording before starting another.",
-            ));
-        }
+        // A stopped recording not yet saved stays in its folder as a draft, as one left from an
+        // earlier run does: several drafts are fine, so a new recording just lets go of it
+        // (07/10/2026: starting was refused only right after a stop, never after a restart).
+        inner.session = None;
         // Check the indicator before creating a session or transitioning to Recording.
         let recorder_bar = app.get_webview_window("recorder-bar").ok_or_else(|| {
             CommandError::new(
@@ -229,14 +286,17 @@ impl RecorderService {
         } else {
             title.trim()
         };
-        let metadata = json!({
-            "sessionId": session_id,
-            "title": session_title,
-            "author": inner.display_name,
-            "startedAt": SystemTime::now()
+        let metadata = session_metadata(
+            &session_id,
+            session_title,
+            &inner.display_name,
+            SystemTime::now()
                 .duration_since(UNIX_EPOCH)
-                .map_or(0, |duration| u64::try_from(duration.as_millis()).unwrap_or(u64::MAX))
-        });
+                .map_or(0, |duration| {
+                    u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
+                }),
+            options.settings.under(policy),
+        );
         write_new_bytes(
             &session_dir.join("session.json"),
             &serde_json::to_vec_pretty(&metadata).map_err(storage_error)?,
@@ -368,7 +428,9 @@ impl RecorderService {
         let worker_result = std::thread::Builder::new()
             .name("amluto-capture-worker".into())
             .spawn(move || {
-                let mut sink = JournalSink::new(
+                // Screenshots are encoded and saved on a thread of their own, so a click isn't
+                // kept waiting behind the steps before it (07/10/2026).
+                let mut sink = QueuedSink::new(JournalSink::new(
                     app_for_worker.clone(),
                     session_id_for_worker.clone(),
                     directory_for_worker.clone(),
@@ -376,7 +438,7 @@ impl RecorderService {
                     sequence_for_worker,
                     gap_for_worker,
                     source_for_worker,
-                );
+                ));
                 let config = PipelineConfig {
                     mode: capture_mode_for_worker,
                     target_monitor: target_monitor_for_worker,
@@ -441,7 +503,10 @@ impl RecorderService {
                 if let Some(link) = &key_link {
                     pipeline::write_key_records(&link.records, &machine_for_worker, &mut sink);
                 }
-                sink.flush_unsaved();
+                // Everything is in the journal before the recording is marked stopped.
+                if let Some(mut journal) = sink.finish() {
+                    journal.flush_unsaved();
+                }
                 {
                     let mut state = lock(&machine_for_worker);
                     if matches!(state.state(), RecorderState::Stopping { .. }) {

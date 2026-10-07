@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { asRightClick, phraseOfStep, renderPhrase } from "./phrase.ts";
+import { asRightClick, renderPhrase } from "./phrase.ts";
+import { phraseOfStep } from "./reword.ts";
 
 describe("right-clicks (04/10/2026)", () => {
   it("say so in each tone, and are worked out again from a stored step", () => {

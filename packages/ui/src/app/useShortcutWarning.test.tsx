@@ -2,8 +2,9 @@
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { HotkeyBinding } from "../bridge/hotkeys";
+import { fakeHotkeys } from "../bridge/hotkeys-fake";
 import { initI18n } from "../i18n";
-import type { HotkeyBinding, RecorderBridge } from "../recorder-bridge";
 import { useShortcutWarning } from "./useShortcutWarning";
 
 initI18n();
@@ -30,8 +31,7 @@ afterEach(() => {
 async function start(bindings: HotkeyBinding[]) {
   const notify = vi.fn();
   const showShortcuts = vi.fn();
-  const recorder = { getHotkeys: vi.fn(async () => bindings) } as unknown as RecorderBridge;
-  renderHook(() => useShortcutWarning(recorder, notify, showShortcuts));
+  renderHook(() => useShortcutWarning(fakeHotkeys(bindings), notify, showShortcuts));
   await act(async () => {
     await vi.advanceTimersByTimeAsync(2_000);
   });

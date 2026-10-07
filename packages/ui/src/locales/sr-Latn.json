@@ -28,7 +28,6 @@
     "settings": "Postavke",
     "guides": "Vodiči",
     "recordingNow": "Snimanje je u toku",
-    "saveFirst": "Prvo sačuvajte ili odbacite poslednji snimak",
     "needsReview": "Treba pregledati"
   },
   "dates": {
@@ -280,9 +279,9 @@
     "drawing": "Priprema…",
     "checklist": "Kontrolna lista",
     "personalData": "Pre nego što podelite vodič, proverite da li neki snimak ekrana sadrži lične podatke. Automatski predlozi mogu nešto da propuste.",
-    "flagged_one": "{{count}} korak treba proveriti: neimenovani klik, propušteni klikovi, otkucani tekst koji se možda ne podudara ili snimak ekrana za proveru.",
-    "flagged_few": "{{count}} koraka treba proveriti: neimenovani klikovi, propušteni klikovi, otkucani tekst koji se možda ne podudara ili snimci ekrana za proveru.",
-    "flagged_other": "{{count}} koraka treba proveriti: neimenovani klikovi, propušteni klikovi, otkucani tekst koji se možda ne podudara ili snimci ekrana za proveru.",
+    "flagged_one": "{{count}} korak treba proveriti: neimenovani klik, ime pročitano sa snimka ekrana, propušteni klikovi, otkucani tekst koji se možda ne podudara ili snimak ekrana za proveru.",
+    "flagged_few": "{{count}} koraka treba proveriti: neimenovani klikovi, imena pročitana sa snimaka ekrana, propušteni klikovi, otkucani tekst koji se možda ne podudara ili snimci ekrana za proveru.",
+    "flagged_other": "{{count}} koraka treba proveriti: neimenovani klikovi, imena pročitana sa snimaka ekrana, propušteni klikovi, otkucani tekst koji se možda ne podudara ili snimci ekrana za proveru.",
     "noFlagged": "Nijedan korak nije označen za proveru.",
     "stepNumber": "Korak {{number}}",
     "quickEdit": {
@@ -545,6 +544,7 @@
     "reviewRequired": "Proverite ovaj korak: snimanje nije moglo da imenuje ono na šta je kliknuto, neki klikovi su ovde propušteni, otkucani tekst se možda ne podudara tačno ili tajni podatak nije pronađen na snimku ekrana da bi se zamaglio.",
     "review": {
       "unnamed": "Proverite ovaj korak: snimanje nije moglo da imenuje ono na šta je kliknuto. Napišite šta je bilo ili izaberite Izgleda dobro.",
+      "checkName": "Proverite ovaj naziv: pročitan je sa snimka ekrana.",
       "missed": "Proverite ovaj korak: neki klikovi su ovde propušteni.",
       "typing": "Proverite ovaj korak: otkucani tekst se možda ne podudara tačno.",
       "code": "Proverite ovaj korak: tajni podatak nije pronađen na snimku ekrana da bi se zamaglio ili se tekst možda ne podudara tačno.",
@@ -838,6 +838,7 @@
       "managed": "Vaša organizacija upravlja ovim postavkama, pa je uvoz isključen.",
       "tour": "Prikaži uvodni obilazak",
       "tourHelp": "Kratak obilazak glavnog prozora, u prozorima širine 1024 piksela ili više.",
+      "tourNarrow": "Kratak obilazak glavnog prozora. Ovaj prozor je pretesan za njega: proširite ga na 1024 piksela ili više i obilazak će se pojaviti.",
       "tourStartAgain": "Počni ispočetka",
       "tourContinue": "Nastavi obilazak ({{progress}})"
     },
@@ -1299,6 +1300,7 @@
   "privacy": {
     "intro": "Steps čita tekst na snimcima ekrana na ovom računaru (pomoću ugrađenog oflajn prepoznavanja teksta u sistemu Windows) da bi predložio šta treba zamagliti. Ništa se nikuda ne šalje.",
     "introLinux": "Steps čita tekst na snimcima ekrana na ovom računaru (pomoću programa Tesseract, ako je instaliran) da bi predložio šta treba zamagliti. Ništa se nikuda ne šalje.",
+    "introPage": "Steps čita tekst na stranicama koje snimate, onako kako ga prikazuje pregledač, da bi predložio šta treba zamagliti. Ništa se nikuda ne šalje.",
     "strength": "Predlozi zamagljivanja",
     "strengths": {
       "light": "Lagano",

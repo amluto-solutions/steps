@@ -21,6 +21,7 @@ import {
   removeStepOutput,
   removeTypedValue,
   replaceText,
+  reviewReason,
   stepsWithText,
   setAllValues,
   setShowValue,
@@ -271,6 +272,40 @@ describe("editor edits", () => {
       const merged = roundTrips(reworded, mergeWithNext(reworded, "s3", stamp()));
       expect(texts(merged).join(" ")).not.toMatch(/acme/i);
     });
+  });
+});
+
+describe("why a step asks to be checked (F031)", () => {
+  const flagged = (naming: GuideStep["naming"]): GuideStep => ({
+    ...step("s1", "0000000001", 'Click "Systen"'),
+    textParts: { verb: "click", target: "Systen", kind: "window" },
+    textEdited: false,
+    reviewRequired: true,
+    naming,
+  });
+  const fromScreen = flagged({
+    name: "Systen",
+    kind: "other",
+    source: "screen",
+    needsReview: true,
+  });
+
+  it("asks to check a name read from the screenshot, and an unnamed click to be named", () => {
+    expect(reviewReason(fromScreen)).toBe("checkName");
+    const unnamed = flagged({
+      name: "Settings",
+      kind: "other",
+      source: "window",
+      needsReview: true,
+    });
+    expect(reviewReason(unnamed)).toBe("unnamed");
+    expect(reviewReason({ ...fromScreen, reviewRequired: false })).toBeNull();
+  });
+
+  it("stops asking once the name is written by hand", () => {
+    const start = { ...doc(), steps: [fromScreen] };
+    const fixed = roundTrips(start, setStepText(start, "s1", 'Click "System"', stamp()));
+    expect(fixed.steps[0]?.reviewRequired).toBe(false);
   });
 });
 

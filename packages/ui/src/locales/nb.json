@@ -28,7 +28,6 @@
     "settings": "Innstillinger",
     "guides": "Veiledninger",
     "recordingNow": "Et opptak pågår",
-    "saveFirst": "Lagre eller forkast det siste opptaket ditt først",
     "needsReview": "Må gjennomgås"
   },
   "dates": {
@@ -258,8 +257,8 @@
     "drawing": "Klargjør …",
     "checklist": "Sjekkliste",
     "personalData": "Kontroller hvert skjermbilde for personopplysninger før du deler det. Automatiske forslag kan overse ting.",
-    "flagged_one": "{{count}} trinn må kontrolleres: et klikk uten navn, oversette klikk, inntasting som kanskje ikke stemmer, eller et skjermbilde som bør kontrolleres.",
-    "flagged_other": "{{count}} trinn må kontrolleres: klikk uten navn, oversette klikk, inntasting som kanskje ikke stemmer, eller skjermbilder som bør kontrolleres.",
+    "flagged_one": "{{count}} trinn må kontrolleres: et klikk uten navn, et navn lest fra skjermbildet, oversette klikk, inntasting som kanskje ikke stemmer, eller et skjermbilde som bør kontrolleres.",
+    "flagged_other": "{{count}} trinn må kontrolleres: klikk uten navn, navn lest fra skjermbilder, oversette klikk, inntasting som kanskje ikke stemmer, eller skjermbilder som bør kontrolleres.",
     "noFlagged": "Ingen trinn er merket for kontroll.",
     "stepNumber": "Trinn {{number}}",
     "quickEdit": {
@@ -502,6 +501,7 @@
     "reviewRequired": "Kontroller dette trinnet: Opptaket kunne ikke gi navn til det som ble klikket på, noen klikk ble oversett her, inntastingen stemmer kanskje ikke helt, eller en hemmelighet som skulle sløres, ble ikke funnet i skjermbildet.",
     "review": {
       "unnamed": "Kontroller dette trinnet: Opptaket kunne ikke gi navn til det som ble klikket på. Skriv hva det var, eller velg «Ser riktig ut».",
+      "checkName": "Kontroller dette navnet: Det ble lest fra skjermbildet.",
       "missed": "Kontroller dette trinnet: Noen klikk ble oversett her.",
       "typing": "Kontroller dette trinnet: Inntastingen stemmer kanskje ikke helt.",
       "code": "Kontroller dette trinnet: En hemmelighet i det ble ikke funnet i skjermbildet, så den kunne ikke sløres, eller teksten stemmer kanskje ikke helt.",
@@ -791,6 +791,7 @@
       "managed": "Organisasjonen din administrerer disse innstillingene, så import er slått av.",
       "tour": "Vis innføringen",
       "tourHelp": "En kort omvisning i hovedvinduet, i vinduer som er minst 1024 piksler brede.",
+      "tourNarrow": "En kort omvisning i hovedvinduet. Dette vinduet er for smalt for den: gjør det minst 1024 piksler bredt, så vises omvisningen.",
       "tourStartAgain": "Start på nytt",
       "tourContinue": "Fortsett omvisningen ({{progress}})"
     },
@@ -1240,6 +1241,7 @@
   "privacy": {
     "intro": "Steps leser teksten i skjermbildene dine på denne PC-en (med Windows' egen frakoblede tekstgjenkjenning) for å foreslå hva som bør sløres. Ingenting sendes noe sted.",
     "introLinux": "Steps leser teksten i skjermbildene dine på denne datamaskinen (med Tesseract, hvis det er installert) for å foreslå hva som bør sløres. Ingenting sendes noe sted.",
+    "introPage": "Steps leser teksten på sidene du tar opp, slik nettleseren viser den, for å foreslå hva som bør sløres. Ingenting sendes noe sted.",
     "strength": "Forslag til sløring",
     "strengths": {
       "light": "Lett",

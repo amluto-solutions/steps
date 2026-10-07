@@ -28,7 +28,6 @@
     "settings": "Issettjar",
     "guides": "Gwidi",
     "recordingNow": "Għaddejja reġistrazzjoni",
-    "saveFirst": "L-ewwel issejvja jew armi l-aħħar reġistrazzjoni tiegħek",
     "needsReview": "Teħtieġ reviżjoni"
   },
   "dates": {
@@ -324,11 +323,11 @@
     "drawing": "Qed jitħejja…",
     "checklist": "Lista ta’ kontroll",
     "personalData": "Iċċekkja kull screenshot għal data personali qabel taqsamha. Is-suġġerimenti awtomatiċi jistgħu jaqbżu xi ħaġa.",
-    "flagged_one": "{{count}} pass jeħtieġ jiġi ċċekkjat: klikk mingħajr isem, klikks mitlufa, ittajpjar li jista’ ma jaqbilx, jew screenshot li għandu jiġi ċċekkjat.",
-    "flagged_two": "{{count}} passi jeħtieġu jiġu ċċekkjati: klikks mingħajr isem, klikks mitlufa, ittajpjar li jista’ ma jaqbilx, jew screenshots li għandhom jiġu ċċekkjati.",
-    "flagged_few": "{{count}} passi jeħtieġu jiġu ċċekkjati: klikks mingħajr isem, klikks mitlufa, ittajpjar li jista’ ma jaqbilx, jew screenshots li għandhom jiġu ċċekkjati.",
-    "flagged_many": "{{count}}-il pass jeħtieġu jiġu ċċekkjati: klikks mingħajr isem, klikks mitlufa, ittajpjar li jista’ ma jaqbilx, jew screenshots li għandhom jiġu ċċekkjati.",
-    "flagged_other": "{{count}} pass jeħtieġu jiġu ċċekkjati: klikks mingħajr isem, klikks mitlufa, ittajpjar li jista’ ma jaqbilx, jew screenshots li għandhom jiġu ċċekkjati.",
+    "flagged_one": "{{count}} pass jeħtieġ jiġi ċċekkjat: klikk mingħajr isem, isem maqrut mill-iscreenshot, klikks mitlufa, ittajpjar li jista’ ma jaqbilx, jew screenshot li għandu jiġi ċċekkjat.",
+    "flagged_two": "{{count}} passi jeħtieġu jiġu ċċekkjati: klikks mingħajr isem, ismijiet maqrutin mill-iscreenshots, klikks mitlufa, ittajpjar li jista’ ma jaqbilx, jew screenshots li għandhom jiġu ċċekkjati.",
+    "flagged_few": "{{count}} passi jeħtieġu jiġu ċċekkjati: klikks mingħajr isem, ismijiet maqrutin mill-iscreenshots, klikks mitlufa, ittajpjar li jista’ ma jaqbilx, jew screenshots li għandhom jiġu ċċekkjati.",
+    "flagged_many": "{{count}}-il pass jeħtieġu jiġu ċċekkjati: klikks mingħajr isem, ismijiet maqrutin mill-iscreenshots, klikks mitlufa, ittajpjar li jista’ ma jaqbilx, jew screenshots li għandhom jiġu ċċekkjati.",
+    "flagged_other": "{{count}} pass jeħtieġu jiġu ċċekkjati: klikks mingħajr isem, ismijiet maqrutin mill-iscreenshots, klikks mitlufa, ittajpjar li jista’ ma jaqbilx, jew screenshots li għandhom jiġu ċċekkjati.",
     "noFlagged": "L-ebda pass mhu mmarkat biex jiġi ċċekkjat.",
     "stepNumber": "Pass {{number}}",
     "quickEdit": {
@@ -631,6 +630,7 @@
     "reviewRequired": "Iċċekkja dan il-pass: ir-reġistrazzjoni ma setgħetx tagħti isem lil dak li ġie kklikkjat, xi klikks intilfu hawn, l-ittajpjar jista’ ma jaqbilx eżatt, jew sigriet ma setax jinstab fl-iscreenshot biex jiġi mċajpar.",
     "review": {
       "unnamed": "Iċċekkja dan il-pass: ir-reġistrazzjoni ma setgħetx tagħti isem lil dak li ġie kklikkjat. Ikteb x’kien, jew agħżel “Jidher tajjeb”.",
+      "checkName": "Iċċekkja dan l-isem: inqara mill-iscreenshot.",
       "missed": "Iċċekkja dan il-pass: xi klikks intilfu hawn.",
       "typing": "Iċċekkja dan il-pass: l-ittajpjar jista’ ma jaqbilx eżatt.",
       "code": "Iċċekkja dan il-pass: sigriet fih ma setax jinstab fl-iscreenshot biex jiġi mċajpar, jew it-test jista’ ma jaqbilx eżatt.",
@@ -932,6 +932,7 @@
       "managed": "L-organizzazzjoni tiegħek timmaniġġja dan l-issettjar, għalhekk l-importazzjoni hija mitfija.",
       "tour": "Uri t-tutorial",
       "tourHelp": "Tour qasir tat-tieqa prinċipali, fi twieqi ta’ wisa’ ta’ 1024 pixel jew aktar.",
+      "tourNarrow": "Tour qasir tat-tieqa prinċipali. Din it-tieqa dojqa wisq għalih: agħmilha ta’ wisa’ ta’ 1024 pixel jew aktar u t-tour jidher.",
       "tourStartAgain": "Erġa’ ibda",
       "tourContinue": "Kompli t-tour ({{progress}})"
     },
@@ -1417,6 +1418,7 @@
   "privacy": {
     "intro": "Steps jaqra t-test fl-iscreenshots tiegħek fuq dan il-kompjuter (bir-rikonoxximent tat-test offline ta’ Windows stess) biex jissuġġerixxi x’għandu jiġi mċajpar. Xejn ma jintbagħat x’imkien.",
     "introLinux": "Steps jaqra t-test fl-iscreenshots tiegħek fuq dan il-kompjuter (b’Tesseract, jekk ikun installat) biex jissuġġerixxi x’għandu jiġi mċajpar. Xejn ma jintbagħat x’imkien.",
+    "introPage": "Steps jaqra t-test fuq il-paġni li tirrekordja, kif juriha l-browser, biex jissuġġerixxi x’għandu jiġi mċajpar. Xejn ma jintbagħat x’imkien.",
     "strength": "Suġġerimenti ta’ ċajpir",
     "strengths": {
       "light": "Ħafif",

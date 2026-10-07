@@ -4,8 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { expectNoSeriousAxeViolations } from "../../test/axe";
 import { useLink, type Link } from "../app/useLink";
+import type { LinkStatus } from "../bridge/extension-link";
+import { fakeExtensionLink } from "../bridge/extension-link-fake";
+import { fakeCapabilities } from "../bridge/capabilities-fake";
 import { initI18n } from "../i18n";
-import type { LinkStatus, RecorderBridge } from "../recorder-bridge";
 import { LinkRow } from "./LinkRow";
 
 initI18n();
@@ -69,18 +71,19 @@ describe("Settings > Recording: Steps for Windows and Steps for Chrome and Edge 
 });
 
 describe("the link as the app opens", () => {
-  const recorder = (edition?: "browser") => {
+  const recorder = (savesLinkChoice = true) => {
     const listeners: ((value: LinkStatus) => void)[] = [];
+    const link = fakeExtensionLink({ enabled: false, connected: [] });
     const bridge = {
-      ...(edition ? { edition } : {}),
-      getLink: vi.fn(() => Promise.resolve(status({ enabled: false }))),
-      setLink: vi.fn((on: boolean | null) => Promise.resolve(status({ enabled: on !== false }))),
-      onLink: vi.fn((handler: (value: LinkStatus) => void) => {
+      ...link,
+      capabilities: fakeCapabilities({ savesLinkChoice }),
+      setLink: vi.spyOn(link, "setLink"),
+      onLink: (handler: (value: LinkStatus) => void) => {
         listeners.push(handler);
-        return Promise.resolve(() => undefined);
-      }),
+        return link.onLink(handler);
+      },
     };
-    return { bridge: bridge as unknown as RecorderBridge & typeof bridge, listeners };
+    return { bridge, listeners };
   };
 
   it("the desktop sets its side from the person's choice, or its default, as it opens", async () => {
@@ -99,12 +102,20 @@ describe("the link as the app opens", () => {
   });
 
   it("the browser only reads its side, and follows changes", async () => {
-    const { bridge, listeners } = recorder("browser");
+    const { bridge, listeners } = recorder(false);
     const { result } = renderHook(() => useLink(bridge));
     await act(() => Promise.resolve());
     expect(bridge.setLink).not.toHaveBeenCalled();
     expect(result.current.status?.enabled).toBe(false);
     act(() => listeners[0]?.(status({ connected: ["desktop"] })));
     expect(result.current.status?.connected).toEqual(["desktop"]);
+    // Its background worker keeps the choice: the page doesn't save it for the next start.
+    await act(() => result.current.set(true));
+    expect(bridge.setLink).toHaveBeenCalledWith(true);
+    cleanup();
+    const desktop = recorder();
+    renderHook(() => useLink(desktop.bridge));
+    await act(() => Promise.resolve());
+    expect(desktop.bridge.setLink).toHaveBeenCalledWith(null);
   });
 });

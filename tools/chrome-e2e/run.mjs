@@ -267,9 +267,12 @@ try {
   const sites = records
     .filter((record) => record.kind === "pageNavigation")
     .map((record) => record.origin);
+  // The test page is opened as an address typed in the address bar; the second site is reached by
+  // a link, which the clicks already cover (docs/spec/02-capture.md, 04/10/2026).
   check(
-    "changing site is a step",
-    sites.some((origin) => origin.startsWith("http://localhost")),
+    "a site typed in the address bar is a step, one reached by a link isn't",
+    sites.some((origin) => origin.startsWith("http://127.0.0.1")) &&
+      !sites.some((origin) => origin.startsWith("http://localhost")),
     sites.join(" "),
   );
   const leak = JSON.stringify(journal.facts);
@@ -356,9 +359,13 @@ try {
         const request = db.transaction(store).objectStore(store).getAll();
         request.onsuccess = () => ok(request.result);
       });
+    const steps = (await all("steps")).map((row) => row.step);
     return {
       guides: await all("guides"),
-      steps: (await all("steps")).length,
+      steps: steps.length,
+      // A typing step shows the screenshot of the click before it, so steps outnumber files.
+      pictured: steps.filter((step) => step.media?.id).length,
+      clicks: steps.filter((step) => step.action === "click"),
       media: (await all("media")).length,
     };
   });
@@ -366,6 +373,16 @@ try {
     "Save puts the guide in the library, with its screenshots",
     saved.guides.length === 1 && saved.steps >= 9 && saved.media >= 3,
     `${saved.guides.length} guide, ${saved.steps} steps, ${saved.media} screenshots, by ${saved.guides[0]?.guide.owner}`,
+  );
+  // Page clicks are named by the naming module, as the desktop names the same click.
+  const approve = saved.clicks.find((step) => step.actionText === 'Click "Approve invoice"');
+  check(
+    "each click keeps its naming, the page's own for a named element",
+    saved.clicks.length > 0 &&
+      saved.clicks.every((step) => step.naming !== undefined) &&
+      approve?.naming?.source === "page" &&
+      approve.naming.name === "Approve invoice",
+    JSON.stringify(saved.clicks.map((step) => step.naming)),
   );
 
   // Each export format lands in Chrome's downloads.
@@ -443,17 +460,17 @@ try {
     const head = bytes.subarray(0, 9).toString("latin1");
     if (format.item === "PDF") {
       // Tagged, from the browser's own build of pdfmake (docs/spec/05-export.md#tagged-pdf): a
-      // structure tree with the title as its heading and each screenshot a figure. (Page
+      // structure tree with the title as its heading and each step's screenshot a figure. (Page
       // furniture is marked inside the compressed page streams: pdf-tags.test.ts reads those.)
       const raw = bytes.toString("latin1");
       const figures = (raw.match(/\/S \/Figure/g) ?? []).length;
       check(
-        "the PDF is tagged, with a figure for each screenshot",
+        "the PDF is tagged, with a figure for each step's screenshot",
         raw.includes("/StructTreeRoot") &&
           /\/Marked true/.test(raw) &&
           raw.includes("/S /H1") &&
-          figures === saved.media,
-        `${figures} figures for ${saved.media} screenshots`,
+          figures === saved.pictured,
+        `${figures} figures for ${saved.pictured} steps with a screenshot`,
       );
     }
     if (format.item === "PDF" && gothic)

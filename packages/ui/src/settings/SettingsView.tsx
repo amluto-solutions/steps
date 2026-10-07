@@ -7,7 +7,6 @@ import { BrandsSection } from "./BrandsSection";
 import { AMLUTO_PROFILE, readDefaultBrand, saveDefaultBrand } from "./brands";
 import { policy } from "./policy";
 import { Row } from "./controls";
-import { isBrowserEdition } from "../recorder-bridge";
 import type { SettingsProps, SettingsSection } from "./settings-props";
 import { ShortcutsSection } from "./ShortcutsSection";
 import { LibrariesSection } from "./LibrariesSection";
@@ -64,6 +63,7 @@ function BrandPicker(props: {
 export function SettingsView(props: SettingsProps) {
   const { t } = useTranslation();
   const [pdfBrand, setPdfBrand] = useState(readDefaultBrand);
+  const capabilities = props.capabilities;
   return (
     <div className="flex h-full">
       <nav
@@ -81,10 +81,9 @@ export function SettingsView(props: SettingsProps) {
           // In the browser there are no Windows shortcuts, and libraries only where the browser
           // can open folders (Chrome and Edge, not Firefox).
           (section) =>
-            !isBrowserEdition(props.recorder) ||
-            (section.id === "libraries"
-              ? props.library?.folderLibraries === true
-              : section.id !== "shortcuts"),
+            section.id === "libraries"
+              ? capabilities.libraryFolders
+              : section.id !== "shortcuts" || capabilities.hotkeys,
         ).map((section) => (
           <button
             key={section.id}

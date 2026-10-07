@@ -28,7 +28,6 @@
     "settings": "Setări",
     "guides": "Ghiduri",
     "recordingNow": "O înregistrare este în curs",
-    "saveFirst": "Salvați mai întâi ultima înregistrare sau renunțați la ea",
     "needsReview": "Necesită revizuire"
   },
   "dates": {
@@ -280,9 +279,9 @@
     "drawing": "Se pregătește…",
     "checklist": "Listă de verificare",
     "personalData": "Verificați fiecare captură de ecran pentru date personale înainte de a o partaja. Sugestiile automate pot scăpa lucruri.",
-    "flagged_one": "{{count}} pas trebuie verificat: un clic fără nume, clicuri omise, text tastat care poate să nu corespundă sau o captură de ecran de verificat.",
-    "flagged_few": "{{count}} pași trebuie verificați: clicuri fără nume, clicuri omise, text tastat care poate să nu corespundă sau capturi de ecran de verificat.",
-    "flagged_other": "{{count}} de pași trebuie verificați: clicuri fără nume, clicuri omise, text tastat care poate să nu corespundă sau capturi de ecran de verificat.",
+    "flagged_one": "{{count}} pas trebuie verificat: un clic fără nume, un nume citit din captura de ecran, clicuri omise, text tastat care poate să nu corespundă sau o captură de ecran de verificat.",
+    "flagged_few": "{{count}} pași trebuie verificați: clicuri fără nume, nume citite din capturile de ecran, clicuri omise, text tastat care poate să nu corespundă sau capturi de ecran de verificat.",
+    "flagged_other": "{{count}} de pași trebuie verificați: clicuri fără nume, nume citite din capturile de ecran, clicuri omise, text tastat care poate să nu corespundă sau capturi de ecran de verificat.",
     "noFlagged": "Niciun pas nu este marcat pentru verificare.",
     "stepNumber": "Pasul {{number}}",
     "quickEdit": {
@@ -545,6 +544,7 @@
     "reviewRequired": "Verificați acest pas: înregistrarea nu a putut denumi elementul pe care s-a făcut clic, unele clicuri au fost omise aici, textul tastat poate să nu corespundă exact sau un secret nu a putut fi găsit în captura de ecran pentru a fi estompat.",
     "review": {
       "unnamed": "Verificați acest pas: înregistrarea nu a putut denumi elementul pe care s-a făcut clic. Scrieți ce era sau alegeți Arată corect.",
+      "checkName": "Verificați acest nume: a fost citit din captura de ecran.",
       "missed": "Verificați acest pas: unele clicuri au fost omise aici.",
       "typing": "Verificați acest pas: textul tastat poate să nu corespundă exact.",
       "code": "Verificați acest pas: un secret nu a putut fi găsit în captura de ecran pentru a fi estompat sau textul poate să nu corespundă exact.",
@@ -838,6 +838,7 @@
       "managed": "Organizația dvs. gestionează aceste setări, deci importul este dezactivat.",
       "tour": "Afișare tutorial",
       "tourHelp": "Un scurt tur al ferestrei principale, în ferestre late de cel puțin 1024 de pixeli.",
+      "tourNarrow": "Un scurt tur al ferestrei principale. Această fereastră este prea îngustă pentru el: măriți-i lățimea la cel puțin 1024 de pixeli și turul apare.",
       "tourStartAgain": "Reîncepere",
       "tourContinue": "Continuați turul ({{progress}})"
     },
@@ -1299,6 +1300,7 @@
   "privacy": {
     "intro": "Steps citește textul din capturile de ecran pe acest PC (cu recunoașterea offline a textului inclusă în Windows) pentru a sugera ce să estompați. Nu se trimite nimic nicăieri.",
     "introLinux": "Steps citește textul din capturile de ecran pe acest computer (cu Tesseract, dacă este instalat) pentru a sugera ce să estompați. Nu se trimite nimic nicăieri.",
+    "introPage": "Steps citește textul de pe paginile pe care le înregistrați, așa cum îl afișează browserul, pentru a sugera ce să estompați. Nu se trimite nimic nicăieri.",
     "strength": "Sugestii de estompare",
     "strengths": {
       "light": "Ușor",

@@ -2,29 +2,27 @@
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { UpdateChannel, UpdateInfo, Updates } from "../bridge/updates";
+import { fakeUpdates } from "../bridge/updates-fake";
 import { initI18n } from "../i18n";
-import type { RecorderBridge, UpdateChannel, UpdateInfo } from "../recorder-bridge";
 import { useUpdates } from "./useUpdates";
 
 initI18n();
 
 const found: UpdateInfo = { version: "0.2.0", notes: "Faster exports.", published: 1_790_000_000 };
 
+/** A copy on `channel` whose check answers `check`, with `pending` downloaded before. */
 function recorderWith(
   channel: UpdateChannel,
   check: () => Promise<UpdateInfo | null>,
   pending: string | null = null,
 ) {
+  const updates = fakeUpdates({ channel, newer: found, pending });
   return {
-    updatesChannel: vi.fn(async () => channel),
-    pendingUpdate: vi.fn(async () => pending),
+    ...updates,
     checkForUpdate: vi.fn(check),
-    downloadUpdate: vi.fn(async () => "0.2.0"),
-    installUpdate: vi.fn(async () => undefined),
-  } as unknown as RecorderBridge & {
-    checkForUpdate: ReturnType<typeof vi.fn>;
-    downloadUpdate: ReturnType<typeof vi.fn>;
-    installUpdate: ReturnType<typeof vi.fn>;
+    downloadUpdate: vi.spyOn(updates, "downloadUpdate"),
+    installUpdate: vi.spyOn(updates, "installUpdate"),
   };
 }
 
@@ -36,7 +34,7 @@ const wait = async (ms: number) => {
 };
 
 /** Opens the app with this bridge, once it has said which channel it is on. */
-async function start(recorder: RecorderBridge) {
+async function start(recorder: Updates) {
   const notify = vi.fn();
   const showAbout = vi.fn();
   const hook = renderHook(() => useUpdates(recorder, notify, showAbout));
@@ -198,7 +196,11 @@ describe("updates for the downloadable .exe", () => {
   });
 
   it("treats a bridge that can't say as a copy that doesn't update", async () => {
-    const { hook } = await start({} as RecorderBridge);
+    const silent = {
+      ...fakeUpdates(),
+      updatesChannel: () => Promise.reject(new Error("no answer")),
+    };
+    const { hook } = await start(silent);
     expect(hook.result.current.channel).toBe("none");
   });
 });

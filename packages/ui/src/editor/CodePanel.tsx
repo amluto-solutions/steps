@@ -54,7 +54,11 @@ export function CodePanel(props: {
             className="h-7 rounded-md border-0 bg-transparent pr-1 text-xs font-bold tracking-wide text-bar-muted uppercase hover:bg-white/10"
           >
             {CODE_LANGUAGES.map((language) => (
-              <option key={language} value={language} className="text-body normal-case">
+              <option
+                key={language}
+                value={language}
+                className="bg-background text-body normal-case"
+              >
                 {t(`editor.code.languages.${language}`)}
               </option>
             ))}

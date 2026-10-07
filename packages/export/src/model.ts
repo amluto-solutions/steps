@@ -263,7 +263,7 @@ export const altTextFor = (step: GuideStep, number: number) => {
 export function buildRenderModel(
   guide: Guide,
   steps: GuideStep[],
-  images: Map<string, RenderedImage>,
+  images: ReadonlyMap<string, RenderedImage>,
   options: Parameters<typeof buildModel>[3],
 ): RenderModel {
   return withWords(exportWords(options.language ?? "en"), () =>
@@ -274,7 +274,7 @@ export function buildRenderModel(
 function buildModel(
   guide: Guide,
   steps: GuideStep[],
-  images: Map<string, RenderedImage>,
+  images: ReadonlyMap<string, RenderedImage>,
   options: {
     preparedBy: string;
     now: Date;

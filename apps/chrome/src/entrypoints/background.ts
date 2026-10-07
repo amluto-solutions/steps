@@ -2,7 +2,8 @@ import { frameSite } from "../recorder/frame-site";
 import { defineBackground } from "wxt/utils/define-background";
 
 import type { FrameHop, FramePointer } from "../capture/frames";
-import type { PageFacts, PageInput, PagePointer, StartChoices } from "../recorder/engine";
+import { runCommands, type Command } from "../recorder/commands";
+import type { PageFacts, PageInput, PagePointer } from "../recorder/engine";
 import { navigationCause } from "../recorder/navigation-cause";
 import { desktopLink, RETRY_ALARM } from "../desktop/chrome";
 import { engine } from "../recorder/chrome";
@@ -15,19 +16,6 @@ import { firefox } from "../browser";
  * edition is for Chrome and Edge only.
  */
 
-/** Commands the Steps pages (the side panel and the app) send the recorder. */
-type Command =
-  | { type: "recorder:getState" }
-  | { type: "recorder:start"; title: string; choices: StartChoices }
-  | { type: "recorder:exclude"; site: string }
-  | { type: "recorder:pause" }
-  | { type: "recorder:resume" }
-  | { type: "recorder:stop" }
-  | { type: "recorder:discard" }
-  | { type: "recorder:forget"; sessionId: string }
-  | { type: "link:get" }
-  | { type: "link:set"; on: boolean };
-
 type PageMessage = (
   | { type: "page:pointer"; pointer: PagePointer }
   | { type: "page:input"; input: PageInput }
@@ -35,30 +23,7 @@ type PageMessage = (
   | { type: "page:frameHop"; token: string; hop: FrameHop }
 ) & { origin?: string };
 
-const run = (command: Command) => {
-  switch (command.type) {
-    case "recorder:getState":
-      return engine.getState();
-    case "recorder:start":
-      return engine.start(command.title, command.choices);
-    case "recorder:exclude":
-      return engine.exclude(command.site);
-    case "recorder:pause":
-      return engine.pause();
-    case "recorder:resume":
-      return engine.resume();
-    case "recorder:stop":
-      return engine.stop();
-    case "recorder:discard":
-      return engine.discard();
-    case "recorder:forget":
-      return engine.forgetSession(command.sessionId);
-    case "link:get":
-      return Promise.resolve(desktopLink.status());
-    case "link:set":
-      return desktopLink.set(command.on === true);
-  }
-};
+const run = runCommands(engine, desktopLink);
 
 /** A message from a page's capture script, with where it came from. */
 function fromPage(message: PageMessage, sender: chrome.runtime.MessageSender) {

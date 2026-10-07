@@ -1,13 +1,20 @@
-import { siteName, type RecordingFact } from "@amluto-steps/core";
+import { siteName, type RecordingFact, type RecordingSettings } from "@amluto-steps/core";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Icon } from "../components/icons";
-import { factToStep } from "../recorded-step";
-import type { RecorderBridge, RecorderSnapshot } from "../recorder-bridge";
+import type { RecorderSnapshot, Recording } from "../bridge/recording";
+import type { RecordingJournal } from "../bridge/recording-journal";
+import type { Host } from "../bridge/host";
 import { formatDate } from "../library/dates";
-import { readChoices, readExcludedSites, saveExcludedSites } from "../settings/preferences";
+import {
+  readChoices,
+  readExcludedSites,
+  readRecordingSettings,
+  saveExcludedSites,
+} from "../settings/preferences";
 import { StepsLogo } from "../shell/StepsLogo";
+import { recordingToDraft } from "./recording-to-draft";
 import { useStepWording } from "./ShortcutPopup";
 
 /**
@@ -19,11 +26,11 @@ export function RecorderPanel({
   recorder,
   onOpenSteps,
 }: {
-  recorder: RecorderBridge;
+  recorder: Recording & RecordingJournal & Host;
   /** Opens (or brings forward) the Steps tab, where recordings are reviewed and saved. */
   onOpenSteps: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const wording = useStepWording();
   const [snapshot, setSnapshot] = useState<RecorderSnapshot | null>(null);
   const [steps, setSteps] = useState<{ id: string; text: string }[]>([]);
@@ -36,25 +43,62 @@ export function RecorderPanel({
   const [excludedNote, setExcludedNote] = useState<string | null>(null);
   const list = useRef<HTMLOListElement>(null);
   const wordingRef = useRef(wording);
+  /**
+   * The recording's own settings, saved with it when it started; for one that saved none, today's,
+   * read once for it rather than at every step.
+   */
+  const settingsRef = useRef<{ sessionId: string | null; settings: RecordingSettings } | null>(
+    null,
+  );
 
   useEffect(() => {
     wordingRef.current = wording;
   });
 
-  const toStep = (fact: RecordingFact) => {
-    const step = factToStep(fact, wordingRef.current());
-    return step ? { id: step.id, text: step.actionText } : null;
-  };
+  /** The recording's facts so far, which its steps are made from. */
+  const factsRef = useRef<RecordingFact[]>([]);
+  /** Counts the times the steps were made, so an older answer never replaces a newer one. */
+  const madeRef = useRef(0);
 
   useEffect(() => {
     let live = true;
     const stops: (() => void)[] = [];
+    /**
+     * The steps as the draft will open with them (docs/spec/02-capture.md#recording-to-draft),
+     * made again from every fact so far: a step journalled late moves back to where it happened.
+     */
+    const settingsOf = (sessionId: string) => {
+      const known = settingsRef.current;
+      // A recording this panel is starting has no id yet: its settings are the ones it read.
+      if (known && (known.sessionId === sessionId || known.sessionId === null))
+        return known.settings;
+      const settings = readRecordingSettings();
+      settingsRef.current = { sessionId, settings };
+      return settings;
+    };
+    const showSteps = (sessionId: string) => {
+      const made = (madeRef.current += 1);
+      void recordingToDraft({
+        facts: factsRef.current,
+        saved: [],
+        live: [],
+        restart: null,
+        wording: wordingRef.current(sessionId),
+        settings: settingsOf(sessionId),
+        words: null,
+      }).then(({ steps: shown }) => {
+        if (live && made === madeRef.current)
+          setSteps(shown.map((step) => ({ id: step.id, text: step.actionText })));
+      });
+    };
     void recorder.onState((next) => live && setSnapshot(next)).then((stop) => stops.push(stop));
     void recorder
       .onFact((fact) => {
-        const step = toStep(fact);
-        if (live && step)
-          setSteps((current) => [...current.filter((each) => each.id !== step.id), step]);
+        const others = factsRef.current.filter(
+          (each) => each.sessionId === fact.sessionId && each.sequence !== fact.sequence,
+        );
+        factsRef.current = [...others, fact];
+        showSteps(fact.sessionId);
         const site = siteOf(fact);
         if (live && site) setLastSite(site);
       })
@@ -64,8 +108,20 @@ export function RecorderPanel({
       setSnapshot(current);
       // Steps recorded before the panel opened.
       if (current.sessionId && current.state !== "idle") {
-        const facts = await recorder.getRecoveryRecords(current.sessionId).catch(() => []);
-        if (live) setSteps(facts.map(toStep).filter((step) => step !== null));
+        const [facts, settings] = await Promise.all([
+          recorder.getRecoveryRecords(current.sessionId).catch(() => []),
+          recorder.getRecordingSettings(current.sessionId).catch(() => null),
+        ]);
+        if (settings) settingsRef.current = { sessionId: current.sessionId, settings };
+        if (settings?.wording) wordingRef.current.keep(current.sessionId, settings.wording);
+        const known = new Set(facts.map((fact) => fact.sequence));
+        factsRef.current = [
+          ...facts,
+          ...factsRef.current.filter(
+            (fact) => fact.sessionId === current.sessionId && !known.has(fact.sequence),
+          ),
+        ];
+        if (live) showSteps(current.sessionId);
       }
     });
     void recorder
@@ -104,16 +160,24 @@ export function RecorderPanel({
   };
 
   const start = () => {
+    factsRef.current = [];
+    madeRef.current += 1;
     setSteps([]);
     setLastSite(null);
     setExcludedNote(null);
-    void run(() =>
-      recorder.start(t("recorder.defaultTitle", { date: formatDate(new Date()) }), {
-        keys: keys && !keysBlocked,
-        output: false,
-        settleMs: 0,
-      }),
-    );
+    // Read once, here, and saved with the recording.
+    const settings = readRecordingSettings(i18n.language);
+    settingsRef.current = { sessionId: null, settings };
+    void run(async () => {
+      const started = await recorder.start(
+        t("recorder.defaultTitle", { date: formatDate(new Date()) }),
+        { keys: keys && !keysBlocked, output: false, settleMs: 0, settings },
+      );
+      if (started.sessionId) settingsRef.current = { sessionId: started.sessionId, settings };
+      if (started.sessionId && settings.wording)
+        wordingRef.current.keep(started.sessionId, settings.wording);
+      return started;
+    });
   };
 
   const excludeSite = (site: string) => {

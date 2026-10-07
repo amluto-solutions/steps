@@ -28,7 +28,6 @@
     "settings": "Beállítások",
     "guides": "Útmutatók",
     "recordingNow": "Felvétel folyamatban",
-    "saveFirst": "Előbb mentse vagy vesse el az előző felvételt",
     "needsReview": "Felülvizsgálandó"
   },
   "dates": {
@@ -258,8 +257,8 @@
     "drawing": "Előkészítés…",
     "checklist": "Ellenőrzőlista",
     "personalData": "Megosztás előtt ellenőrizze, hogy egyik képernyőképen sincs-e személyes adat. Az automatikus javaslatok nem találnak meg mindent.",
-    "flagged_one": "{{count}} lépést ellenőrizni kell: névtelen kattintás, kimaradt kattintások, esetleg eltérő gépelés vagy ellenőrizendő képernyőkép.",
-    "flagged_other": "{{count}} lépést ellenőrizni kell: névtelen kattintások, kimaradt kattintások, esetleg eltérő gépelés vagy ellenőrizendő képernyőképek.",
+    "flagged_one": "{{count}} lépést ellenőrizni kell: névtelen kattintás, képernyőképről leolvasott név, kimaradt kattintások, esetleg eltérő gépelés vagy ellenőrizendő képernyőkép.",
+    "flagged_other": "{{count}} lépést ellenőrizni kell: névtelen kattintások, képernyőképekről leolvasott nevek, kimaradt kattintások, esetleg eltérő gépelés vagy ellenőrizendő képernyőképek.",
     "noFlagged": "Egy lépés sincs ellenőrzésre megjelölve.",
     "stepNumber": "{{number}}. lépés",
     "quickEdit": {
@@ -502,6 +501,7 @@
     "reviewRequired": "Ellenőrizze ezt a lépést: a felvétel nem tudta megnevezni, mire kattintottak, néhány kattintás itt kimaradt, a gépelés talán nem pontos, vagy egy titkos adatot nem sikerült megtalálni a képernyőképen az elmosáshoz.",
     "review": {
       "unnamed": "Ellenőrizze ezt a lépést: a felvétel nem tudta megnevezni, mire kattintottak. Írja be, mi volt az, vagy válassza a Rendben van lehetőséget.",
+      "checkName": "Ellenőrizze ezt a nevet: a képernyőképről lett kiolvasva.",
       "missed": "Ellenőrizze ezt a lépést: néhány kattintás itt kimaradt.",
       "typing": "Ellenőrizze ezt a lépést: a gépelés talán nem pontos.",
       "code": "Ellenőrizze ezt a lépést: egy titkos adatot nem sikerült megtalálni a képernyőképen az elmosáshoz, vagy a szöveg talán nem pontos.",
@@ -791,6 +791,7 @@
       "managed": "Ezeket a beállításokat a szervezete kezeli, ezért az importálás ki van kapcsolva.",
       "tour": "Bemutató megjelenítése",
       "tourHelp": "Rövid bemutató a főablakról, legalább 1024 képpont széles ablakban.",
+      "tourNarrow": "Rövid bemutató a főablakról. Ez az ablak túl keskeny hozzá: tegye legalább 1024 képpont szélesre, és megjelenik a bemutató.",
       "tourStartAgain": "Újrakezdés",
       "tourContinue": "Bemutató folytatása ({{progress}})"
     },
@@ -1240,6 +1241,7 @@
   "privacy": {
     "intro": "A Steps ezen a számítógépen olvassa be a képernyőképek szövegét (a Windows saját, offline szövegfelismerésével), hogy javaslatot tegyen az elmosandó részekre. Semmit sem küld el sehová.",
     "introLinux": "A Steps ezen a számítógépen olvassa be a képernyőképek szövegét (a Tesseracttal, ha telepítve van), hogy javaslatot tegyen az elmosandó részekre. Semmit sem küld el sehová.",
+    "introPage": "A Steps beolvassa a rögzített oldalak szövegét úgy, ahogyan a böngésző megjeleníti, hogy javaslatot tegyen az elmosandó részekre. Semmit sem küld el sehová.",
     "strength": "Elmosási javaslatok",
     "strengths": {
       "light": "Könnyű",

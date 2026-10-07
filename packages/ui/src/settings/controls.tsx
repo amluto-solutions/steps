@@ -29,8 +29,8 @@ export function Row({
   managed?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-6 border-t border-panel py-3.5">
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-panel py-3.5">
+      <div className="flex min-w-60 flex-1 flex-col gap-0.5">
         <span id={id} className="text-sm font-semibold text-navy">
           {label}
         </span>

@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import type { ToastMessage } from "../components/Toast";
 import { errorCode, errorMessage } from "../errors";
-import type { RecorderBridge, UpdateChannel, UpdateInfo } from "../recorder-bridge";
+import type { UpdateChannel, UpdateInfo, Updates as UpdateSource } from "../bridge/updates";
 import { readAutoUpdates, saveAutoUpdates } from "../settings/preferences";
 import { useLatest } from "../useLatest";
 
@@ -70,7 +70,7 @@ const updatesItself = (channel: UpdateChannel | null) =>
  * Restart now installs it straight away.
  */
 export function useUpdates(
-  recorder: RecorderBridge | undefined,
+  recorder: UpdateSource | undefined,
   notify: (toast: Omit<ToastMessage, "id">) => void,
   showAbout: () => void,
 ): Updates {
@@ -89,19 +89,15 @@ export function useUpdates(
   useEffect(() => {
     if (!recorder) return undefined;
     let cancelled = false;
-    // Test and preview bridges may not have these: then this copy doesn't update.
+    // A copy that can't say where its updates come from doesn't update.
     void (async () => {
-      const answer = await Promise.resolve()
-        .then(() => recorder.updatesChannel())
-        .catch(() => null);
+      const answer = await recorder.updatesChannel().catch(() => null);
       if (cancelled) return;
       setChannel(answer ?? "none");
       if (!updatesItself(answer)) return;
       // A version downloaded earlier that hasn't installed yet (Restart now wasn't pressed and
       // the app hasn't restarted since).
-      const waiting = await Promise.resolve()
-        .then(() => recorder.pendingUpdate())
-        .catch(() => null);
+      const waiting = await recorder.pendingUpdate().catch(() => null);
       if (!cancelled && waiting) {
         setStatus({ kind: "ready", info: { version: waiting, notes: null, published: null } });
       }

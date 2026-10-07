@@ -25,15 +25,18 @@ pub struct ElementFacts {
     pub labeled_by: Option<String>,
     /// Physical pixels.
     pub bounds: Option<PxRect>,
-    /// Control type and name of the parent, for text nodes inside links and buttons.
-    pub parent: Option<ParentFacts>,
+    /// The element's parents, nearest first: up to four, stopping below the window or the web
+    /// page (`lookup::ancestors`). What they say about the click is decided in TypeScript
+    /// (docs/spec/02-capture.md#click-naming): a text or unnamed part of a named item is that item.
+    pub ancestors: Vec<AncestorFacts>,
     /// Matches the sensitive-field rules; its value is never read.
     pub sensitive: bool,
 }
 
+/// One of an element's parents.
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ParentFacts {
+pub struct AncestorFacts {
     pub control_type: String,
     pub name: String,
 }

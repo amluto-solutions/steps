@@ -18,5 +18,8 @@ export default defineConfig({
       "scripts/**/*.test.mjs",
     ],
     passWithNoTests: false,
+    // The export tests draw PDFs, Word files and web pages: well inside 5 s on their own, but the
+    // full run in parallel (or beside a release build) pushed two of them over (06/10/2026).
+    testTimeout: 20_000,
   },
 });

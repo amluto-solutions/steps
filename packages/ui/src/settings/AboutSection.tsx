@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { isBrowserEdition } from "../recorder-bridge";
 import { useTranslation } from "react-i18next";
 import { Icon } from "../components/icons";
 import { errorMessage } from "../errors";
@@ -31,6 +30,7 @@ function supportSettings(props: SettingsProps) {
 
 export function AboutSection(props: SettingsProps) {
   const { t } = useTranslation();
+  const capabilities = props.capabilities;
   const [bundle, setBundle] = useState<{ path: string; files: string[] } | null>(null);
   const [busy, setBusy] = useState(false);
   // The folder is opened once: "Write the email" doesn't open a second window after "Show the file".
@@ -80,8 +80,8 @@ export function AboutSection(props: SettingsProps) {
           {t("settings.about.sourceCode")}
         </button>
       </Row>
-      {/* The Chrome Web Store updates the extension; logs and support files are the desktop's. */}
-      {!isBrowserEdition(props.recorder) && (
+      {/* The Chrome Web Store updates the extension. */}
+      {capabilities.updates && (
         <>
           {props.updates && <UpdatesRow updates={props.updates} />}
           {/* Decided 30/09/2026: not in the Store edition for now. */}
@@ -90,6 +90,10 @@ export function AboutSection(props: SettingsProps) {
               <span />
             </Row>
           )}
+        </>
+      )}
+      {capabilities.support && (
+        <>
           <Row label={t("settings.about.logs")} help={t("settings.about.logsHelp")}>
             <button
               type="button"

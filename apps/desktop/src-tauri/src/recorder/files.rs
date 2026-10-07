@@ -7,6 +7,7 @@ use std::path::Path;
 
 use serde_json::{Value, json};
 
+use super::recording::RecordingSettings;
 use super::{CommandError, storage_error, unique_id};
 
 pub(super) fn write_marker(path: &Path) -> std::io::Result<()> {
@@ -22,6 +23,17 @@ pub(super) fn read_restart(directory: &Path) -> Option<u64> {
         .ok()?
         .get("afterSequence")
         .and_then(Value::as_u64)
+}
+
+/// The settings a recording started with, from its `session.json`; None for a recording made
+/// before they were kept there, or when they can't be read.
+pub(super) fn read_recording_settings(directory: &Path) -> Option<RecordingSettings> {
+    let bytes = fs::read(directory.join("session.json")).ok()?;
+    let settings = serde_json::from_slice::<Value>(&bytes)
+        .ok()?
+        .get("settings")?
+        .clone();
+    serde_json::from_value(settings).ok()
 }
 
 pub(super) fn write_restart(directory: &Path, after: Option<u64>) -> Result<(), CommandError> {

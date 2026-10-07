@@ -4,7 +4,9 @@ import { useTranslation } from "react-i18next";
 import type { ToastMessage } from "../components/Toast";
 import { errorCode, errorMessage } from "../errors";
 import type {
-  LibraryBridge,
+  Bin,
+  GuideFiles,
+  Libraries,
   LibraryGuideSummary,
   LibraryInfo,
   TrashEntry,
@@ -13,7 +15,7 @@ import type {
 
 /** The libraries, the one being shown, and its guides and Bin. */
 export function useLibraries(
-  library: LibraryBridge | undefined,
+  library: (Libraries & GuideFiles & Bin) | undefined,
   loadingAtStart: boolean,
   notify: (message: Omit<ToastMessage, "id">) => void,
 ) {

@@ -84,6 +84,7 @@ export async function openBridges() {
       text: textStore(textDb),
       target: (libraryId) => library.publishTarget(libraryId),
       files,
+      folders: canPickFolders(),
     }),
   };
 }

@@ -19,7 +19,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use capture_win32::display::{cursor_pos, enable_per_monitor_dpi_awareness};
-use capture_win32::inject::{left_click_at, press, type_keys, type_text};
+use capture_win32::inject::{left_click_at, move_to, press, type_keys, type_text};
 use serde::Deserialize;
 use uiautomation::patterns::{
     UIScrollItemPattern, UITransformPattern, UIValuePattern, UIWindowPattern,
@@ -40,6 +40,10 @@ struct PlanStep {
     text: Option<String>,
     /// Visible text, for elements Chrome exposes without an automation id (plain paragraphs).
     name: Option<String>,
+    /// How long the pointer rests on the target before the click, as a hand's does (the overlay
+    /// page: Steps asks Chrome about a resting pointer).
+    #[serde(rename = "hoverMs")]
+    hover_ms: Option<u64>,
 }
 
 fn arg(args: &[String], flag: &str) -> Option<String> {
@@ -196,6 +200,10 @@ fn fixture(args: &[String]) -> Result<(), String> {
     for (index, step) in plan.steps.iter().enumerate() {
         let element = locate(&automation, &window, step)?;
         let (x, y) = centre(&element)?;
+        if let Some(hover) = step.hover_ms {
+            move_to(x, y).map_err(|e| e.to_string())?;
+            std::thread::sleep(Duration::from_millis(hover));
+        }
         left_click_at(x, y).map_err(|e| e.to_string())?;
         driven.push(serde_json::json!({ "target": step.target, "x": x, "y": y }));
         let _ = std::fs::write(
@@ -305,7 +313,8 @@ fn place(args: &[String]) -> Result<(), String> {
         return Err("place needs --x and --y".into());
     };
     let automation = UIAutomation::new().map_err(|e| e.to_string())?;
-    let (window, _) = wait_for(&automation, &title, "done")?;
+    // Every test page has its plan box; it is there once the page has loaded.
+    let (window, _) = wait_for(&automation, &title, "amluto-plan")?;
     let transform = window
         .get_pattern::<UITransformPattern>()
         .map_err(|e| format!("the fixture window can't be moved: {e}"))?;
@@ -324,7 +333,8 @@ fn tap(args: &[String]) -> Result<(), String> {
     let title = arg(args, "--title").unwrap_or_else(|| "Amluto Steps parity fixture".into());
     let ids = arg(args, "--ids").unwrap_or_else(|| "btn-save|btn-settings|link-pricing".into());
     let automation = UIAutomation::new().map_err(|e| e.to_string())?;
-    let (window, _) = wait_for(&automation, &title, "done")?;
+    // Every test page has its plan box; it is there once the page has loaded.
+    let (window, _) = wait_for(&automation, &title, "amluto-plan")?;
     let _ = window.set_focus();
     std::thread::sleep(Duration::from_millis(500));
     for id in ids.split('|') {
@@ -485,12 +495,17 @@ fn name_at(args: &[String]) -> Result<(), String> {
             let started = std::time::Instant::now();
             client.request(id, x, y, hwnd);
             match client.wait(id, started, started + Duration::from_millis(2000)) {
-                capture::uia::Lookup::Found { facts, .. } => println!(
-                    "({x},{y}): {} \"{}\" (class {}, parent {:?})",
+                capture::uia::Lookup::Found { facts, ms, .. } => println!(
+                    "({x},{y}) {ms:.0} ms: {} \"{}\" at {:?} (class {}, parents {:?})",
                     facts.control_type,
                     facts.name,
+                    facts.bounds,
                     facts.class_name,
-                    facts.parent.as_ref().map(|parent| parent.name.clone())
+                    facts
+                        .ancestors
+                        .iter()
+                        .map(|parent| parent.name.as_str())
+                        .collect::<Vec<_>>()
                 ),
                 other => println!("({x},{y}): {other:?}"),
             }
@@ -516,16 +531,69 @@ fn name_at(args: &[String]) -> Result<(), String> {
         client.request(id, x, y, hwnd);
         match client.wait(id, started, started + Duration::from_millis(2000)) {
             capture::uia::Lookup::Found { facts, .. } => println!(
-                "{name}: found {} \"{}\" (class {}, parent {:?})",
+                "{name}: found {} \"{}\" (class {}, parents {:?})",
                 facts.control_type,
                 facts.name,
                 facts.class_name,
-                facts.parent.as_ref().map(|parent| parent.name.clone())
+                facts
+                    .ancestors
+                    .iter()
+                    .map(|parent| parent.name.as_str())
+                    .collect::<Vec<_>>()
             ),
             other => println!("{name}: {other:?}"),
         }
     }
     Ok(())
+}
+
+/// `raw-at --x X --y Y`: Windows' own hit test at a point, timed, and each parent above what it
+/// finds, with how long listing that parent's children takes.
+fn raw_at(args: &[String]) -> Result<(), String> {
+    let automation = UIAutomation::new().map_err(|e| e.to_string());
+    automation.and_then(|automation| {
+        let x: i32 = arg(args, "--x").and_then(|v| v.parse().ok()).unwrap_or(0);
+        let y: i32 = arg(args, "--y").and_then(|v| v.parse().ok()).unwrap_or(0);
+        let started = std::time::Instant::now();
+        match automation.element_from_point(uiautomation::types::Point::new(x, y)) {
+            Ok(element) => {
+                let hit = started.elapsed();
+                println!("hit bounds {:?}", element.get_bounding_rectangle());
+                println!(
+                    "plain: name={:?} type={:?} class={:?} ({hit:?} to find, {:?} with its properties)",
+                    element.get_name(),
+                    element.get_control_type(),
+                    element.get_classname(),
+                    started.elapsed()
+                );
+                // Each step up to the window, timed: a slow app's lookups (an Excel
+                // workbook with a table, 07/10/2026) show where the time goes.
+                let walker = automation.get_control_view_walker().map_err(|e| e.to_string())?;
+                let mut current = element;
+                for _ in 0..6 {
+                    let step = std::time::Instant::now();
+                    let Ok(parent) = walker.get_parent(&current) else { break };
+                    let took = step.elapsed();
+                    let listing = std::time::Instant::now();
+                    let children = automation
+                        .get_control_view_condition()
+                        .and_then(|condition| {
+                            parent.find_all(uiautomation::types::TreeScope::Children, &condition)
+                        })
+                        .map(|children| children.len());
+                    println!(
+                        "  parent {:?} {:?} ({took:?}); children {children:?} listed in {:?}",
+                        parent.get_control_type(),
+                        parent.get_name(),
+                        listing.elapsed()
+                    );
+                    current = parent;
+                }
+                Ok(())
+            }
+            Err(error) => Err(format!("plain failed: {error}")),
+        }
+    })
 }
 
 pub fn main() {
@@ -600,25 +668,7 @@ pub fn main() {
                 Ok(())
             })
         }
-        Some("raw-at") => {
-            let automation = UIAutomation::new().map_err(|e| e.to_string());
-            automation.and_then(|automation| {
-                let x: i32 = arg(&args, "--x").and_then(|v| v.parse().ok()).unwrap_or(0);
-                let y: i32 = arg(&args, "--y").and_then(|v| v.parse().ok()).unwrap_or(0);
-                match automation.element_from_point(uiautomation::types::Point::new(x, y)) {
-                    Ok(element) => {
-                        println!(
-                            "plain: name={:?} type={:?} class={:?}",
-                            element.get_name(),
-                            element.get_control_type(),
-                            element.get_classname()
-                        );
-                        Ok(())
-                    }
-                    Err(error) => Err(format!("plain failed: {error}")),
-                }
-            })
-        }
+        Some("raw-at") => raw_at(&args),
         Some("tap") => tap(&args),
         _ => Err("usage: drive fixture --out DIR [--title T] [--delay-ms N] | drive burst [--count N] | drive close".into()),
     };

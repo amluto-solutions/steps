@@ -32,6 +32,16 @@ export interface UiaElementFacts {
   frameworkId: string;
   isPassword: boolean;
   labeledBy: string | null;
-  parent: { controlType: string; name: string } | null;
+  /**
+   * The element's parents, nearest first: up to four, stopping below the window or the web page
+   * (docs/spec/02-capture.md#click-naming). A recording made before 06/10/2026 kept one.
+   */
+  ancestors: readonly UiaAncestor[];
   sensitive: boolean;
+}
+
+/** One of an element's parents, as UI Automation or AT-SPI named it. */
+export interface UiaAncestor {
+  controlType: string;
+  name: string;
 }

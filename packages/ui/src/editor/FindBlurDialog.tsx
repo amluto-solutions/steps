@@ -1,17 +1,19 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { Finding, GuideStep, OcrLine } from "@amluto-steps/core";
+import type { Finding, GuideStep } from "@amluto-steps/core";
 
 import { Icon } from "../components/icons";
+import type { ScreenWords } from "../screen-words";
 import { ModalDialog } from "../ModalDialog";
+import { readFindingSettings } from "../settings/preferences";
 import { describeFindings, findOpenInGuide } from "./suggestions";
 
 interface FindBlurDialogProps {
   steps: GuideStep[];
   numbers: Map<string, number>;
   terms: string[];
-  /** OCR for one step's screenshot (cached, so a second search is quick). */
-  linesFor: (step: GuideStep) => Promise<OcrLine[]>;
+  /** The screenshots' words (kept once read, so a second search is quick). */
+  words: ScreenWords;
   onBlur: (found: { stepId: string; findings: Finding[] }[]) => void;
   /** Steps whose wording, notes or block text contain the term (searched alongside images). */
   textMatches: (term: string) => GuideStep[];
@@ -43,8 +45,9 @@ export function FindBlurDialog(props: FindBlurDialogProps) {
     // With a word, only that word; with the box empty, every open finding.
     const { found, unread: failed } = await findOpenInGuide(
       props.steps,
-      props.linesFor,
+      props.words,
       term ? [term] : props.terms,
+      readFindingSettings(),
       (done, total) => setSearching({ done, total }),
     );
     const results = term

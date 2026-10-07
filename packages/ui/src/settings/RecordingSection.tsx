@@ -1,7 +1,6 @@
 import { TONES, siteName, type Tone } from "@amluto-steps/core";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { isBrowserEdition, isLinux } from "../recorder-bridge";
 import { isLocked, policy } from "./policy";
 import {
   OUTPUT_SETTLE,
@@ -23,14 +22,15 @@ import type { SettingsProps } from "./settings-props";
 export function RecordingSection(props: SettingsProps) {
   const { t } = useTranslation();
   const { choices } = props;
-  const linux = isLinux(props.recorder);
+  const capabilities = props.capabilities;
+  const plain = capabilities.programNames === "plain";
   const addApp = (text: string) => {
     const name = text.trim();
     // Windows programs are named with .exe (added if left off); Linux programs without one.
-    const exe = linux || /\.exe$/i.test(name) ? name : `${name}.exe`;
-    if (!(linux ? linuxProgramName : exeName).test(exe)) {
+    const exe = plain || /\.exe$/i.test(name) ? name : `${name}.exe`;
+    if (!(plain ? linuxProgramName : exeName).test(exe)) {
       props.notify({
-        text: t(linux ? "settings.recording.appInvalidLinux" : "settings.recording.appInvalid"),
+        text: t(plain ? "settings.recording.appInvalidLinux" : "settings.recording.appInvalid"),
       });
       return false;
     }
@@ -38,7 +38,7 @@ export function RecordingSection(props: SettingsProps) {
       props.onChoices({ ...choices, excludedApps: [...choices.excludedApps, exe] });
     return true;
   };
-  if (isBrowserEdition(props.recorder)) return <BrowserRecording {...props} />;
+  if (capabilities.records === "pages") return <BrowserRecording {...props} />;
   return (
     <>
       <h2 className="mb-1 font-heading text-xl text-navy">{t("settings.sections.recording")}</h2>
@@ -86,7 +86,7 @@ export function RecordingSection(props: SettingsProps) {
         </select>
       </Row>
       {/* X11 can't leave a window out of screenshots. */}
-      {!linux && (
+      {capabilities.hideBar && (
         <Row
           label={t("settings.recording.hideBar")}
           help={t("settings.recording.hideBarHelp")}
@@ -162,9 +162,9 @@ export function RecordingSection(props: SettingsProps) {
             excludedApps: choices.excludedApps.filter((item) => item !== app),
           })
         }
-        inputLabel={t(linux ? "settings.recording.appNameLinux" : "settings.recording.appName")}
+        inputLabel={t(plain ? "settings.recording.appNameLinux" : "settings.recording.appName")}
         placeholder={t(
-          linux ? "settings.recording.appPlaceholderLinux" : "settings.recording.appPlaceholder",
+          plain ? "settings.recording.appPlaceholderLinux" : "settings.recording.appPlaceholder",
         )}
         addLabel={t("settings.recording.addApp")}
         canAdd={(text) => text.trim().length > 0}
@@ -173,7 +173,7 @@ export function RecordingSection(props: SettingsProps) {
         inputClassName="w-36"
       />
       {/* Linux has one way of detecting clicks. */}
-      {!linux && (
+      {capabilities.inputSources && (
         <details className="border-t border-panel py-3">
           <summary className="cursor-pointer text-sm font-semibold text-secondary">
             {t("settings.recording.troubleshooting")}
@@ -337,7 +337,7 @@ function TypedDefaults(props: SettingsProps) {
   const outputManaged = policy().includeOutputByDefault !== null;
   const unnamedManaged = policy().showUnnamedTyping !== null;
   // Steps for Chrome has no terminals, so no command output.
-  const output = !isBrowserEdition(props.recorder);
+  const output = props.capabilities.commandOutput;
   return (
     <>
       <Row

@@ -2,15 +2,17 @@ import {
   CODE_LANGUAGES,
   asRightClick,
   CODE_LANGUAGE_LABELS,
+  clickPhrase,
   compareSortKeys,
-  describeClick,
   describeCode,
   describeCommand,
   describeFormula,
   describeInput,
   keyBetween,
   keyCombo,
+  nameClick,
   phraseFor,
+  readableFacts,
   renderPhrase,
   taskbarAppName,
   uiaToStepTarget,
@@ -29,9 +31,9 @@ import type {
   StepTarget,
   StepWording,
   RecordingFact,
+  RecordingSettings,
   TypingFact,
 } from "@amluto-steps/core";
-import { readShowUnnamedTyping } from "./settings/preferences";
 
 export { taskbarAppName };
 
@@ -179,7 +181,12 @@ function commandStep(fact: RecordingFact, record: CommandFact, wording: StepWord
  * in an Excel cell, or text anywhere else, which reads like a field's value and has the same
  * Show typed value and Remove value.
  */
-function typingStep(fact: RecordingFact, record: TypingFact, wording: StepWording): RecordedStep {
+function typingStep(
+  fact: RecordingFact,
+  record: TypingFact,
+  wording: StepWording,
+  settings: RecordingSettings,
+): RecordedStep {
   const review = record.checkScreenshot || record.approximate;
   if (record.form === "formula" || record.form === "code") {
     const formula = record.form === "formula";
@@ -212,7 +219,7 @@ function typingStep(fact: RecordingFact, record: TypingFact, wording: StepWordin
   const label = record.cell ?? (record.element?.labeledBy || record.element?.name || "");
   // Typing into something unnamed keeps its text out of the wording unless chosen (A1): the value
   // is still kept, and can be shown step by step.
-  const shown = Boolean(label) || readShowUnnamedTyping();
+  const shown = Boolean(label) || settings.showUnnamedTyping;
   const actionText = say(
     phraseFor(
       "input",
@@ -267,46 +274,31 @@ const pageName = (target: StepTarget | null, title: string) =>
   title;
 
 function clickStep(fact: RecordingFact, record: ClickFact, wording: StepWording): RecordedStep {
-  const element = record.element;
-  const onTaskbar =
-    record.window.shell === true &&
-    record.window.exe?.toLowerCase() === "explorer.exe" &&
-    element?.controlType === "Button" &&
-    element.name.trim() !== "";
+  // A framework's name for the element is no name, here as in its naming.
+  const element = record.element && readableFacts(record.element);
   // In Chrome or Edge, what the page itself said the element was, when it named it
   // (docs/spec/02-capture.md#steps-for-chrome-and-the-desktop-together).
   const page = record.page ? { ...record.page.target } : null;
+  const naming = nameClick({ element, window: record.window, page });
   // A right-click says so (04/10/2026), or a context menu's choice seems to come from nowhere.
   const right = record.button === "right";
-  const button = (phrase: Phrase) => (right ? asRightClick(phrase) : phrase);
-  const pagePhrase = page ? phraseFor("click", page) : undefined;
-  const pageText = pagePhrase && say(button(pagePhrase), wording);
-  const description =
-    pageText !== undefined
-      ? { text: pageText, unnamed: false }
-      : onTaskbar
-        ? {
-            text: say(button({ key: "clickTaskbar", name: taskbarAppName(element.name) }), wording),
-            unnamed: false,
-          }
-        : describeClick(element, record.window.title, wording, right);
-  const target = pageText !== undefined ? page : element ? uiaToStepTarget(element) : null;
+  const phrase = clickPhrase(naming);
+  const fromPage = naming.source === "page";
   const step = baseStep(
     fact,
     "click",
-    description.text,
-    target,
-    pageText !== undefined
-      ? pageName(page, record.window.title)
-      : element?.name || record.window.title || "",
-    // A taskbar button is marked as one, so its wording can be worked out again.
-    pageText !== undefined
+    say(right ? asRightClick(phrase) : phrase, wording),
+    fromPage ? page : element ? uiaToStepTarget(element) : null,
+    fromPage ? pageName(page, record.window.title) : element?.name || record.window.title || "",
+    // A taskbar button is marked as one, so 1.0.0 can work its wording out again.
+    fromPage
       ? page?.tagName?.toLowerCase() || "page"
-      : onTaskbar
+      : naming.source === "taskbar"
         ? "taskbar"
         : element?.controlType.toLowerCase() || "window",
-    description.unnamed,
+    naming.needsReview,
   );
+  step.naming = naming;
   step.context = { app: record.window.exe, windowTitle: record.window.title };
   if (right) step.textParts.verb = "rightClick";
   step.media = mediaOf(record.capture);
@@ -381,8 +373,9 @@ export function applyDrags(
 }
 
 /**
- * A click in a web page (the Chrome edition): worded from the page's own facts about the element,
- * by the same rules as the desktop's, and "Click in" the page when nothing names it.
+ * A click in a web page (the Chrome edition): named by the naming module from the page's own facts
+ * about the element, the same evidence the desktop gets through the extension link, with the tab's
+ * title for its window; "Click in" the page, flagged, when nothing names it.
  */
 function pageClickStep(
   fact: RecordingFact,
@@ -390,19 +383,18 @@ function pageClickStep(
   wording: StepWording,
 ): RecordedStep {
   const target = record.target ? { ...record.target } : null;
-  const phrase = target ? phraseFor("click", target) : undefined;
-  const named = phrase && say(phrase, wording);
   const title = record.page.title.trim();
-  const text = named ?? say(title ? { key: "clickIn", title } : { key: "clickBare" }, wording);
+  const naming = nameClick({ element: null, window: { title, exe: null }, page: target });
   const step = baseStep(
     fact,
     "click",
-    text,
+    say(clickPhrase(naming), wording),
     target,
     pageName(target, title),
     target?.tagName?.toLowerCase() || "page",
-    named === undefined,
+    naming.needsReview,
   );
+  step.naming = naming;
   step.context = { app: null, windowTitle: record.page.title };
   const { capture } = record;
   step.media = capture.image
@@ -441,10 +433,15 @@ function pageInputStep(
 /**
  * A recorded fact as a guide step, its text cut to the step format's limits
  * (packages/core/src/guide.ts): a very long typed value, field name or window title must never
- * make a whole recording fail to open.
+ * make a whole recording fail to open. `settings` are the recording's own, saved when it started:
+ * never what Settings says now, so its live steps and a rebuild from its journal agree.
  */
-export function factToStep(fact: RecordingFact, wording: StepWording): RecordedStep | null {
-  const step = buildStep(fact, wording);
+export function factToStep(
+  fact: RecordingFact,
+  wording: StepWording,
+  settings: RecordingSettings,
+): RecordedStep | null {
+  const step = buildStep(fact, wording, settings);
   return step && fitToFormat(step);
 }
 
@@ -655,7 +652,11 @@ function fitToFormat(step: RecordedStep): RecordedStep {
   };
 }
 
-function buildStep(fact: RecordingFact, wording: StepWording): RecordedStep | null {
+function buildStep(
+  fact: RecordingFact,
+  wording: StepWording,
+  settings: RecordingSettings,
+): RecordedStep | null {
   const record = fact.record;
   if (record.kind === "pageClick") return pageClickStep(fact, record, wording);
   if (record.kind === "pageInput") return pageInputStep(fact, record, wording);
@@ -719,7 +720,7 @@ function buildStep(fact: RecordingFact, wording: StepWording): RecordedStep | nu
   }
   if (record.kind === "navigation") return navigationStep(fact, record, wording);
   if (record.kind === "command") return commandStep(fact, record, wording);
-  if (record.kind === "typing") return typingStep(fact, record, wording);
+  if (record.kind === "typing") return typingStep(fact, record, wording, settings);
   if (record.kind === "keys") return keysStep(fact, record, wording);
   if (record.kind === "manual" && record.purpose === "captureNow") {
     const targetName = record.window.title || record.window.exe || "";

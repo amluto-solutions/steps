@@ -11,7 +11,10 @@ import type {
   DraftInfo,
   EditLock,
   GuideConflict,
-  LibraryBridge,
+  Comments,
+  GuideCopies,
+  GuideFiles,
+  SharedEditing,
   LibraryGuideSummary,
   ReviewComment,
 } from "../library-bridge";
@@ -21,7 +24,7 @@ import { CommentsPanel } from "./CommentsPanel";
 import { TakeOverDialog } from "./dialogs";
 import { toDoc } from "./documents";
 import { useFingerprintWatch } from "./useLibraryWatch";
-import { askUnlock, useGuideLocks, useLockedBy } from "../library/LockDialogs";
+import { useGuideLocks, useLockedBy } from "../library/LockDialogs";
 
 /** How often a read-only guide asks whether the other person is done. */
 const CHECK_EVERY_MS = 30_000;
@@ -53,11 +56,14 @@ const guideOf = (value: unknown) => {
 const conflictKey = (conflict: GuideConflict) =>
   conflict.kind === "restored" ? conflict.id : conflict.file;
 
+/** The parts of a library a guide's editor uses: the guide, its edit lock, comments and copies. */
+type EditorLibrary = GuideFiles & SharedEditing & Comments & GuideCopies;
+
 export interface LibraryGuideEditorProps extends Omit<
   GuideEditorProps,
   "initial" | "readOnly" | "banner" | "onRefused" | "onLockLost" | "headerActions" | "sidePanel"
 > {
-  library: LibraryBridge;
+  library: EditorLibrary;
   libraryId: string;
   initial: EditorDoc;
   /** Opens another guide (a draft opened as a copy). */
@@ -121,8 +127,8 @@ export function LibraryGuideEditor(props: LibraryGuideEditorProps) {
 
   /** Locked with a password and not unlocked here: who locked it, else null. */
   const passwordLock = useCallback(async () => {
-    if (!locks || locks.isOpen(libraryId, guideId)) return null;
-    return (await locks.lockOf(libraryId, guideId).catch(() => null))?.locked ?? null;
+    if (!locks || locks.isOpen({ libraryId, guideId })) return null;
+    return (await locks.lockOf({ libraryId, guideId }).catch(() => null))?.locked ?? null;
   }, [locks, libraryId, guideId]);
 
   // Open: take the lock or learn who has it; let go of it when the editor closes. A guide locked
@@ -205,9 +211,10 @@ export function LibraryGuideEditor(props: LibraryGuideEditorProps) {
   );
 
   /** Unlock to edit: the password, then the edit lock as usual. */
-  const unlockToEdit = async (locked: { by: string; at: string }) => {
-    const opened = await askUnlock(
-      { libraryId, guideId, title: doc.guide.title, locked },
+  const unlockToEdit = async () => {
+    if (!locks) return;
+    const opened = await locks.unlockToEdit(
+      { libraryId, guideId, title: doc.guide.title },
       t("locks.unlockButton"),
     );
     if (!opened) return;
@@ -437,7 +444,7 @@ export function LibraryGuideEditor(props: LibraryGuideEditorProps) {
           <span className="flex-1">
             {t("locks.editorBanner", { lockedBy: lockedBy(lock.locked) })}
           </span>
-          <button type="button" className="btn" onClick={() => void unlockToEdit(lock.locked)}>
+          <button type="button" className="btn" onClick={() => void unlockToEdit()}>
             {t("locks.unlockToEdit")}
           </button>
           <button type="button" className="btn" onClick={() => void duplicateToEdit()}>
@@ -545,7 +552,7 @@ export function AnyGuideEditor({
   onOpenGuide,
   ...props
 }: GuideEditorProps & {
-  library: LibraryBridge | undefined;
+  library: EditorLibrary | undefined;
   libraryId: string | undefined;
   onOpenGuide: (summary: LibraryGuideSummary) => void;
 }) {

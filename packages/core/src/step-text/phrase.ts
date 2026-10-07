@@ -1,4 +1,3 @@
-import type { CodeLanguage } from "../code.ts";
 import { localKeys, shortcutOf, type Shortcut } from "../key-names.ts";
 import { DEFAULT_LANGUAGE } from "../languages.ts";
 import { PHRASEBOOKS } from "./phrasebooks/index.ts";
@@ -33,21 +32,23 @@ export const ENGLISH: StepWording = { language: DEFAULT_LANGUAGE, tone: DEFAULT_
  * box named by its label (worded "… field" even in the casual tone); `namedField` one named by an
  * explicit accessible name, which the casual tone words as a plain name.
  */
-export type ElementKind =
-  | "button"
-  | "link"
-  | "menuItem"
-  | "tab"
-  | "field"
-  | "namedField"
-  | "textArea"
-  | "checkbox"
-  | "radio"
-  | "dropdown"
-  | "switch"
-  | "picture"
-  | "listItem"
-  | "other";
+export const ELEMENT_KINDS = [
+  "button",
+  "link",
+  "menuItem",
+  "tab",
+  "field",
+  "namedField",
+  "textArea",
+  "checkbox",
+  "radio",
+  "dropdown",
+  "switch",
+  "picture",
+  "listItem",
+  "other",
+] as const;
+export type ElementKind = (typeof ELEMENT_KINDS)[number];
 
 /** The terminals a command's wording names; other languages run "in the terminal". */
 export type Terminal = "powershell" | "cmd" | "bash";
@@ -428,85 +429,4 @@ export function asRightClick(phrase: Phrase): Phrase {
     default:
       return phrase;
   }
-}
-
-/** What a stored step needs for its phrase to be worked out again. */
-export interface PhraseFacts {
-  kind: string;
-  action: string;
-  actionText: string;
-  textParts: { verb: string; target: string; kind: string; value?: string | undefined };
-  showValue: boolean;
-  context: { windowTitle: string };
-  target: unknown;
-  code?: { language: CodeLanguage } | null | undefined;
-}
-
-const TERMINALS = new Set<string>(["powershell", "cmd", "bash"]);
-
-const isTarget = (value: unknown): value is StepTarget =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
-const firstNumber = (text: string) => Number(/\d+/.exec(text)?.[0] ?? "0");
-
-/**
- * The phrase a recorded step says, worked out again from what it stores, for rewording it in
- * another tone or language; null for a step that can't be (a block, a step written by hand, or
- * one too old to say). Its own words aren't looked at, except to recover what older recordings
- * didn't store (a taskbar click, a count).
- */
-export function phraseOfStep(step: PhraseFacts): Phrase | null {
-  if (step.kind === "block") return null;
-  const parts = step.textParts;
-  const target = isTarget(step.target) ? step.target : null;
-  const title = step.context.windowTitle.replace(/\s+/g, " ").trim();
-  switch (step.action) {
-    case "click": {
-      if (parts.verb === "selectRange") return { key: "selectRange", range: parts.target };
-      const right = parts.verb === "rightClick" ? asRightClick : (phrase: Phrase) => phrase;
-      if (parts.kind === "taskbar" || step.actionText.endsWith(" on the taskbar"))
-        return right({ key: "clickTaskbar", name: taskbarAppName(parts.target) });
-      // A click that only reached the window is named by the window, not as if it were a control.
-      const named =
-        parts.kind === "window" ? undefined : phraseFor("click", target, null, null, parts.kind);
-      return right(named ?? (title ? { key: "clickIn", title } : { key: "clickBare" }));
-    }
-    case "input": {
-      const value = step.showValue ? parts.value : undefined;
-      if (target && Object.keys(target).length > 0)
-        return phraseFor("input", { ...target, value }) ?? { key: "type" };
-      return value ? { key: "typeValue", value } : { key: "type" };
-    }
-    case "keypress":
-      return parts.target ? { key: "press", keys: parts.target } : null;
-    case "navigation":
-      return parts.target ? { key: "goTo", site: parts.target } : null;
-    case "appswitch":
-      return parts.target ? { key: "open", app: parts.target } : null;
-    case "command": {
-      const language = step.code?.language ?? "";
-      return { key: "runIn", terminal: TERMINALS.has(language) ? (language as Terminal) : null };
-    }
-    case "formula":
-      return parts.target.trim()
-        ? { key: "formulaInCell", cell: parts.target.trim() }
-        : { key: "formulaInSelected" };
-    case "code":
-      return { key: "code" };
-    case "manual":
-      if (parts.target === "missed" && parts.kind === "warning")
-        return { key: "missed", count: Number(parts.value) || firstNumber(step.actionText) };
-      if (parts.target === "touch" && parts.kind === "warning")
-        return { key: "touch", count: Number(parts.value) || firstNumber(step.actionText) };
-      if (parts.kind === "screenshot") return { key: "captureNow" };
-      return null;
-    default:
-      return null;
-  }
-}
-
-/** A stored step's words in `language` and `tone`, or null when they can't be worked out again. */
-export function wordStepIn(step: PhraseFacts, language: string, tone: Tone): string | null {
-  const phrase = phraseOfStep(step);
-  return phrase ? renderPhrase(phrase, language, tone) : null;
 }
