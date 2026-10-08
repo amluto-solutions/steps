@@ -74,6 +74,11 @@ export interface PublishTarget {
   recordingOf(guideId: string): Promise<string | null>;
   /** Writes the whole guide, or nothing. */
   publish(guideId: string, guide: Json, steps: Json[], media: NewMedia[]): Promise<void>;
+  /**
+   * Adds pictures to a guide that's already there: a recording made into it while it's open
+   * (docs/spec/04-editor.md#record-steps-here). Never over one it has; all of them, or none.
+   */
+  addMedia(guideId: string, media: NewMedia[]): Promise<void>;
 }
 
 /** The browser's own library, as a place to publish into. */
@@ -89,6 +94,22 @@ export const browserTarget = (db: LibraryDb): PublishTarget => ({
       await tx.objectStore("steps").put({ guideId, id: text(step, "id"), step });
     for (const item of media)
       await tx.objectStore("media").put({ ...item, guideId, thumbnail: null });
+    await tx.done;
+  },
+  async addMedia(guideId, media) {
+    const tx = db.transaction(["guides", "media"], "readwrite");
+    try {
+      if (!(await tx.objectStore("guides").get(guideId))) throw errors.guideNotFound();
+      for (const item of media) {
+        const id = checkId(item.id, "image");
+        // `add` refuses a key that's there, which aborts the whole transaction.
+        await tx.objectStore("media").add({ ...item, id, guideId, thumbnail: null });
+      }
+    } catch (error) {
+      // A refused `add` has aborted it already; nothing is left half-written either way.
+      await tx.done.catch(() => undefined);
+      throw error;
+    }
     await tx.done;
   },
 });

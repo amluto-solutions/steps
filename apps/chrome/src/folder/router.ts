@@ -692,6 +692,9 @@ export function createLibraryRouter(options: RouterOptions): LibraryRouter {
       return {
         recordingOf: (guideId) => library.recordingOf(guideId),
         publish: (guideId, guide, steps, media) => library.publish(guideId, guide, steps, media),
+        // Into a guide open for editing: only while this page holds its edit lock.
+        addMedia: (guideId, media) =>
+          writing(id, guideId, (folder) => folder.addMedia(guideId, media)),
       };
     },
 

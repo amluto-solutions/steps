@@ -315,17 +315,21 @@ const record = z.discriminatedUnion("kind", [
     capture: click.shape.capture.optional(),
   }),
   z.object({ kind: z.literal("double"), of: z.number(), tickMs: z.number() }),
-  // Cells selected by dragging (04/10/2026): it replaces the click `of`.
+  // Cells selected by dragging (04/10/2026), or filled with Excel's fill handle (08/10/2026): it
+  // replaces the click `of`. A fill has no `to` when its handle was double-clicked (down the
+  // column) or dragged to where no cell was found.
   z.object({
     kind: z.literal("drag"),
     id: z.number(),
     of: z.number(),
     tickMs: z.number(),
     from: z.string().max(40),
-    to: z.string().max(40),
+    to: z.string().max(40).nullable(),
+    fill: z.enum(["drag", "double"]).optional(),
     window: windowFacts,
     capture: click.shape.capture.nullable(),
     selectionPct: click.shape.elementPct,
+    handlePct: click.shape.clickPct.optional(),
   }),
   z.object({ kind: z.literal("missed"), count: z.number(), afterId: z.number() }),
   z.object({ kind: z.literal("touch"), count: z.number(), tickMs: z.number() }),

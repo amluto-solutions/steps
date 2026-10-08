@@ -15,7 +15,7 @@ use crate::error::Result;
 use crate::guides::Library;
 use crate::util::{now_iso, write_atomic};
 
-const LOCK_FILE: &str = ".lock";
+pub(crate) const LOCK_FILE: &str = ".lock";
 
 /// Who is editing a guide.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

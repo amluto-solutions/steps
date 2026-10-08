@@ -327,8 +327,35 @@ function navigationStep(
   return step;
 }
 
+/**
+ * Excel's fill handle (08/10/2026): `Fill "H8" down to "H250"`, the cells filled boxed, or with
+ * no end cell, `Fill "H8" down the column`, its handle ringed. A drag whose end no cell was found
+ * under asks to be checked; a double-click has no end cell to find.
+ */
+function fillStep(fact: RecordingFact, record: DragFact, wording: StepWording): RecordedStep {
+  const range = record.to === null ? record.from : `${record.from}:${record.to}`;
+  const step = baseStep(
+    fact,
+    "click",
+    say({ key: "fill", from: record.from, to: record.to }, wording),
+    { tagName: "TD", role: "gridcell", labelText: range },
+    range,
+    "cells",
+    record.to === null && record.fill === "drag",
+  );
+  step.textParts.verb = "fill";
+  step.context = { app: record.window.exe, windowTitle: record.window.title };
+  const { capture } = record;
+  if (capture?.image) step.media = mediaOf(capture);
+  if (record.selectionPct) step.highlight = fieldHighlight(record.selectionPct);
+  else if (record.handlePct && capture)
+    step.highlight = clickHighlight(record.handlePct, capture.width, capture.height);
+  return step;
+}
+
 /** Cells selected by dragging (04/10/2026): "Select "D38:F42"", the selection boxed. */
 function dragStep(fact: RecordingFact, record: DragFact, wording: StepWording): RecordedStep {
+  if (record.fill || record.to === null) return fillStep(fact, record, wording);
   const range = `${record.from}:${record.to}`;
   const step = baseStep(
     fact,
@@ -347,7 +374,7 @@ function dragStep(fact: RecordingFact, record: DragFact, wording: StepWording): 
 
 /**
  * A drag replaces the click it began with: the drag's step takes the click's place, and the
- * click's step goes (04/10/2026).
+ * click's step goes (04/10/2026). So does a fill, dragged or double-clicked (08/10/2026).
  */
 export function applyDrags(
   steps: readonly RecordedStep[],

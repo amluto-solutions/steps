@@ -9,6 +9,8 @@ import {
   type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
+import { useTranslation } from "react-i18next";
+import { localKeys } from "@amluto-steps/core";
 
 import { Icon, type IconName } from "./icons";
 
@@ -17,8 +19,13 @@ export interface MenuItem {
   /** A second, quieter line under the label. */
   note?: string;
   icon?: IconName;
-  /** Shown at the right, e.g. a shortcut or a file-type badge. */
+  /** Shown at the right, e.g. a file-type badge. */
   trailing?: ReactNode;
+  /**
+   * The entry's keyboard shortcut, as "Ctrl + Shift + D": shown at the right with each key named
+   * as this language's keyboards name it. Whoever owns the menu makes the keys work.
+   */
+  keys?: string;
   leading?: ReactNode;
   danger?: boolean;
   disabled?: boolean;
@@ -42,6 +49,13 @@ interface MenuProps {
   width?: number;
 }
 
+/** "Ctrl + Alt + ↑" as `aria-keyshortcuts` spells it: "Control+Alt+ArrowUp". */
+const ariaKeys = (keys: string) =>
+  keys
+    .split(/\s*\+\s*/)
+    .map((key) => ({ Ctrl: "Control", "↑": "ArrowUp", "↓": "ArrowDown" })[key] ?? key)
+    .join("+");
+
 /**
  * A pop-up menu drawn in a portal on document.body with fixed positioning, so it always sits on
  * top of everything else and is never clipped by a scrolling list or card (25/09/2026). Arrow keys move, Enter picks, Escape closes and returns focus.
@@ -52,6 +66,7 @@ export function Menu({ trigger, entries, label, align = "end", width = 280 }: Me
   const anchor = useRef<HTMLButtonElement | null>(null);
   const menu = useRef<HTMLDivElement | null>(null);
   const id = useId();
+  const { i18n } = useTranslation();
 
   const items = entries.filter(
     (entry): entry is MenuItem => typeof entry === "object" && "onSelect" in entry,
@@ -189,6 +204,7 @@ export function Menu({ trigger, entries, label, align = "end", width = 280 }: Me
                   type="button"
                   role="menuitem"
                   disabled={entry.disabled}
+                  aria-keyshortcuts={entry.keys ? ariaKeys(entry.keys) : undefined}
                   onClick={() => choose(entry)}
                   className={`flex min-h-10 items-center gap-3 rounded-lg px-2.5 py-1.5 text-left text-sm hover:bg-subtle focus:bg-subtle disabled:cursor-not-allowed disabled:opacity-50 ${entry.danger ? "text-recording" : "text-body"}`}
                 >
@@ -198,8 +214,10 @@ export function Menu({ trigger, entries, label, align = "end", width = 280 }: Me
                     <span className="font-medium">{entry.label}</span>
                     {entry.note && <span className="text-xs text-secondary">{entry.note}</span>}
                   </span>
-                  {entry.trailing && (
-                    <span className="shrink-0 text-xs text-secondary">{entry.trailing}</span>
+                  {(entry.trailing ?? entry.keys) && (
+                    <span className="shrink-0 text-xs text-secondary">
+                      {entry.trailing ?? localKeys(entry.keys ?? "", i18n.language)}
+                    </span>
                   )}
                 </button>
               );

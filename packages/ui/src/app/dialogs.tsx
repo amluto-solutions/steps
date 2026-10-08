@@ -35,6 +35,8 @@ export interface StartChoices {
 export function StartRecordingDialog(props: {
   /** How the two tick boxes start. */
   defaults: StartChoices;
+  /** Record steps here: the title of the guide the steps go into; null for a guide of its own. */
+  into?: string | null | undefined;
   onCancel: () => void;
   onStart: (choices: StartChoices) => void;
 }) {
@@ -46,6 +48,7 @@ export function StartRecordingDialog(props: {
     <Backdrop top>
       <ModalDialog
         labelledBy="start-title"
+        {...(props.into ? { describedBy: "start-into" } : {})}
         initialFocus={startRef}
         onEscape={props.onCancel}
         className="card flex w-full max-w-lg flex-col gap-4 p-6"
@@ -53,6 +56,12 @@ export function StartRecordingDialog(props: {
         <h2 id="start-title" className="font-heading text-xl text-navy">
           {t("recorder.startTitle")}
         </h2>
+        {props.into && (
+          <p id="start-into" className="-mt-2 flex items-center gap-2 text-sm text-secondary">
+            <Icon name="record" size={16} className="shrink-0 text-recording" />
+            <span className="min-w-0 truncate">{t("recorder.into", { title: props.into })}</span>
+          </p>
+        )}
         <div className="flex flex-col gap-3 rounded-lg border border-subtle bg-page p-4">
           <div className="flex items-start gap-3 text-sm">
             <input

@@ -15,6 +15,7 @@ import {
 } from "../settings/preferences";
 import { StepsLogo } from "../shell/StepsLogo";
 import { recordingToDraft } from "./recording-to-draft";
+import { useRecordingInto, writeRecordingInto } from "./recording-into";
 import { useStepWording } from "./ShortcutPopup";
 
 /**
@@ -193,6 +194,10 @@ export function RecorderPanel({
   const state = snapshot?.state ?? "idle";
   const recording = state === "recording" || state === "paused";
   const waiting = !recording && Boolean(snapshot?.sessionId);
+  // Record steps here, asked for in the Steps tab: the guide the next recording goes into, or the
+  // one this recording's steps are going into.
+  const nextInto = useRecordingInto(null);
+  const into = useRecordingInto(snapshot?.sessionId ?? null);
 
   return (
     <main className="flex h-screen flex-col bg-page text-body">
@@ -220,14 +225,32 @@ export function RecorderPanel({
         <section className="flex flex-col gap-4 p-4">
           {waiting && (
             <div role="status" className="card flex flex-col gap-2 p-4">
-              <p className="font-semibold text-navy">{t("panel.ready")}</p>
+              <p className="font-semibold text-navy">
+                {into ? t("panel.intoAdding", { title: into.title }) : t("panel.ready")}
+              </p>
               <button type="button" className="btn btn-primary self-start" onClick={onOpenSteps}>
-                {t("panel.review")}
+                {into ? t("panel.openSteps") : t("panel.review")}
               </button>
             </div>
           )}
           <h1 className="font-heading text-xl text-navy">{t("recorder.startTitle")}</h1>
-          <p className="text-sm text-secondary">{t("panel.intro")}</p>
+          {nextInto ? (
+            <div className="flex flex-col items-start gap-1">
+              <p className="flex items-center gap-2 text-sm font-semibold text-navy">
+                <Icon name="record" size={16} className="shrink-0 text-recording" />
+                {t("recorder.into", { title: nextInto.title })}
+              </p>
+              <button
+                type="button"
+                className="btn btn-quiet -ml-2"
+                onClick={() => writeRecordingInto(null)}
+              >
+                {t("panel.intoCancel")}
+              </button>
+            </div>
+          ) : (
+            <p className="text-sm text-secondary">{t("panel.intro")}</p>
+          )}
           <div className="flex items-start gap-3 text-sm">
             <input
               id="panel-keys"
@@ -261,10 +284,17 @@ export function RecorderPanel({
               aria-hidden="true"
               className={`size-2.5 rounded-full ${state === "paused" ? "border-2 border-bar-paused" : "bg-recording"}`}
             />
-            <span role="status" className="flex-1 text-sm font-semibold text-navy">
-              {state === "paused" ? t("recorder.paused") : t("recorder.recording")}
-              {" · "}
-              {t("recorder.stepCount", { count: snapshot?.stepCount ?? 0 })}
+            <span role="status" className="flex min-w-0 flex-1 flex-col text-sm">
+              <span className="font-semibold text-navy">
+                {state === "paused" ? t("recorder.paused") : t("recorder.recording")}
+                {" · "}
+                {t("recorder.stepCount", { count: snapshot?.stepCount ?? 0 })}
+              </span>
+              {into && (
+                <span className="truncate text-secondary">
+                  {t("recorder.into", { title: into.title })}
+                </span>
+              )}
             </span>
             <button
               type="button"

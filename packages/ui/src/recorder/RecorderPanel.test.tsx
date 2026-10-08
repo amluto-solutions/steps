@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { recordingFactSchema, type RecordingFact } from "@amluto-steps/core";
 
@@ -8,6 +8,7 @@ import { fakeHost } from "../bridge/host-fake";
 import { fakeRecorder } from "../bridge/recorder-fake";
 import type { RecorderSnapshot } from "../bridge/recording";
 import { RecorderPanel } from "./RecorderPanel";
+import { readRecordingInto, writeRecordingInto } from "./recording-into";
 
 initI18n();
 afterEach(cleanup);
@@ -99,5 +100,33 @@ describe("the side panel's steps while recording", () => {
     await waitFor(() => expect(screen.getAllByRole("listitem")).toHaveLength(3));
     expect(settingReads()).toBeLessThanOrEqual(1);
     reads.mockRestore();
+  });
+});
+
+describe("the side panel recording into a guide (docs/spec/04-editor.md#record-steps-here)", () => {
+  afterEach(() => writeRecordingInto(null));
+
+  it("says which guide the next recording goes into, and can make it one of its own", async () => {
+    writeRecordingInto({ token: "t1", title: "Payroll", sessionId: null });
+    const live = fakeRecorder();
+    render(<RecorderPanel recorder={{ ...live, ...fakeHost() }} onOpenSteps={() => undefined} />);
+    expect(await screen.findByText("Recording into “Payroll”")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Record a new guide instead" }));
+    expect(screen.queryByText("Recording into “Payroll”")).toBeNull();
+    expect(readRecordingInto()).toBeNull();
+  });
+
+  it("says so while recording, and after Stop that the steps are going into it", async () => {
+    writeRecordingInto({ token: "t1", title: "Payroll", sessionId: "s1" });
+    const live = fakeRecorder({ state: recording });
+    live.addSession("s1", { stopped: false });
+    render(<RecorderPanel recorder={{ ...live, ...fakeHost() }} onOpenSteps={() => undefined} />);
+    expect(await screen.findByText("Recording into “Payroll”")).toBeTruthy();
+    // Stopped, as the extension's recorder reports it: idle, its recording kept until saved.
+    act(() => live.fire.state({ ...recording, state: "idle" }));
+    expect(
+      await screen.findByText("The new steps are going into “Payroll” in Steps."),
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Review it in Steps" })).toBeNull();
   });
 });

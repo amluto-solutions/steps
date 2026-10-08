@@ -1,4 +1,4 @@
-import { useEffect, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEventHandler } from "react";
 import { useTranslation } from "react-i18next";
 import {
   DndContext,
@@ -8,6 +8,7 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragStartEvent,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -16,20 +17,31 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import type { GuideStep } from "@amluto-steps/core";
+import { localKeys, type GuideStep } from "@amluto-steps/core";
 
 import { Icon, type IconName } from "../components/icons";
-import { Menu, type MenuEntry } from "../components/Menu";
+import { Menu, type MenuEntry, type MenuItem } from "../components/Menu";
 
 export type Selection =
   { kind: "details" } | { kind: "intro" } | { kind: "outro" } | { kind: "step"; id: string };
+
+/** How a click with Ctrl or Shift adds to the steps picked, as in File Explorer. */
+export type PickHow = "toggle" | "range" | "addRange";
 
 interface StepRailProps {
   steps: GuideStep[];
   numbers: Map<string, number>;
   selection: Selection;
   onSelect: (selection: Selection) => void;
+  /** The steps picked to act on together; empty, or two or more. */
+  picked: ReadonlySet<string>;
+  onPick: (id: string, how: PickHow) => void;
+  /** What can be done to the picked steps at once, for the bar above the list. */
+  groupActions: MenuItem[];
+  onClearPicked: () => void;
   onMove: (id: string, toIndex: number) => void;
+  /** Dropping the picked steps, dragged together, where `overId` is. */
+  onMoveGroup: (overId: string) => void;
   onDelete: (id: string) => void;
   stepMenu: (step: GuideStep, index: number) => MenuEntry[];
   addMenu: MenuEntry[];
@@ -84,18 +96,33 @@ function StepRow({
   index,
   number,
   selected,
+  picked,
+  carried,
   props,
 }: {
   step: GuideStep;
   index: number;
   number: number | undefined;
   selected: boolean;
-  props: Omit<StepRailProps, "steps" | "numbers" | "selection" | "onMove" | "addMenu">;
+  /** One of the steps picked to act on together. */
+  picked: boolean;
+  /** Picked, while another picked step is being dragged: it goes with it. */
+  carried: boolean;
+  props: Pick<StepRailProps, "onSelect" | "onPick" | "onDelete" | "stepMenu" | "loadThumbnail"> & {
+    pickedCount: number;
+  };
 }) {
   const { t } = useTranslation();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: step.id,
   });
+  const button = useRef<HTMLButtonElement>(null);
+  // dnd-kit types its listeners loosely; this one is the handle's pointer-down.
+  const dragFromRow = listeners?.onPointerDown as PointerEventHandler | undefined;
+  // The step reached with the arrow keys or Next stays in view in a long list.
+  useEffect(() => {
+    if (selected) button.current?.scrollIntoView?.({ block: "nearest" });
+  }, [selected]);
   const text =
     step.kind === "block"
       ? step.block?.heading || t(`editor.block.${step.block?.type ?? "text"}`)
@@ -107,8 +134,10 @@ function StepRow({
       return;
     }
     // Up and Down move through the steps, as in a list, and open the one reached (F062): a long
-    // guide's list was a long way by Tab, three stops a step.
+    // guide's list was a long way by Tab, three stops a step. With Shift (picking) or Alt (moving)
+    // they're the editor's.
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    if (event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return;
     const buttons = [
       ...(event.currentTarget
         .closest("ol, ul")
@@ -124,12 +153,12 @@ function StepRow({
   return (
     <li
       ref={setNodeRef}
-      className={`group relative ${isDragging ? "z-10 opacity-80" : ""}`}
+      className={`group relative ${isDragging ? "z-10 opacity-80" : ""} ${carried ? "opacity-40" : ""}`}
       style={{ transform: CSS.Transform.toString(transform), transition }}
     >
       <div
         // The selected step has a bar down its left edge as well as its colour (WCAG 1.4.1).
-        className={`flex items-center gap-1.5 rounded-xl py-1.5 pr-10 pl-1 ${selected ? "bg-selected shadow-[inset_3px_0_0_var(--amluto-focus)]" : "hover:bg-subtle"}`}
+        className={`flex items-center gap-1.5 rounded-xl py-1.5 pr-10 pl-1 ${selected ? "bg-selected shadow-[inset_3px_0_0_var(--amluto-focus)]" : picked ? "bg-selected" : "hover:bg-subtle"}`}
       >
         <button
           type="button"
@@ -143,9 +172,21 @@ function StepRow({
         <button
           type="button"
           aria-current={selected ? "step" : undefined}
+          ref={button}
           data-step-button={step.id}
-          onClick={() => props.onSelect({ kind: "step", id: step.id })}
+          // Ctrl and Shift pick steps to act on together, as in File Explorer (08/10/2026).
+          onClick={(event) => {
+            const ctrl = event.ctrlKey || event.metaKey;
+            if (ctrl && event.shiftKey) props.onPick(step.id, "addRange");
+            else if (ctrl) props.onPick(step.id, "toggle");
+            else if (event.shiftKey) props.onPick(step.id, "range");
+            else props.onSelect({ kind: "step", id: step.id });
+          }}
           onKeyDown={onKeyDown}
+          // The row drags as its handle does, by the picture or the words (08/10/2026); a
+          // press that doesn't move 5 px is still a click. By pointer only: the keyboard drags
+          // with the handle, and Space and Enter here open the step.
+          onPointerDown={dragFromRow}
           className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
         >
           <span className="relative flex h-9 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md bg-subtle">
@@ -165,6 +206,16 @@ function StepRow({
                 {number}
               </span>
             )}
+            {picked && (
+              <span className="absolute right-0.5 bottom-0.5 flex size-4 items-center justify-center rounded-full bg-blue text-white">
+                <Icon name="check" size={11} strokeWidth={3} />
+              </span>
+            )}
+            {isDragging && picked && props.pickedCount > 1 && (
+              <span className="absolute inset-0 flex items-center justify-center bg-brand-navy/80 text-xs font-bold text-white">
+                {t("editor.group.dragging", { count: props.pickedCount })}
+              </span>
+            )}
           </span>
           <span className="line-clamp-2 min-w-0 text-[13px] leading-snug text-body">
             {step.reviewRequired && (
@@ -176,6 +227,7 @@ function StepRow({
               />
             )}
             {text}
+            {picked && <span className="sr-only">{t("editor.group.picked")}</span>}
           </span>
         </button>
       </div>
@@ -234,15 +286,24 @@ function FixedRow({
 
 /** The left-hand list: guide details, intro, the steps (drag or Move up/down), outro. */
 export function StepRail(props: StepRailProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
   const count = [...props.numbers.values()].length;
+  // A picked step being dragged takes the other picked steps with it.
+  const [dragging, setDragging] = useState<string | null>(null);
+  const groupDrag = dragging !== null && props.picked.size > 1 && props.picked.has(dragging);
 
+  const onDragStart = ({ active }: DragStartEvent) => setDragging(String(active.id));
   const onDragEnd = ({ active, over }: DragEndEvent) => {
+    setDragging(null);
     if (!over || active.id === over.id) return;
+    if (props.picked.size > 1 && props.picked.has(String(active.id))) {
+      props.onMoveGroup(String(over.id));
+      return;
+    }
     const toIndex = props.steps.findIndex((step) => step.id === over.id);
     if (toIndex >= 0) props.onMove(String(active.id), toIndex);
   };
@@ -268,10 +329,53 @@ export function StepRail(props: StepRailProps) {
           )}
         />
       </div>
+      {props.picked.size > 1 && (
+        // What can be done to the picked steps at once (08/10/2026); each also has its shortcut.
+        <div
+          role="toolbar"
+          aria-label={t("editor.group.count", { count: props.picked.size })}
+          className="mx-2 mb-1 flex items-center gap-0.5 rounded-xl bg-selected px-2 py-1"
+        >
+          <span
+            className="min-w-0 flex-1 truncate text-xs font-semibold text-body"
+            aria-live="polite"
+          >
+            {t("editor.group.count", { count: props.picked.size })}
+          </span>
+          {props.groupActions.map((action) => (
+            <button
+              key={action.label}
+              type="button"
+              className={`icon-btn size-7 shrink-0 ${action.danger ? "text-recording" : ""}`}
+              aria-label={action.label}
+              title={
+                action.keys
+                  ? `${action.label} (${localKeys(action.keys, i18n.language)})`
+                  : action.label
+              }
+              disabled={action.disabled}
+              onClick={action.onSelect}
+            >
+              {action.icon && <Icon name={action.icon} size={16} />}
+            </button>
+          ))}
+          <button
+            type="button"
+            className="icon-btn size-7 shrink-0"
+            aria-label={t("editor.group.clear")}
+            title={`${t("editor.group.clear")} (Esc)`}
+            onClick={props.onClearPicked}
+          >
+            <Icon name="close" size={16} />
+          </button>
+        </div>
+      )}
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
+        onDragStart={onDragStart}
         onDragEnd={onDragEnd}
+        onDragCancel={() => setDragging(null)}
         accessibility={{
           announcements: {
             onDragStart: () => t("editor.dnd.start"),
@@ -318,7 +422,9 @@ export function StepRail(props: StepRailProps) {
                 index={index}
                 number={props.numbers.get(step.id)}
                 selected={props.selection.kind === "step" && props.selection.id === step.id}
-                props={props}
+                picked={props.picked.has(step.id)}
+                carried={groupDrag && props.picked.has(step.id) && dragging !== step.id}
+                props={{ ...props, pickedCount: props.picked.size }}
               />
             ))}
           </SortableContext>

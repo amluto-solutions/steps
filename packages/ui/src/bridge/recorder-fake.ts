@@ -8,7 +8,12 @@ import type {
   RecorderStepAdded,
   Recording,
 } from "./recording";
-import type { RecordingJournal, RecoverySession } from "./recording-journal";
+import type {
+  MediaDestination,
+  MediaRename,
+  RecordingJournal,
+  RecoverySession,
+} from "./recording-journal";
 
 export const IDLE: RecorderSnapshot = {
   state: "idle",
@@ -28,6 +33,8 @@ interface Session {
   settings: RecordingSettings | null;
   restartAfter: number | null;
   draft: { guide: unknown; steps: Map<string, unknown> } | null;
+  /** Its screenshots, by media id. */
+  media: Set<string>;
 }
 
 /** The recorder's events, which a test fires as the native side or the background would. */
@@ -48,8 +55,14 @@ export interface FakeRecorder extends Recording, RecordingJournal {
   /** A recording left unsaved (for recovery), with its facts and steps. */
   addSession(
     sessionId: string,
-    session?: Partial<Pick<Session, "title" | "stopped" | "facts" | "steps" | "settings">>,
+    session?: Partial<Pick<Session, "title" | "stopped" | "facts" | "steps" | "settings">> & {
+      media?: string[];
+    },
   ): void;
+  /** Screenshots a recording took (a started one has none until the test says so). */
+  addMedia(sessionId: string, mediaIds: string[]): void;
+  /** What `copyMedia` copied, in order (a draft's copies are also among its screenshots). */
+  readonly copied: { sessionId: string; into: MediaDestination; media: MediaRename[] }[];
 }
 
 /**
@@ -119,8 +132,10 @@ export function fakeRecorder(
       settings: given.settings ?? null,
       restartAfter: null,
       draft: null,
+      media: new Set(given.media ?? []),
     });
   };
+  const copied: FakeRecorder["copied"] = [];
   const draftOf = async (sessionId: string) => {
     const found = await session(sessionId);
     if (!found.draft) throw new Error("Open the recording again, then try once more.");
@@ -130,6 +145,10 @@ export function fakeRecorder(
   return {
     fire,
     addSession,
+    addMedia(sessionId, mediaIds) {
+      for (const id of mediaIds) sessions.get(sessionId)?.media.add(id);
+    },
+    copied,
     openRecorder: options.openRecorder ?? null,
     getState: answer,
     onState: listen(listeners.state),
@@ -206,6 +225,16 @@ export function fakeRecorder(
     getRecordingSettings: async (sessionId) => (await session(sessionId)).settings,
     loadImage: () => Promise.resolve(options.image ?? "data:image/webp;base64,"),
     retakeDraftImage: () => Promise.resolve({ id: "retake", width: 1280, height: 800 }),
+    async copyMedia(sessionId, into, media) {
+      const found = await session(sessionId);
+      if (media.some((item) => !found.media.has(item.mediaId)))
+        throw new Error("The screenshot was not found.");
+      if (into.kind === "draft") {
+        const target = await session(into.sessionId);
+        for (const item of media) target.media.add(item.newMediaId);
+      }
+      copied.push({ sessionId, into, media: [...media] });
+    },
     async finalize(sessionId) {
       await session(sessionId);
       sessions.delete(sessionId);

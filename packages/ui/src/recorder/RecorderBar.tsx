@@ -8,6 +8,7 @@ import type { Hotkeys } from "../bridge/hotkeys";
 import type { RecorderSnapshot, Recording } from "../bridge/recording";
 import type { Capabilities } from "../capabilities";
 import { displayKeys, EXCLUDED_APPS_KEY, readExcludedApps } from "../settings/preferences";
+import { useRecordingInto } from "./recording-into";
 
 export const EMPTY_SNAPSHOT: RecorderSnapshot = {
   state: "idle",
@@ -67,6 +68,8 @@ export function RecorderBar({ recorder }: { recorder: BarRecorder }) {
       .catch(() => setShortcutKeys(null));
   }, [menuOpen, recorder]);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  /** Record steps here: the guide this recording's steps go into, which the main window said. */
+  const recordingInto = useRecordingInto(snapshot.sessionId);
   const [restarted, setRestarted] = useState<number | null>(null);
   const root = useRef<HTMLElement>(null);
   const moreButton = useRef<HTMLButtonElement>(null);
@@ -210,6 +213,7 @@ export function RecorderBar({ recorder }: { recorder: BarRecorder }) {
   // The undo for "Start again" lasts until the next step is recorded.
   const showRestarted = restarted !== null && snapshot.stepCount === 0 && snapshot.state !== "idle";
   const stateText = t(`recorder.${snapshot.state}`);
+  const into = recordingInto?.title ?? null;
 
   return (
     <main
@@ -312,6 +316,16 @@ export function RecorderBar({ recorder }: { recorder: BarRecorder }) {
           <Icon name="more" size={18} strokeWidth={3.4} />
         </button>
       </div>
+
+      {into && (
+        // Said the whole time, as the keys are: the steps won't become a guide of their own.
+        <p
+          data-tauri-drag-region
+          className="max-w-[420px] self-start truncate rounded-full bg-brand-navy px-3 py-1 text-[13px] text-bar-muted shadow-[0_6px_18px_var(--amluto-shadow)]"
+        >
+          {t("recorder.into", { title: into })}
+        </p>
+      )}
 
       {menuOpen && (
         <div

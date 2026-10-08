@@ -250,6 +250,27 @@ describe("editing a shared guide", () => {
     expect(await robin.listDrafts(id, guideId)).toMatchObject([{ id: "sam", by: "Sam Jones" }]);
   });
 
+  it("takes a recording's pictures into a guide only from the page editing it", async () => {
+    // Record steps here (docs/spec/04-editor.md#record-steps-here).
+    expect(await robin.openForEditing(id, guideId, false)).toEqual({ kind: "editing" });
+    const picture = { id: "rec-1", image: new Blob(["click"]), width: 10, height: 10 };
+    await (await robin.publishTarget(id)).addMedia(guideId, [picture]);
+    const media = await walk(shared, "guides", guideId, "media");
+    expect(await (await media?.read("rec-1.webp"))?.text()).toBe("click");
+
+    // Never over a picture it has, and nothing of a refused copy stays.
+    const second = { ...picture, id: "rec-2" };
+    await expect(
+      (await robin.publishTarget(id)).addMedia(guideId, [second, picture]),
+    ).rejects.toBeDefined();
+    expect(await media?.read("rec-2.webp")).toBeNull();
+
+    const sam = router("Sam Jones", "sam", "SAMS-PC");
+    await expect(
+      (await sam.publishTarget(id)).addMedia(guideId, [{ ...picture, id: "rec-3" }]),
+    ).rejects.toMatchObject({ code: "lockLost" });
+  });
+
   it("takes over a lock only once this page has watched it stand still for 20 minutes", async () => {
     await robin.openForEditing(id, guideId, false);
     const sam = router("Sam Jones", "sam", "SAMS-PC");

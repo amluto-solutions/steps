@@ -15,9 +15,12 @@ import {
   blockStep,
   deleteSteps,
   duplicateStep,
+  duplicateSteps,
   insertStepAt,
   mergeWithNext,
   moveStep,
+  moveStepsBy,
+  moveStepsTo,
   removeStepOutput,
   removeTypedValue,
   replaceText,
@@ -118,6 +121,55 @@ describe("editor edits", () => {
       updateGuide(original, { title: "New title", tags: ["Finance"] }, "rename", stamp()),
     ];
     for (const made of edits) roundTrips(original, made);
+  });
+
+  it("move several steps together, a place at a time or to where they're dropped", () => {
+    const original = doc();
+    const ids = (value: EditorDoc) => value.steps.map((item) => item.id);
+    // A run moves as a block; each step passes the one beside it that isn't moving.
+    expect(ids(roundTrips(original, moveStepsBy(original, ["s3", "s2"], -1, stamp())))).toEqual([
+      "s2",
+      "s3",
+      "s1",
+      "s4",
+    ]);
+    // Apart, each moves a place, and only the moving steps' files change.
+    const apart = moveStepsBy(original, ["s1", "s3"], 1, stamp());
+    expect(
+      apart?.changes.map((change) => (change.kind === "step" ? change.id : "")).sort(),
+    ).toEqual(["s1", "s3"]);
+    expect(ids(roundTrips(original, apart))).toEqual(["s2", "s1", "s4", "s3"]);
+    // Already at the top: nothing to do.
+    expect(moveStepsBy(original, ["s1", "s2"], -1, stamp())).toBeNull();
+    // Dropped: together, in their order, after the step dropped on when they came from above.
+    expect(ids(roundTrips(original, moveStepsTo(original, ["s1", "s3"], "s4", stamp())))).toEqual([
+      "s2",
+      "s4",
+      "s1",
+      "s3",
+    ]);
+    expect(ids(roundTrips(original, moveStepsTo(original, ["s4", "s3"], "s1", stamp())))).toEqual([
+      "s3",
+      "s4",
+      "s1",
+      "s2",
+    ]);
+    expect(moveStepsTo(original, ["s1", "s2"], "s2", stamp())).toBeNull();
+  });
+
+  it("duplicate several steps straight after the last of them", () => {
+    const original = doc();
+    let n = 0;
+    const made = duplicateSteps(original, ["s3", "s1"], () => `copy-${(n += 1)}`, stamp());
+    const done = roundTrips(original, made);
+    expect(texts(done)).toEqual([
+      "Click One",
+      "Click Two",
+      "Click Three",
+      "Click One",
+      "Click Three",
+      'Type "Acme Ltd"',
+    ]);
   });
 
   it("move a step by rewriting only that step's file", () => {
@@ -305,6 +357,19 @@ describe("why a step asks to be checked (F031)", () => {
   it("stops asking once the name is written by hand", () => {
     const start = { ...doc(), steps: [fromScreen] };
     const fixed = roundTrips(start, setStepText(start, "s1", 'Click "System"', stamp()));
+    expect(fixed.steps[0]?.reviewRequired).toBe(false);
+  });
+
+  it("asks where a fill ended when no cell was found there (08/10/2026)", () => {
+    const fill: GuideStep = {
+      ...step("s1", "0000000001", 'Fill "H8" down the column'),
+      textParts: { verb: "fill", target: "H8", kind: "cells" },
+      textEdited: false,
+      reviewRequired: true,
+    };
+    expect(reviewReason(fill)).toBe("fillEnd");
+    const start = { ...doc(), steps: [fill] };
+    const fixed = roundTrips(start, setStepText(start, "s1", 'Fill "H8" down to "H250"', stamp()));
     expect(fixed.steps[0]?.reviewRequired).toBe(false);
   });
 });

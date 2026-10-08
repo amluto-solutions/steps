@@ -1038,6 +1038,22 @@ pub fn library_create_from_parts(
     })
 }
 
+/// Adds a recording's screenshots to a guide open for editing here, the steps of a recording
+/// made into it (docs/spec/04-editor.md#record-steps-here): only while this run holds the guide's
+/// edit lock, or nobody does, as every other change to it.
+pub(crate) fn add_recording_media(
+    service: &LibraryService,
+    recorder: &RecorderService,
+    locks: &LockService,
+    library_id: &str,
+    guide_id: &str,
+    copies: &[library::MediaCopy],
+) -> Result<(), CommandError> {
+    in_guide_writing(service, recorder, locks, library_id, guide_id, |library| {
+        library.add_media(guide_id, copies)
+    })
+}
+
 /// Copies a guide within its library under a new title.
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_duplicate_guide(

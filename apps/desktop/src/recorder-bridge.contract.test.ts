@@ -369,6 +369,17 @@ function recorder(): Record<string, Handler> {
       const draft = session(given).draft;
       return draft ? { guide: draft.guide, steps: [...draft.steps.values()] } : null;
     },
+    // Recordings here take no screenshots, so any one asked for isn't there.
+    recorder_copy_media: (given) => {
+      session(given);
+      const { into, media } = args(given) as {
+        into: { kind: string; sessionId?: string };
+        media: unknown[];
+      };
+      if (into.kind === "draft") session({ sessionId: into.sessionId });
+      if (media.length > 0)
+        throw { code: "imageNotFound", message: "The screenshot was not found." };
+    },
   };
 }
 

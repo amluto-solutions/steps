@@ -463,8 +463,9 @@ export class FolderLibrary {
     try {
       await destination.write(BUILDING, entry.deletedAt);
       await writeJson(destination, "trashed.json", { ...entry, formatVersion: 1 });
-      // The Bin takes a password lock off (04/10/2026).
-      await copyGuideFolder(folder, destination, [GUIDE_LOCK_FILE], true);
+      // The Bin takes a password lock off (04/10/2026), and the edit lock: a guide restored from
+      // it is no one's to edit (08/10/2026).
+      await copyGuideFolder(folder, destination, [GUIDE_LOCK_FILE, ".lock"], true);
       await folder.remove("guide.json");
     } catch (error) {
       await trash.remove(trashId, true).catch(() => undefined);
@@ -673,6 +674,27 @@ export class FolderLibrary {
   }
 
   // ---------- pictures ----------
+
+  /**
+   * Adds a recording's pictures to a guide that's here, as they are (a recording made into it,
+   * docs/spec/04-editor.md#record-steps-here). Never over one it has; if one can't be written,
+   * those this call wrote are removed, so a shared folder gets all of them or none.
+   */
+  async addMedia(guideId: string, media: { id: string; image: Blob }[]): Promise<void> {
+    const folder = await (await this.guideDir(guideId)).makeFolder("media");
+    const names = media.map((item) => `${checked(item.id, "image")}.webp`);
+    const written: string[] = [];
+    try {
+      for (const [index, item] of media.entries()) {
+        const name = names[index] ?? "";
+        await folder.create(name, item.image);
+        written.push(name);
+      }
+    } catch (error) {
+      for (const name of written) await folder.remove(name).catch(() => undefined);
+      throw error;
+    }
+  }
 
   /** Stores a pasted, dropped or chosen picture as a new WebP in the guide. */
   async importImage(guideId: string, bytes: Uint8Array): Promise<MediaInfo> {

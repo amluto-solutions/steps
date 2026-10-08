@@ -159,8 +159,11 @@ fn print_record(record: &Record) {
         }
         Record::Double { of, .. } => println!("double       of #{of}"),
         Record::Drag(drag) => println!(
-            "drag         {} to {} (of #{})",
-            drag.from, drag.to, drag.of
+            "{}         {} to {} (of #{})",
+            if drag.fill.is_some() { "fill" } else { "drag" },
+            drag.from,
+            drag.to.as_deref().unwrap_or("the column's end"),
+            drag.of
         ),
         Record::Missed { count, after_id } => {
             println!("MISSED       {count} click(s) after #{after_id}");

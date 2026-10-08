@@ -1,8 +1,9 @@
 import type { RecordedStep, RecordingFact, RecordingSettings } from "@amluto-steps/core";
+import type { MediaDestination, MediaRename } from "@amluto-steps/ui";
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
 
 import type { Json } from "../library/db";
-import { errors, isSafeId, LibraryError, text } from "../library/ids";
+import { checkId, errors, isSafeId, LibraryError, text } from "../library/ids";
 import { dataUrl } from "../library/images";
 import type { PublishTarget } from "../library/store";
 
@@ -174,6 +175,58 @@ export function journal(db: JournalDb) {
       ),
 
     discard: forget,
+
+    /**
+     * Record steps here (docs/spec/04-editor.md#record-steps-here): a stopped recording's
+     * screenshots, as they are, into the guide it was recorded into, under new ids. As they are,
+     * since their words are kept by their bytes (`text-store.ts`): a picture made again would
+     * lose them. Into a recording being edited they join its own; into a library, `target` adds
+     * them to the guide.
+     */
+    async copyMedia(
+      sessionId: string,
+      into: MediaDestination,
+      media: MediaRename[],
+      target: (libraryId: string) => Promise<PublishTarget>,
+    ): Promise<void> {
+      await session(sessionId);
+      const found = await Promise.all(
+        media.map(async (item) => {
+          const image = await db.get("images", [
+            sessionId,
+            `${checkId(item.mediaId, "image")}.webp`,
+          ]);
+          if (!image) throw errors.imageNotFound();
+          return { ...image, id: checkId(item.newMediaId, "image") };
+        }),
+      );
+      if (into.kind === "draft") {
+        await session(into.sessionId);
+        const tx = db.transaction("images", "readwrite");
+        try {
+          // `add` refuses a name that's there, which aborts the whole transaction.
+          for (const image of found)
+            await tx.store.add({
+              sessionId: into.sessionId,
+              name: `${image.id}.webp`,
+              image: image.image,
+              width: image.width,
+              height: image.height,
+            });
+        } catch (error) {
+          await tx.done.catch(() => undefined);
+          throw error;
+        }
+        await tx.done;
+        return;
+      }
+      await (
+        await target(into.libraryId)
+      ).addMedia(
+        into.guideId,
+        found.map(({ id, image, width, height }) => ({ id, image, width, height })),
+      );
+    },
 
     /**
      * Save: the draft the person reviewed (or, without one, the recorded steps after any "Start

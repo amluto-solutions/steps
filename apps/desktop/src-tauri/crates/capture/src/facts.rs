@@ -217,21 +217,40 @@ pub struct NavigationRecord {
 }
 
 /// A drag across spreadsheet cells, from the cell the left button went down on to the one it came
-/// up on, with a screenshot of the selection.
+/// up on, with a screenshot of the selection; or a use of Excel's fill handle (08/10/2026).
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DragRecord {
     pub id: u64,
     /// The click the drag began with.
     pub of: u64,
-    /// When the button came up.
+    /// When the button came up, or for a double-click, when it went down the second time.
     pub tick_ms: u32,
+    /// The cell pressed on; for a fill, the cell whose handle it was.
     pub from: String,
-    pub to: String,
+    /// The cell the button came up on. `None` only for a fill: double-clicked (it fills down as
+    /// far as the column beside it goes), or dragged to where no cell was found.
+    pub to: Option<String>,
+    /// How the fill handle was used; absent for a selection.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fill: Option<FillKind>,
     pub window: WindowFacts,
     pub capture: Option<CaptureFacts>,
-    /// The selection: the two cells' boxes together.
+    /// The selection: the two cells' boxes together; for a fill, the cells filled.
     pub selection_pct: Option<PctRect>,
+    /// For a fill, where its handle is on the screenshot: what's shown when there's no end cell.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub handle_pct: Option<PctPoint>,
+}
+
+/// How Excel's fill handle was used.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum FillKind {
+    /// Dragged to another cell.
+    Drag,
+    /// Double-clicked: Excel fills down the column.
+    Double,
 }
 
 /// A field's value was read when focus left it (only when "Record typed values" is on).
@@ -365,8 +384,8 @@ pub enum Record {
         tick_ms: u32,
     },
     Input(InputRecord),
-    /// Cells selected by dragging from one to another (04/10/2026); the click it started with is
-    /// `of`, which the step replaces.
+    /// Cells selected by dragging from one to another (04/10/2026), or filled with Excel's fill
+    /// handle (08/10/2026); the click it started with is `of`, which the step replaces.
     Drag(DragRecord),
     Command(CommandRecord),
     Typing(TypingRecord),

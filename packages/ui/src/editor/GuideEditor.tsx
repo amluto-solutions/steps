@@ -24,7 +24,9 @@ import type { EditorDoc } from "./document";
 import {
   blankStep,
   deleteSteps,
+  insertStepsAt,
   moveStep,
+  moveStepsTo,
   removeStepOutput,
   removeTypedValue,
   setTypedValue,
@@ -44,7 +46,7 @@ import { ImageEditor, type ImageTool } from "./ImageEditor";
 import { RichTextEditor } from "./RichTextEditor";
 import { ReadOnlyContext } from "./readOnly";
 import { SuggestedBlurs } from "./SuggestedBlurs";
-import { StepRail, type Selection } from "./StepRail";
+import { StepRail, type PickHow, type Selection } from "./StepRail";
 import { applySuggestions, tidySuggestions, type TidySuggestion } from "./tidy";
 import { AltTextField } from "./AltTextField";
 import { TypedValueField } from "./TypedValueField";
@@ -63,7 +65,22 @@ import { Retake } from "./Retake";
 import { blurFoundEdit, findOpenInGuide, notPersonalEdit, openFindings } from "./suggestions";
 import { screenWords, type Area, type TextReader } from "../screen-words";
 import { useGuideEditor, type EditorHooks, type GuideStore } from "./useGuideEditor";
-import { addMenu, insertAfter, newId, stepMenu, type MenuEditor } from "./step-menus";
+import {
+  addMenu,
+  groupActions,
+  insertAfter,
+  newId,
+  pressedKeys,
+  stepMenu,
+  stepShortcut,
+  type MenuEditor,
+} from "./step-menus";
+import {
+  insertionIndex,
+  type RecordAt,
+  type RecordHereRequest,
+  type StepInserter,
+} from "./record-here";
 import { ModalDialog } from "../ModalDialog";
 import { readFindingSettings } from "../settings/preferences";
 
@@ -124,6 +141,16 @@ export interface GuideEditorProps {
   headerActions?: ReactNode;
   /** On the right of the editor, when given (review comments). */
   sidePanel?: ((view: EditorView) => ReactNode) | undefined;
+  /**
+   * Record steps here (docs/spec/04-editor.md#record-steps-here): starts a recording whose steps
+   * go into this guide when it stops. Absent while one can't start (a recording is running).
+   */
+  onRecordHere?: ((request: RecordHereRequest) => void) | undefined;
+  /**
+   * Offers this editor to a recording made into its guide, from opening to closing; answers how
+   * to take the offer back.
+   */
+  onInserter?: ((inserter: StepInserter) => () => void) | undefined;
 }
 
 const TOOLS: { tool: ImageTool; icon: IconName }[] = [
@@ -140,7 +167,9 @@ const isTakenImage = (file: File) => /^image\/(png|jpeg|webp)$/.test(file.type);
 
 const isTextField = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
-  (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
+  (target.isContentEditable ||
+    target.closest("[contenteditable='true']") !== null ||
+    ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
 
 /**
  * The guide editor (docs/spec/04-editor.md), laid out as on the Phase 3 design canvas: the steps
@@ -218,7 +247,10 @@ export function GuideEditor(props: GuideEditorProps) {
     return first ? { kind: "step", id: first.id } : { kind: "details" };
   });
   const [tool, setTool] = useState<ImageTool>("select");
-  const [notesOpen, setNotesOpen] = useState(false);
+  // The step whose empty note was just opened with Add a note. Per step: one flag for every step
+  // left an empty note open, and focused, on each step reached after (08/10/2026: the arrow keys
+  // and Delete stopped in it).
+  const [notesOpenFor, setNotesOpenFor] = useState<string | null>(null);
   /** The selected screenshot's words, with the screenshot and blur they were read for. */
   const [shownWords, setShownWords] = useState<{ key: string; lines: OcrLine[] } | null>(null);
   /** The suggested blur pointed at in the list, and the one last asked to be shown. */
@@ -251,6 +283,54 @@ export function GuideEditor(props: GuideEditorProps) {
   const selected = selectedIndex >= 0 ? doc.steps[selectedIndex] : undefined;
   /** The selected step's words in the language shown. */
   const selectedText = selected && (view.steps[selectedIndex] ?? selected);
+
+  // Steps picked to act on together, with Ctrl and Shift as in File Explorer (08/10/2026). The
+  // step on screen is always one of them; the anchor is where a Shift range starts.
+  const [pickedIds, setPicked] = useState<readonly string[]>([]);
+  const [anchor, setAnchor] = useState<string | null>(null);
+  const picked = useMemo(() => {
+    const live = new Set(doc.steps.map((step) => step.id));
+    const ids = pickedIds.filter((id) => live.has(id));
+    return ids.length > 1 ? ids : [];
+  }, [pickedIds, doc.steps]);
+  const pickedSet = useMemo(() => new Set(picked), [picked]);
+  /** Shows a step on its own: what a plain click or arrow does. */
+  const choose = useCallback((next: Selection) => {
+    setSelection(next);
+    setPicked([]);
+    setAnchor(next.kind === "step" ? next.id : null);
+  }, []);
+  /** The steps from the anchor to `id`, in guide order. */
+  const rangeTo = useCallback(
+    (id: string) => {
+      const ids = doc.steps.map((step) => step.id);
+      const from = ids.indexOf(anchor ?? selected?.id ?? id);
+      const to = ids.indexOf(id);
+      if (from < 0 || to < 0) return [id];
+      return ids.slice(Math.min(from, to), Math.max(from, to) + 1);
+    },
+    [doc.steps, selected?.id, anchor],
+  );
+  const pick = useCallback(
+    (id: string, how: PickHow) => {
+      const now = picked.length ? picked : selected ? [selected.id] : [];
+      if (how === "toggle") {
+        setAnchor(id);
+        if (now.includes(id)) {
+          const left = now.filter((item) => item !== id);
+          setPicked(left);
+          // The step on screen stays one of the picked.
+          const last = left.at(-1);
+          if (selected?.id === id && last) setSelection({ kind: "step", id: last });
+          return;
+        }
+        setPicked([...now, id]);
+      } else if (how === "range") setPicked(rangeTo(id));
+      else setPicked([...new Set([...now, ...rangeTo(id)])]);
+      setSelection({ kind: "step", id });
+    },
+    [picked, selected, rangeTo],
+  );
 
   // Memoised by hand, as is `words` below: each holds a cache, so must stay the same object from
   // one render to the next.
@@ -314,6 +394,27 @@ export function GuideEditor(props: GuideEditorProps) {
 
   /** Blur all: every possible personal detail in every screenshot, blurred in one go (one undo). */
   const [blurring, setBlurring] = useState<{ done: number; total: number } | null>(null);
+  // Whether Blur all has anything to blur: it's offered only then (08/10/2026: it showed on guides
+  // with nothing in them, and said so only once pressed). Looked for in the background a second
+  // after the guide last changed, from the words the screen words module keeps, so a screenshot
+  // is read once whoever asks; hidden until known.
+  const [anyToBlur, setAnyToBlur] = useState(false);
+  const terms = useLatest(props.blurTerms);
+  useEffect(() => {
+    if (!words) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void findOpenInGuide(doc.steps, words, terms.current, readFindingSettings())
+        .then(({ found }) => {
+          if (!cancelled) setAnyToBlur(found.length > 0);
+        })
+        .catch(() => undefined);
+    }, 1000);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [doc.steps, words, terms]);
   const blurAll = async () => {
     if (!words) return;
     setBlurring({ done: 0, total: 0 });
@@ -372,10 +473,61 @@ export function GuideEditor(props: GuideEditorProps) {
   );
 
   /** What the step and Add menus, and pictures added as steps, change the guide through. */
+  const onRecordHere = props.readOnly ? undefined : props.onRecordHere;
+  const title = doc.guide.title;
   const menuEditor = useMemo<MenuEditor>(
-    () => ({ steps: doc.steps, author: props.author, t, apply, select: setSelection, remove }),
-    [doc.steps, props.author, t, apply, remove],
+    () => ({
+      steps: doc.steps,
+      author: props.author,
+      t,
+      apply,
+      select: choose,
+      remove,
+      group: picked,
+      recordAfter: onRecordHere
+        ? (index: number) =>
+            onRecordHere({ afterId: doc.steps[index]?.id ?? null, afterIndex: index, title })
+        : undefined,
+    }),
+    [doc.steps, props.author, t, apply, choose, remove, picked, onRecordHere, title],
   );
+
+  // A recording made into this guide (Record steps here) brings its steps here when it stops:
+  // one undo step after the chosen step, the first of them selected, written straight away.
+  const insertRecorded = (steps: GuideStep[], at: RecordAt) => {
+    if (props.readOnly) return false;
+    const made = apply((current, stamp) =>
+      insertStepsAt(
+        current,
+        steps,
+        insertionIndex(current.steps, at) + 1,
+        t("editor.undo.recordHere"),
+        stamp,
+      ),
+    );
+    const first = steps[0];
+    if (!made || !first) return false;
+    setSelection({ kind: "step", id: first.id });
+    props.notify({
+      text: t("editor.recordedHere", { count: steps.length }),
+      action: { label: t("common.undo"), run: () => editor.undo() },
+    });
+    return true;
+  };
+  const insertRecordedRef = useLatest(insertRecorded);
+  const readOnlyRef = useLatest(props.readOnly === true);
+  const flushRef = useLatest(editor.flush);
+  const onInserterRef = useLatest(props.onInserter);
+  // Offered from opening to closing: a recording that stops after this editor has closed (or
+  // was remounted on a fresh copy) finds the one open then, if any.
+  useEffect(() => {
+    const stop = onInserterRef.current?.({
+      canInsert: () => !readOnlyRef.current,
+      insert: (steps, at) => insertRecordedRef.current(steps, at),
+      flush: () => flushRef.current(),
+    });
+    return () => stop?.();
+  }, [onInserterRef, readOnlyRef, insertRecordedRef, flushRef]);
 
   const addImages = useCallback(
     async (files: File[]) => {
@@ -440,6 +592,58 @@ export function GuideEditor(props: GuideEditorProps) {
       window.removeEventListener("paste", onPaste);
     };
   }, [editor, addImages]);
+
+  // Keys for the selected step from anywhere in the editor, not only the steps list
+  // (08/10/2026): the arrows go through the steps (Up and Left to the one before, Down and Right
+  // to the next), and the step menu's shortcuts work (STEP_KEYS: Delete, Ctrl + D…). Shift and
+  // the arrows pick the steps passed, Ctrl + A picks them all, and Escape lets them go. Anything
+  // that takes these keys itself keeps them: text, the picture's selected shape (it stops them
+  // first), menus, lists, sliders, radio buttons and dialogs.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || !selected || isTextField(event.target)) return;
+      if (
+        event.target instanceof Element &&
+        event.target.closest(
+          "[aria-modal='true'], [role='menu'], [role='listbox'], [role='slider'], [role='radiogroup'], [role='radio'], [role='tablist'], [role='combobox'], [role='spinbutton'], [role='tree'], [role='grid']",
+        )
+      )
+        return;
+      if (stepShortcut(menuEditor, selected, selectedIndex, event)) {
+        event.preventDefault();
+        return;
+      }
+      const keys = pressedKeys(event);
+      if (keys === "Ctrl + A") {
+        event.preventDefault();
+        setPicked(doc.steps.map((step) => step.id));
+        return;
+      }
+      if (keys === "Escape" && picked.length) {
+        event.preventDefault();
+        setPicked([]);
+        return;
+      }
+      const step = { ArrowUp: -1, ArrowLeft: -1, ArrowDown: 1, ArrowRight: 1 }[event.key];
+      if (!step || event.ctrlKey || event.metaKey || event.altKey) return;
+      const next = doc.steps[selectedIndex + step];
+      if (!next) return;
+      event.preventDefault();
+      // From the steps list, the focus goes with the step, as the list's own Up and Down do.
+      const inList = document.activeElement?.hasAttribute("data-step-button") ?? false;
+      if (event.shiftKey) {
+        if (!anchor) setAnchor(selected.id);
+        setPicked(rangeTo(next.id));
+        setSelection({ kind: "step", id: next.id });
+      } else choose({ kind: "step", id: next.id });
+      if (inList)
+        window.requestAnimationFrame(() =>
+          document.querySelector<HTMLElement>(`[data-step-button="${next.id}"]`)?.focus(),
+        );
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [selected, selectedIndex, doc.steps, menuEditor, picked, choose, rangeTo, anchor]);
 
   const hasValues = doc.steps.some((step) => step.textParts.value);
   const guideMenu: MenuEntry[] = [
@@ -795,7 +999,7 @@ export function GuideEditor(props: GuideEditorProps) {
                 </button>
               )}
             />
-            {words && (
+            {words && (anyToBlur || blurring) && (
               <button
                 type="button"
                 className="btn"
@@ -880,11 +1084,20 @@ export function GuideEditor(props: GuideEditorProps) {
             steps={view.steps}
             numbers={numbers}
             selection={selection}
-            onSelect={setSelection}
+            onSelect={choose}
+            picked={pickedSet}
+            onPick={pick}
+            groupActions={
+              selected && picked.length > 1 ? groupActions(menuEditor, selected, selectedIndex) : []
+            }
+            onClearPicked={() => setPicked([])}
             onMove={(id, toIndex) =>
               apply((current, stamp) => moveStep(current, id, toIndex, stamp))
             }
-            onDelete={(id) => remove([id])}
+            onMoveGroup={(overId) =>
+              apply((current, stamp) => moveStepsTo(current, picked, overId, stamp))
+            }
+            onDelete={(id) => remove(pickedSet.has(id) ? [...picked] : [id])}
             stepMenu={(step, index) => stepMenu(menuEditor, step, index)}
             addMenu={addMenu(menuEditor, selection, {
               canImport: Boolean(props.store.importImage),
@@ -1189,7 +1402,7 @@ export function GuideEditor(props: GuideEditorProps) {
                     }
                   />
                 )}
-                {notesOpen || selectedText?.notes ? (
+                {notesOpenFor === selected.id || selectedText?.notes ? (
                   <>
                     {notWritten(selected.id, "notes") && (
                       <NotWrittenYet language={language} main={main} />
@@ -1212,7 +1425,7 @@ export function GuideEditor(props: GuideEditorProps) {
                   <button
                     type="button"
                     className="btn btn-quiet self-start px-2 text-link"
-                    onClick={() => setNotesOpen(true)}
+                    onClick={() => setNotesOpenFor(selected.id)}
                   >
                     <Icon name="plus" size={15} />
                     {t("editor.addNote")}

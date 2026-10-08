@@ -4,7 +4,7 @@ import type { MenuEntry, MenuItem } from "../components/Menu";
 import { initI18n } from "../i18n";
 import { applyChanges, type EditorDoc } from "./document";
 import { blankStep, blockStep, type Stamp } from "./edits";
-import { addMenu, stepMenu, type MenuEditor } from "./step-menus";
+import { addMenu, groupActions, stepMenu, type MenuEditor } from "./step-menus";
 import type { Selection } from "./StepRail";
 
 const i18n = initI18n();
@@ -56,6 +56,7 @@ function editorOver(start: EditorDoc) {
     },
     select: (selection) => selected.push(selection),
     remove: (ids) => removed.push(ids),
+    group: [],
   };
   return {
     editor,
@@ -180,5 +181,71 @@ describe("a step's menu", () => {
     expect(removed).toEqual([["s3"]]);
     // The editor deletes; the menu doesn't do it a second time.
     expect(order()).toHaveLength(3);
+  });
+});
+
+describe("Record steps here (docs/spec/04-editor.md#record-steps-here)", () => {
+  /** An editor that can record into its guide, and where each recording was asked to go after. */
+  const recording = () => {
+    const over = editorOver(payroll);
+    const after: number[] = [];
+    const editor: MenuEditor = { ...over.editor, recordAfter: (index) => after.push(index) };
+    return { editor, after };
+  };
+
+  it.each([
+    [{ kind: "step", id: "s2" }, 1],
+    [{ kind: "details" }, -1],
+    [{ kind: "intro" }, -1],
+    [{ kind: "outro" }, 2],
+  ] as [Selection, number][])(
+    "from %o, the Add menu records where it puts anything else",
+    (selection, index) => {
+      const { editor, after } = recording();
+      const entry = item(addMenu(editor, selection, noImages), "Record steps here");
+      expect(entry.note).toBe("Record new steps to go in here");
+      entry.onSelect();
+      expect(after).toEqual([index]);
+    },
+  );
+
+  it("records after a step from its menu", () => {
+    const { editor, after } = recording();
+    const second = payroll.steps[1];
+    if (!second) throw new Error("no steps");
+    item(stepMenu(editor, second, 1), "Record steps after").onSelect();
+    expect(after).toEqual([1]);
+  });
+
+  it("isn't offered where the guide can't be recorded into", () => {
+    const { editor } = editorOver(payroll);
+    const first = payroll.steps[0];
+    if (!first) throw new Error("no steps");
+    const labels = (entries: MenuEntry[]) =>
+      entries.map((entry) => (typeof entry === "object" && "label" in entry ? entry.label : ""));
+    expect(labels(addMenu(editor, { kind: "details" }, noImages))).not.toContain(
+      "Record steps here",
+    );
+    expect(labels(stepMenu(editor, first, 0))).not.toContain("Record steps after");
+  });
+});
+
+describe("several steps picked", () => {
+  it("re-record after the last of them, leaving them as they are", () => {
+    const { editor } = editorOver(payroll);
+    const after: number[] = [];
+    const picked = { ...editor, group: ["s2", "s1"], recordAfter: (at: number) => after.push(at) };
+    const first = payroll.steps[0];
+    if (!first) throw new Error("no steps");
+    const bar = groupActions(picked, first, 0);
+    expect(bar.map((entry) => entry.label)).toEqual([
+      "Move up",
+      "Move down",
+      "Duplicate",
+      "Delete",
+      "Re-record these steps",
+    ]);
+    bar.at(-1)?.onSelect();
+    expect(after).toEqual([1]);
   });
 });

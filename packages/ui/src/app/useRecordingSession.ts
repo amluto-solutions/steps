@@ -6,8 +6,12 @@ import { useTranslation } from "react-i18next";
 import type { RecordedStep, RecordingFact, RecordingSettings } from "@amluto-steps/core";
 
 import type { ToastMessage } from "../components/Toast";
+import type { MediaDestination } from "../bridge/recording-journal";
 import type { EditorDoc } from "../editor/document";
+import { withNewIds, type RecordAt, type StepInserter } from "../editor/record-here";
+import { newId } from "../editor/step-menus";
 import { errorMessage } from "../errors";
+import { readRecordingInto, writeRecordingInto } from "../recorder/recording-into";
 import { formatDate } from "../library/dates";
 import type { PendingRecording } from "../library/LibraryHome";
 import { factToStep, imageFileOf } from "../recorded-step";
@@ -38,8 +42,21 @@ const withFacts = (
     : [...journal, ...more].sort((left, right) => left.sequence - right.sequence);
 };
 
+/**
+ * A recording going into the guide open in the editor (Record steps here,
+ * docs/spec/04-editor.md#record-steps-here) rather than becoming a draft of its own.
+ */
+export interface RecordInto extends RecordAt {
+  /** The guide's title, for the start dialog and the recording bar. */
+  title: string;
+  /** The guide: where its screenshots go, and whose editor takes the steps. */
+  guide: MediaDestination;
+}
+
 /** What the session needs from the rest of the app; read at the moment it's used. */
 export interface RecordingSessionContext {
+  /** The editor open on `guide`, while it's open; null once it has closed. */
+  inserterFor: (guide: MediaDestination) => StepInserter | null;
   recorder: RecorderBridge | undefined;
   notify: (message: Omit<ToastMessage, "id">) => void;
   settings: Settings;
@@ -118,6 +135,58 @@ export function useRecordingSession(context: RecordingSessionContext) {
   const openDraftRef = useRef<(sessionId: string, title: string) => Promise<void>>(
     async () => undefined,
   );
+
+  // ----- Record steps here (docs/spec/04-editor.md#record-steps-here) -----
+
+  /**
+   * The guide the next recording goes into (`sessionId` null) or the running one does. Shared
+   * with the recording bar and the side panel through local storage, under `token`.
+   */
+  const intoRef = useRef<{ into: RecordInto; token: string; sessionId: string | null } | null>(
+    null,
+  );
+  /** The guide's title while the start dialog asks about a recording into it. */
+  const [startInto, setStartInto] = useState<string | null>(null);
+
+  /** The next recording goes into `into`, or (undefined) is one of its own. */
+  const askInto = (into: RecordInto | undefined) => {
+    // A recording already going into a guide keeps it.
+    if (intoRef.current?.sessionId) return;
+    const token = newId("into");
+    intoRef.current = into ? { into, token, sessionId: null } : null;
+    writeRecordingInto(into ? { token, title: into.title, sessionId: null } : null);
+    setStartInto(into?.title ?? null);
+  };
+
+  /**
+   * Forgets the guide a recording was to go into (it went in, or never will), the one this window
+   * knows or the one asked for under `token`.
+   */
+  const forgetInto = (token = intoRef.current?.token) => {
+    if (intoRef.current?.token === token) intoRef.current = null;
+    setStartInto(null);
+    if (token && readRecordingInto()?.token === token) writeRecordingInto(null);
+  };
+
+  /**
+   * A recording started: the one asked for goes into the guide, unless the side panel's "Record
+   * a new guide instead" took it back, or the guide's editor has closed since.
+   */
+  const bindInto = (sessionId: string) => {
+    const waiting = intoRef.current;
+    if (!waiting || waiting.sessionId !== null) return;
+    if (
+      readRecordingInto()?.token !== waiting.token ||
+      !latest.current.inserterFor(waiting.into.guide)
+    ) {
+      forgetInto();
+      return;
+    }
+    intoRef.current = { ...waiting, sessionId };
+    writeRecordingInto({ token: waiting.token, title: waiting.into.title, sessionId });
+  };
+  const bindIntoRef = useLatest(bindInto);
+  const forgetIntoRef = useLatest(forgetInto);
 
   const refreshRecoveries = useCallback(async () => {
     if (!recorder) return;
@@ -205,10 +274,83 @@ export function useRecordingSession(context: RecordingSessionContext) {
     openDraftRef.current = openDraft;
   });
 
+  /**
+   * A stopped recording leaves the journal once its steps are in a guide: it was never a guide
+   * of its own.
+   */
+  const forgetRecording = async (sessionId: string) => {
+    if (!recorder || currentSessionId.current !== sessionId) return;
+    setSnapshot(await recorder.discard());
+    forgetLive();
+    currentSessionId.current = null;
+    await refreshRecoveries();
+  };
+
+  /**
+   * Record steps here, when the recording stops: its steps, made as a draft's are, go into the
+   * open guide after the chosen step as one undo step, with their screenshots copied into the
+   * guide's own storage first. If the guide's editor has closed or lost its edit lock, nothing
+   * is lost: the recording opens as a draft of its own, and says why. Its journal goes only once
+   * the guide has the steps on disk, so a crash before then leaves it as an unsaved recording.
+   */
+  const insertRecording = async (sessionId: string, title: string, into: RecordInto) => {
+    if (!recorder) return;
+    const ready = () => {
+      const inserter = latest.current.inserterFor(into.guide);
+      return inserter?.canInsert() ? inserter : null;
+    };
+    const ownDraft = async () => {
+      await openDraft(sessionId, title);
+      notify({ text: t("recorder.intoFallback", { title: into.title }) });
+    };
+    if (!ready()) return ownDraft();
+    setBusy(true);
+    try {
+      const recording = await loadRecording(recorder, sessionId);
+      const live = sessionId === currentSessionId.current ? liveRef.current : null;
+      const { steps, skipped } = await recordingToDraft({
+        ...recording,
+        facts: live ? withFacts(recording.facts, live.facts, sessionId) : recording.facts,
+        live: live ? live.added : [],
+        words: screenWords(recorder, (mediaId) =>
+          recorder.loadImage(sessionId, imageFileOf(mediaId)),
+        ),
+      });
+      if (skipped > 0) notify({ text: t("recorder.stepsSkipped", { count: skipped }) });
+      await writeQueue.current;
+      if (steps.length === 0) {
+        await forgetRecording(sessionId);
+        notify({ text: t("recorder.intoNothing", { title: into.title }) });
+        return;
+      }
+      const fresh = withNewIds(steps, newId);
+      try {
+        await recorder.copyMedia(sessionId, into.guide, fresh.media);
+      } catch {
+        return await ownDraft();
+      }
+      const inserter = ready();
+      if (!inserter?.insert(fresh.steps, into)) return await ownDraft();
+      try {
+        await inserter.flush();
+      } catch {
+        // Not on disk yet (the editor says so and keeps trying): the recording stays until it is.
+        return;
+      }
+      await forgetRecording(sessionId);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const insertRecordingRef = useLatest(insertRecording);
+
   // ----- The recorder's events, and start-up -----
 
   useEffect(() => {
     if (!recorder) return;
+    // Left by a window that has gone (reloaded mid-recording, say): no editor here asked for it,
+    // so its recording opens as a draft of its own, and the bar shouldn't say otherwise.
+    if (!intoRef.current) writeRecordingInto(null);
     let cancelled = false;
     let unlisten: Array<() => void> = [];
     void (async () => {
@@ -218,7 +360,15 @@ export function useRecordingSession(context: RecordingSessionContext) {
       for (let attempt = 0; attempt < 4 && !cancelled && !connected; attempt += 1) {
         try {
           const registrations = await Promise.allSettled([
-            recorder.onState((next) => setSnapshot(next)),
+            recorder.onState((next) => {
+              setSnapshot(next);
+              // In the browser the side panel starts it: this is how this window hears of it.
+              if (next.state !== "idle" && next.sessionId) bindIntoRef.current(next.sessionId);
+              // Discarded while it ran: it has gone, and nothing will go into the guide.
+              const bound = intoRef.current?.sessionId;
+              if (next.state === "idle" && bound && next.sessionId !== bound)
+                forgetIntoRef.current();
+            }),
             recorder.onFact((fact) => addFactRef.current(fact)),
             recorder.onFinished((finished) => {
               setSnapshot(finished.snapshot);
@@ -228,10 +378,27 @@ export function useRecordingSession(context: RecordingSessionContext) {
                 notify({ text: t("recorder.otherScreens", { count: otherScreens }) });
               currentSessionId.current = finished.snapshot.sessionId;
               void recorder.showMain().catch(() => undefined);
+              const into = intoRef.current;
+              const intoThis = into && into.sessionId === finished.sessionId ? into : null;
+              // Discarded from the bar, it finishes with no session left: nothing goes in.
+              // Otherwise the bar and side panel keep saying where its steps are going until
+              // they're there.
+              if (intoThis) {
+                intoRef.current = null;
+                if (!finished.snapshot.sessionId || discardRequested.current)
+                  forgetIntoRef.current(intoThis.token);
+              }
               if (discardRequested.current) {
                 discardRequested.current = false;
                 forgetLive();
                 void refreshRecoveries();
+                return;
+              }
+              if (intoThis && finished.snapshot.sessionId) {
+                void insertRecordingRef
+                  .current(finished.snapshot.sessionId, finished.title, intoThis.into)
+                  .catch(() => notify({ kind: "error", text: t("recorder.saveFailed") }))
+                  .finally(() => forgetIntoRef.current(intoThis.token));
                 return;
               }
               if (finished.snapshot.sessionId) {
@@ -360,7 +527,15 @@ export function useRecordingSession(context: RecordingSessionContext) {
     // Its session id is known once the recorder answers; its first facts can arrive before that.
     settingsRef.current = { sessionId: null, settings };
     writeQueue.current = Promise.resolve();
+    const into = intoRef.current?.sessionId === null ? intoRef.current.into : null;
     try {
+      // An unsaved recording can't be written while another records: its editor's last edits
+      // are written now.
+      if (into)
+        await latest.current
+          .inserterFor(into.guide)
+          ?.flush()
+          .catch(() => undefined);
       await recorder.setCaptureMode(choices.captureMode);
       // Not worth refusing a recording over: the bar would just show in screenshots.
       await recorder.setBarHidden(choices.hideRecorderBar).catch(() => undefined);
@@ -382,10 +557,13 @@ export function useRecordingSession(context: RecordingSessionContext) {
       currentSessionId.current = next.sessionId;
       settingsRef.current = { sessionId: next.sessionId, settings };
       if (next.sessionId && settings.wording) wording.keep(next.sessionId, settings.wording);
+      if (next.sessionId) bindInto(next.sessionId);
       setSnapshot(next);
-      latest.current.showGuides();
+      // Recording into the guide open, its editor stays (minimised) with the guide's edit lock.
+      if (!intoRef.current?.sessionId) latest.current.showGuides();
       void recorder.minimizeMain().catch(() => undefined);
     } catch (problem) {
+      forgetInto();
       notify({ kind: "error", text: errorMessage(problem, t("recorder.errorTitle")) });
     } finally {
       starting.current = false;
@@ -393,9 +571,14 @@ export function useRecordingSession(context: RecordingSessionContext) {
     }
   };
 
-  const requestRecording = () => {
+  /**
+   * New recording, or with `into`, Record steps here: the recording's steps go into the guide
+   * open in the editor when it stops.
+   */
+  const askToRecord = (into?: RecordInto) => {
     // In the browser, recording starts from the side panel, beside the page to record.
     if (recorder?.openRecorder) {
+      if (!recording) askInto(into);
       recorder.openRecorder();
       return;
     }
@@ -404,6 +587,7 @@ export function useRecordingSession(context: RecordingSessionContext) {
     if (!recorder || recording || fatal) {
       return;
     }
+    askInto(into);
     // Each recording asks (its boxes start as Settings or IT say), unless IT has switched keys off.
     if (policy().disableKeystrokeRecording) {
       void startRecording({ keys: false, output: false });
@@ -412,6 +596,10 @@ export function useRecordingSession(context: RecordingSessionContext) {
     void recorder.showMain().catch(() => undefined);
     setStartOpen(true);
   };
+  /** New recording: one of its own. */
+  const requestRecording = () => askToRecord();
+  /** Record steps here: the recording's steps go into the guide open when it stops. */
+  const recordHere = (into: RecordInto) => askToRecord(into);
   useEffect(() => {
     startRef.current = requestRecording;
   });
@@ -504,6 +692,7 @@ export function useRecordingSession(context: RecordingSessionContext) {
         await recorder.recoverSession(item.sessionId);
       }
       discardRequested.current = snapshot.state !== "idle";
+      if (intoRef.current?.sessionId === item.sessionId) forgetInto();
       const next = await recorder.discard();
       setSnapshot(next);
       if (next.state === "idle") {
@@ -529,11 +718,16 @@ export function useRecordingSession(context: RecordingSessionContext) {
     fatal,
     refreshRecoveries,
     requestRecording,
+    recordHere,
     startRecording,
     reviewPending,
     saveDraft,
     startOpen,
-    closeStart: () => setStartOpen(false),
+    closeStart: () => {
+      setStartOpen(false);
+      forgetInto();
+    },
+    startInto,
     discardTarget,
     setDiscardTarget,
     discard,

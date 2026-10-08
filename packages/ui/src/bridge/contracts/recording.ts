@@ -148,5 +148,17 @@ export function recordingJournalContract(
       expect(draft?.guide).toMatchObject({ title: "Pay a supplier's invoice" });
       expect(draft?.steps).toEqual([{ id: "s1", actionText: "Click Pay now" }]);
     });
+
+    it("copies its screenshots into a recording open for editing, and refuses one it hasn't", async () => {
+      const { part } = await make();
+      const open = await recorded(part);
+      await part.saveDraft(open, { title: "Pay an invoice" }, []);
+      const into = await recorded(part);
+      const draft = { kind: "draft" as const, sessionId: open };
+      await expect(part.copyMedia(into, draft, [])).resolves.toBeUndefined();
+      await expect(
+        part.copyMedia(into, draft, [{ mediaId: "click-404", newMediaId: "rec-1" }]),
+      ).rejects.toBeDefined();
+    });
   });
 }

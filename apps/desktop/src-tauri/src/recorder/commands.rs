@@ -297,6 +297,76 @@ pub fn recorder_finalize(
     service.finalize(&session_id, &guide, target)
 }
 
+/// Where a recording made into an open guide puts its screenshots
+/// (docs/spec/04-editor.md#record-steps-here): the guide's own folder in a library, or an unsaved
+/// recording's folder when the guide open is one of those.
+#[derive(Debug, serde::Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum MediaDestination {
+    #[serde(rename_all = "camelCase")]
+    Guide {
+        library_id: String,
+        guide_id: String,
+    },
+    #[serde(rename_all = "camelCase")]
+    Draft { session_id: String },
+}
+
+/// A screenshot of the recording and the id it takes where it's copied to: recordings name
+/// theirs `click-12`, so the guide may already have one by that name.
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MediaRename {
+    media_id: String,
+    new_media_id: String,
+}
+
+/// Copies a stopped recording's screenshots, byte for byte, into the guide it was recorded into,
+/// before its steps go into the open editor.
+#[tauri::command(async, rename_all = "camelCase")]
+pub fn recorder_copy_media(
+    service: State<'_, RecorderService>,
+    libraries: State<'_, crate::library::LibraryService>,
+    locks: State<'_, crate::locks::LockService>,
+    session_id: String,
+    into: MediaDestination,
+    media: Vec<MediaRename>,
+) -> Result<(), CommandError> {
+    match into {
+        MediaDestination::Draft { session_id: draft } => {
+            let pairs: Vec<(String, String)> = media
+                .into_iter()
+                .map(|item| (item.media_id, item.new_media_id))
+                .collect();
+            service.copy_media_to_draft(&session_id, &draft, &pairs)
+        }
+        MediaDestination::Guide {
+            library_id,
+            guide_id,
+        } => {
+            let ids: Vec<&str> = media.iter().map(|item| item.media_id.as_str()).collect();
+            let sources = service.media_files(&session_id, &ids)?;
+            let copies: Vec<library::MediaCopy> = sources
+                .into_iter()
+                .zip(media)
+                .map(|(source, item)| library::MediaCopy {
+                    source,
+                    thumbnail: None,
+                    new_id: item.new_media_id,
+                })
+                .collect();
+            crate::library::add_recording_media(
+                &libraries,
+                &service,
+                &locks,
+                &library_id,
+                &guide_id,
+                &copies,
+            )
+        }
+    }
+}
+
 #[tauri::command(async)]
 pub fn recorder_get_recoveries(
     service: State<'_, RecorderService>,

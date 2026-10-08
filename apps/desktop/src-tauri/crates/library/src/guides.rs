@@ -564,6 +564,8 @@ impl Library {
         // Binning a locked guide needs its password, and takes the lock off (04/10/2026): it
         // comes back from the Bin unlocked.
         let _ = fs::remove_file(destination.join(crate::meta::LOCK_FILE));
+        // And the edit lock: a guide restored from the Bin is no one's to edit (08/10/2026).
+        let _ = fs::remove_file(destination.join(crate::locks::LOCK_FILE));
         let entry = TrashEntry {
             trash_id,
             guide_id: guide_id.to_string(),
@@ -1122,6 +1124,8 @@ pub(crate) mod tests {
             .as_str()
             .unwrap()
             .to_string();
+        // Left by an editor that closed without letting go: it doesn't go with the guide.
+        fs::write(library.guides_dir().join(&id).join(".lock"), b"{}").unwrap();
         let entry = library.trash_guide(&id).unwrap();
         assert_eq!(entry.guide_id, id);
         assert_eq!(entry.title, "Bin me");
@@ -1138,6 +1142,7 @@ pub(crate) mod tests {
         let restored = library.restore_guide(&entry.trash_id).unwrap();
         assert_eq!(restored.id, id);
         assert!(!library.guides_dir().join(&id).join("trashed.json").exists());
+        assert!(!library.guides_dir().join(&id).join(".lock").exists());
         assert!(library.list_trash().unwrap().is_empty());
 
         // Entries older than 30 days are removed for good when the bin is listed.

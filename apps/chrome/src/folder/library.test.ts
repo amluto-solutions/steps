@@ -132,7 +132,8 @@ describe("guides", () => {
     expect(await library.listTrash()).toEqual([]);
   });
 
-  it("moves a guide to the Bin whole, and back", async () => {
+  it("moves a guide to the Bin whole, and back, without anyone's edit lock", async () => {
+    await ((await walk(root, "guides", guideId)) as Dir).write(".lock", "{}");
     const entry = await library.trashGuide(guideId);
     expect(await walk(root, "guides", guideId)).toBeNull();
     expect(await library.listTrash()).toEqual([entry]);

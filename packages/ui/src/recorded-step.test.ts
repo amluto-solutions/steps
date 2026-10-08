@@ -362,6 +362,84 @@ describe("steps written after the click they belong before", () => {
     expect(() => parseStep(selected)).not.toThrow();
   });
 
+  describe("Excel's fill handle (08/10/2026)", () => {
+    const excel = edge("Book1 - Excel");
+    const capture = {
+      mode: "window" as const,
+      rect: { left: 0, top: 0, right: 1920, bottom: 1032 },
+      monitor: { left: 0, top: 0, right: 1920, bottom: 1080 },
+      scale: 1,
+      width: 1920,
+      height: 1032,
+      image: "drag-281474976710656.webp",
+    };
+    const fill = (
+      sequence: number,
+      of: number,
+      to: string | null,
+      how: "drag" | "double",
+      selectionPct: { x: number; y: number; w: number; h: number } | null = null,
+    ) =>
+      fact(sequence, {
+        kind: "drag",
+        id: 2 ** 48 + sequence,
+        of,
+        tickMs: 2_400,
+        from: "H8",
+        to,
+        fill: how,
+        window: excel,
+        capture,
+        selectionPct,
+        handlePct: { x: 82.188, y: 56.686 },
+      });
+    const steps = (facts: RecordingFact[]) =>
+      applyDrags(
+        facts.map((each) => factToStep(each, wording)).filter((step) => step !== null),
+        facts,
+      );
+
+    it("replaces the click on its handle by the cells it filled, boxed", () => {
+      // The press on H8's corner pixel, which UI Automation put in I9.
+      const facts = [
+        click(1, 1_000, excel),
+        click(2, 2_000, excel),
+        fill(3, 2, "H250", "drag", { x: 64.583, y: 55.233, w: 17.604, h: 40 }),
+      ];
+      const made = steps(facts);
+      expect(made.map((step) => step.actionText)).toEqual([
+        'Click in "Book1 - Excel"',
+        'Fill "H8" down to "H250"',
+      ]);
+      expect(made[1]?.highlight?.shape).toBe("box");
+      expect(made[1]?.reviewRequired).toBeUndefined();
+      expect(made[1]?.textParts).toMatchObject({ verb: "fill", target: "H8:H250" });
+      expect(() => parseStep(made[1])).not.toThrow();
+    });
+
+    it("words a double-click as down the column, its handle ringed", () => {
+      const facts = [click(2, 2_000, excel), fill(3, 2, null, "double")];
+      const [step] = steps(facts);
+      expect(step?.actionText).toBe('Fill "H8" down the column');
+      expect(step?.highlight).toEqual(clickHighlight({ x: 82.188, y: 56.686 }, 1920, 1032));
+      expect(step?.reviewRequired).toBeUndefined();
+      expect(step?.sortKey).toBe(factToStep(click(2, 2_000, excel), wording)?.sortKey);
+      expect(step && wordStepIn(step, "en", "plain")).toBe("Fill cell H8 down the column");
+    });
+
+    it("keeps a drag whose end cell wasn't found, asking to be checked", () => {
+      const [step] = steps([click(2, 2_000, excel), fill(3, 2, null, "drag")]);
+      expect(step?.actionText).toBe('Fill "H8" down the column');
+      expect(step?.reviewRequired).toBe(true);
+    });
+
+    it("says where a fill went that isn't straight down", () => {
+      const [step] = steps([click(2, 2_000, excel), fill(3, 2, "K8", "drag")]);
+      expect(step?.actionText).toBe('Fill "H8" to "K8"');
+      expect(step && wordStepIn(step, "en", "formal")).toBe("Fill cell H8 to cell K8.");
+    });
+  });
+
   it("follows the click into the address bar (04/10/2026)", () => {
     // Only a typed or picked address is a step now, so it comes after that click; it had been
     // moved before it, as a browser's first address once was.

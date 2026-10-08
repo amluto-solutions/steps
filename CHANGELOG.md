@@ -9,6 +9,8 @@ What changes for people using Steps, newest first. The notes under each version 
 - **Lock a guide with a password,** so nobody can change, move or delete it in Steps without it. It still shows who locked it, and anyone can view, export, duplicate or merge it. Each guide also has **Properties**.
 - **Recording picks up more:** right-clicks, cells selected by dragging in Excel, copy and paste, a screenshot for every typing step and every "Go to", and web addresses only when you typed or picked them, in Chrome, Edge, Firefox and more.
 - **Clicks are named more reliably** in Chrome and Edge (including choices in drop-down lists and menus), on icons labelled underneath, and on Excel cells, and **keyboard shortcuts say what they do:** Press "Ctrl + C" (Copy).
+- **Faster editing:** **Record steps here** adds newly recorded steps into the guide you're editing; pick several steps at once, as in File Explorer, to move, duplicate, delete or re-record them together; the arrow keys go through the steps, and every step menu item has a keyboard shortcut.
+- **Excel's fill handle is recorded:** dragging or double-clicking it becomes a step such as Fill "H8" down to "H250".
 - **The web page export types what was typed** into the field on the screenshot, and you can change what a step says was typed.
 - **In 38 languages.**
 - **Free and open source,** under the GNU GPL, version 3 or later. The code is at github.com/amluto-solutions/steps.

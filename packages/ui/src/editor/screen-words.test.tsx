@@ -79,7 +79,8 @@ describe("the editor's screen words", () => {
   it("blurs a whole guide without reading a screenshot twice, and says which it couldn't read", async () => {
     const { reader, notify } = show({ "m-a": email, "m-b": email, "m-c": "unavailable" });
     await screen.findByText("1 possible personal detail here (email).");
-    fireEvent.click(screen.getByRole("button", { name: /Blur all/ }));
+    // Offered once the guide has been looked through, a second after it last changed.
+    fireEvent.click(await screen.findByRole("button", { name: /Blur all/ }, { timeout: 3000 }));
     await waitFor(() => expect(notify).toHaveBeenCalled());
     const [{ text }] = notify.mock.calls[0] as [{ text: string }];
     expect(text).toContain("Blurred 2 personal details in 2 steps.");
@@ -88,5 +89,15 @@ describe("the editor's screen words", () => {
     // (only with its new blur, afterwards).
     const reads = reader.reads.filter((read) => read.mediaId === "m-a");
     expect(reads.map((read) => read.blurred.length)).toEqual([0, 1]);
+  });
+
+  it("offers Blur all only when there's something to blur", async () => {
+    const { reader } = show({ "m-a": [], "m-b": [], "m-c": "unavailable" });
+    await waitFor(() => expect(new Set(reader.reads.map((read) => read.mediaId)).size).toBe(3), {
+      timeout: 3000,
+    });
+    // Give the answer a moment to land, then check the button never came.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByRole("button", { name: /Blur all/ })).toBeNull();
   });
 });

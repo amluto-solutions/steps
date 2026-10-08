@@ -44,6 +44,11 @@ export function phraseOfStep(step: PhraseFacts): Phrase | null {
   switch (step.action) {
     case "click": {
       if (parts.verb === "selectRange") return { key: "selectRange", range: parts.target };
+      // A fill keeps "H8:H250", or "H8" alone when it went down the column (08/10/2026).
+      if (parts.verb === "fill") {
+        const [from = "", to] = parts.target.split(":");
+        return { key: "fill", from, to: to ?? null };
+      }
       const phrase = clickPhrase(namingOfStep(step));
       return parts.verb === "rightClick" ? asRightClick(phrase) : phrase;
     }

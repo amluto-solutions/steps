@@ -89,6 +89,11 @@ description = "Allows the frontend to save a completed guide into the local libr
 commands.allow = ["recorder_finalize"]
 
 [[permission]]
+identifier = "allow-recorder-copy-media"
+description = "Allows the main window to copy a recording's screenshots into the guide it was recorded into."
+commands.allow = ["recorder_copy_media"]
+
+[[permission]]
 identifier = "allow-recorder-get-recoveries"
 description = "Allows the frontend to list interrupted or stopped recordings for recovery."
 commands.allow = ["recorder_get_recoveries"]

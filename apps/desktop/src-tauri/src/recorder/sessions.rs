@@ -45,6 +45,73 @@ impl RecorderService {
         Ok(MediaInfo { id, width, height })
     }
 
+    /// Where a recording's screenshots are, to copy them into the guide it was recorded into
+    /// (docs/spec/04-editor.md#record-steps-here). Each one asked for must be there.
+    pub(crate) fn media_files(
+        &self,
+        session_id: &str,
+        media_ids: &[&str],
+    ) -> Result<Vec<PathBuf>, CommandError> {
+        let directory = {
+            let inner = lock(&self.inner);
+            session_directory(&inner, session_id)?
+        };
+        media_ids
+            .iter()
+            .map(|id| {
+                if !safe_segment(id) {
+                    return Err(invalid_image());
+                }
+                let path = directory.join("media").join(format!("{id}.webp"));
+                if path.is_file() {
+                    Ok(path)
+                } else {
+                    Err(CommandError::new(
+                        "imageNotFound",
+                        "The screenshot was not found.",
+                    ))
+                }
+            })
+            .collect()
+    }
+
+    /// Copies a recording's screenshots into another, unsaved recording that's open in the
+    /// editor (a recording made into it), as `(media id, new id)` pairs; its Save guide then
+    /// publishes them with its own. Nothing there is written over, and if one can't be copied,
+    /// the ones this call copied are removed again.
+    pub(crate) fn copy_media_to_draft(
+        &self,
+        from: &str,
+        to: &str,
+        media: &[(String, String)],
+    ) -> Result<(), CommandError> {
+        if media.iter().any(|(_, new_id)| !safe_segment(new_id)) {
+            return Err(invalid_image());
+        }
+        let ids: Vec<&str> = media.iter().map(|(id, _)| id.as_str()).collect();
+        let sources = self.media_files(from, &ids)?;
+        let target = {
+            let inner = lock(&self.inner);
+            draft_session_directory(&inner, to)?.join("media")
+        };
+        let mut written = Vec::new();
+        let mut copy_all = || -> std::io::Result<()> {
+            for (source, (_, new_id)) in sources.iter().zip(media) {
+                let path = target.join(format!("{new_id}.webp"));
+                write_new_bytes(&path, &fs::read(source)?)?;
+                written.push(path);
+            }
+            Ok(())
+        };
+        let copied = copy_all();
+        if copied.is_err() {
+            for path in &written {
+                let _ = fs::remove_file(path);
+            }
+        }
+        copied.map_err(storage_error)
+    }
+
     /// The "Start again" point of a recording, for rebuilding its steps after a restart.
     pub(super) fn restart_point(&self, session_id: &str) -> Result<Option<u64>, CommandError> {
         let inner = lock(&self.inner);
@@ -757,4 +824,8 @@ pub(super) fn session_author(directory: &Path) -> Result<String, CommandError> {
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_string())
+}
+
+fn invalid_image() -> CommandError {
+    CommandError::new("invalidImage", "The image reference is invalid.")
 }

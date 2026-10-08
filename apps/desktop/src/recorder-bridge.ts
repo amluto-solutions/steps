@@ -158,6 +158,9 @@ const journal: RecordingJournal = {
   loadImage: (sessionId, name) => invoke<string>("recorder_load_image", { sessionId, name }),
   retakeDraftImage: (sessionId, delayMs, excluded, quality) =>
     invoke<MediaInfo>("recorder_retake_draft_image", { sessionId, delayMs, excluded, quality }),
+  copyMedia: async (sessionId, into, media) => {
+    await invoke("recorder_copy_media", { sessionId, into, media });
+  },
   finalize: (sessionId, guide, libraryId) =>
     invoke<unknown>("recorder_finalize", { sessionId, guide, libraryId: libraryId ?? null }),
   saveDraft: async (sessionId, guide, steps) => {

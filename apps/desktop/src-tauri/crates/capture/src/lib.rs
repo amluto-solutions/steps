@@ -12,6 +12,7 @@ pub use capture_x11 as platform;
 
 pub mod coords;
 pub mod facts;
+mod fill;
 pub mod keys;
 pub mod lookup;
 pub mod navigation;

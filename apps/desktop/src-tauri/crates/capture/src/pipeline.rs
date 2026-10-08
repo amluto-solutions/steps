@@ -22,9 +22,10 @@ use image::RgbaImage;
 
 use crate::coords::{PxRect, point_to_pct, rect_to_pct};
 use crate::facts::{
-    AppSwitchRecord, CaptureFacts, ClickRecord, ElementFacts, InputRecord, NavigationRecord,
-    Record, UiaOutcome, WindowFacts,
+    AppSwitchRecord, CaptureFacts, ClickRecord, ElementFacts, FillKind, InputRecord,
+    NavigationRecord, Record, UiaOutcome, WindowFacts,
 };
+use crate::fill::{DragEnd, cell_of, drag_end, fill_handle_at};
 use crate::navigation::{NavigationSettle, PendingNavigation, SETTLING_POLL, TYPED_WITHIN};
 use crate::screenshot::{CaptureMode, capture};
 use crate::state_machine::{PauseReason, RecorderState, RecorderStateMachine};
@@ -659,6 +660,12 @@ fn run_inner(
     // A left click on a spreadsheet cell, until the button comes up: a drag to another cell
     // selects the cells between (04/10/2026).
     let mut drag_from: Option<DragStart> = None;
+    // A press on a fill handle that came up where it went down: a second press makes it a
+    // double-click, which fills down the column (08/10/2026).
+    let mut fill_press: Option<DragStart> = None;
+    // That fill, waiting for Excel to draw it before its screenshot: when, the press, and when
+    // the second press came.
+    let mut pending_fill: Option<(Instant, DragStart, u32)> = None;
     // The screenshot of the field that has focus, taken as it arrived, and the next one's id.
     let mut field_shot: Option<(u32, crate::screenshot::Shot, WindowInfo)> = None;
     let mut next_field_id: u64 = 0;
@@ -949,12 +956,22 @@ fn run_inner(
         }
 
         if let Some(start) = drag_from.take_if(|start| {
-            shared.last_left_up().is_some_and(|(tick, _, _)| {
-                tick.wrapping_sub(start.tick_ms) < 1 << 31 && tick != start.tick_ms
-            }) || start.at.elapsed() > DRAG_GIVE_UP
-        }) && let Some(up) = shared.last_left_up()
+            shared
+                .last_left_up()
+                .is_some_and(|(tick, _, _)| released_after(tick, start.tick_ms))
+                || start.at.elapsed() > DRAG_GIVE_UP
+        }) && let Some(up) = shared
+            .last_left_up()
+            .filter(|&(tick, _, _)| released_after(tick, start.tick_ms))
         {
-            write_drag(start, up, uia, config, machine, sink);
+            fill_press = write_drag(start, up, uia, config, machine, sink);
+        }
+        if pending_fill
+            .as_ref()
+            .is_some_and(|(due, _, _)| Instant::now() >= *due)
+            && let Some((_, start, tick_ms)) = pending_fill.take()
+        {
+            write_fill_down(&start, tick_ms, config, machine, sink);
         }
 
         // An editable field gained focus: its screenshot now, before anything is typed, for the
@@ -1146,6 +1163,10 @@ fn run_inner(
                 if let Some(switch) = pending_switch.take() {
                     write_switch(switch, config, machine, sink);
                 }
+                // The double-click happened before Stop: its fill is a step, picture or not.
+                if let Some((_, start, tick_ms)) = pending_fill.take() {
+                    write_fill_down(&start, tick_ms, config, machine, sink);
+                }
                 // An address read before Stop still counts, settled or not.
                 write_navigation(settle.flush(), &mut last_origin, machine, config, sink);
                 break;
@@ -1214,6 +1235,14 @@ fn run_inner(
                 },
                 None,
             );
+            // A double-click on a fill handle fills down the column (08/10/2026). Its first press
+            // may still be waiting for its release, or have come up already.
+            if let Some(start) = drag_from
+                .take_if(|start| start.of == before.id && start.fill_corner.is_some())
+                .or_else(|| fill_press.take_if(|start| start.of == before.id))
+            {
+                pending_fill = Some((Instant::now() + FILL_SHOT_AFTER, start, event.tick_ms));
+            }
             previous = None; // a third press starts a new click
             continue;
         }
@@ -1223,6 +1252,10 @@ fn run_inner(
 
         if let Some(switch) = pending_switch.take() {
             write_switch(switch, config, machine, sink);
+        }
+        // The fill a double-click made goes before the next click, its picture taken now.
+        if let Some((_, start, tick_ms)) = pending_fill.take() {
+            write_fill_down(&start, tick_ms, config, machine, sink);
         }
         let Some(window) = root_window_at(event.x, event.y) else {
             stats.missed += 1;
@@ -1276,20 +1309,9 @@ fn run_inner(
             }
             write_navigation(settle.flush(), &mut last_origin, machine, config, sink);
             drag_from = (event.button == MouseButton::Left)
-                .then(|| {
-                    let cell = record.element.as_ref().and_then(crate::typing::cell_name)?;
-                    Some(DragStart {
-                        of: record.id,
-                        tick_ms: event.tick_ms,
-                        x: event.x,
-                        y: event.y,
-                        cell,
-                        bounds: record.element.as_ref().and_then(|facts| facts.bounds),
-                        window: window.clone(),
-                        at: Instant::now(),
-                    })
-                })
+                .then(|| drag_start(&record, &window))
                 .flatten();
+            fill_press = None;
             sink.write(Record::Click(record), Some(image));
             previous = Some(event);
             // A click on a link changes the address a moment later, not at once.
@@ -1308,21 +1330,57 @@ struct DragStart {
     tick_ms: u32,
     x: i32,
     y: i32,
+    /// The cell pressed on, or for a press on a fill handle, the cell whose handle it is.
     cell: String,
+    /// That cell's box, when known.
     bounds: Option<PxRect>,
+    /// The fill handle's place on the screen, when the press was on one.
+    fill_corner: Option<(i32, i32)>,
     window: WindowInfo,
     at: Instant,
+}
+
+/// A left click that may become a drag: one on a spreadsheet cell, or on a cell's fill handle.
+fn drag_start(record: &ClickRecord, window: &WindowInfo) -> Option<DragStart> {
+    let element = record.element.as_ref()?;
+    let (cell, bounds, fill_corner) =
+        match fill_handle_at(record.x, record.y, element, record.capture.scale) {
+            Some(handle) => (handle.cell, handle.bounds, Some(handle.corner)),
+            None => (cell_of(element)?, element.bounds, None),
+        };
+    Some(DragStart {
+        of: record.id,
+        tick_ms: record.tick_ms,
+        x: record.x,
+        y: record.y,
+        cell,
+        bounds,
+        fill_corner,
+        window: window.clone(),
+        at: Instant::now(),
+    })
+}
+
+/// Whether a release at `tick` came after a press at `pressed`, ticks wrapping. A release from
+/// before the press (the press's own was never seen) isn't where this drag ended.
+fn released_after(tick: u32, pressed: u32) -> bool {
+    tick.wrapping_sub(pressed) < 1 << 31 && tick != pressed
 }
 
 /// How far the pointer must move between press and release to be a drag, in physical pixels.
 const DRAG_MIN_PX: i32 = 8;
 /// A release this long after the press, or never seen, ends the wait.
 const DRAG_GIVE_UP: Duration = Duration::from_secs(30);
+/// How long after a double-click on a fill handle its screenshot is taken, so the filled column
+/// shows: as long as an app is given to draw for its "Open" step.
+const FILL_SHOT_AFTER: Duration = SWITCH_SHOT_AFTER;
 /// Ids for drag lookups and pictures, away from click ids.
 static NEXT_DRAG_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1 << 48);
 
-/// The button came up: if it moved to another cell, the cells between were selected. The cell
-/// under the release is looked up, and the window's screenshot shows the selection.
+/// The button came up: if it moved to another cell, the cells between were selected, or, from
+/// a fill handle, filled. The cell under the release is looked up, and the window's screenshot
+/// shows the selection. A press on a fill handle that didn't move is given back, since a second
+/// press would make it a double-click.
 fn write_drag(
     start: DragStart,
     (tick_ms, x, y): (u32, i32, i32),
@@ -1330,37 +1388,90 @@ fn write_drag(
     config: &PipelineConfig,
     machine: Option<&Mutex<RecorderStateMachine>>,
     sink: &mut dyn Sink,
-) {
-    if (x - start.x).abs() < DRAG_MIN_PX && (y - start.y).abs() < DRAG_MIN_PX {
-        return;
-    }
-    let id = NEXT_DRAG_ID.fetch_add(1, Ordering::Relaxed);
-    let started = Instant::now();
-    uia.request(id, x, y, start.window.hwnd);
-    let mut ignored = Stats::default();
-    let (element, _) = lookup_outcome(
-        uia.wait(id, started, started + Duration::from_millis(300)),
-        &mut ignored,
-    );
-    let Some(to) = element.as_ref().and_then(crate::typing::cell_name) else {
-        return;
+) -> Option<DragStart> {
+    let moved = (x - start.x).abs() >= DRAG_MIN_PX || (y - start.y).abs() >= DRAG_MIN_PX;
+    let element = if moved {
+        let id = NEXT_DRAG_ID.fetch_add(1, Ordering::Relaxed);
+        let started = Instant::now();
+        uia.request(id, x, y, start.window.hwnd);
+        let mut ignored = Stats::default();
+        lookup_outcome(
+            uia.wait(id, started, started + Duration::from_millis(300)),
+            &mut ignored,
+        )
+        .0
+    } else {
+        None
     };
-    if to == start.cell {
-        return;
-    }
-    let shot = shoot_field(&start.window, config, machine);
-    let selection = match (
-        start.bounds,
-        element.as_ref().and_then(|facts| facts.bounds),
-    ) {
-        (Some(from), Some(to)) => Some(PxRect {
+    let release = element.as_ref().and_then(cell_of);
+    let end_bounds = element.as_ref().and_then(|facts| facts.bounds);
+    let (to, fill) = match drag_end(&start.cell, start.fill_corner.is_some(), moved, release) {
+        DragEnd::Click => return (!moved && start.fill_corner.is_some()).then_some(start),
+        DragEnd::Select { to } => (Some(to), None),
+        DragEnd::Fill { to } => (to, Some(FillKind::Drag)),
+    };
+    let start_box = start
+        .bounds
+        .or_else(|| fill.and(start.fill_corner).map(corner_box));
+    let selection = to
+        .as_ref()
+        .and(start_box)
+        .zip(end_bounds)
+        .map(|(from, to)| PxRect {
             left: from.left.min(to.left),
             top: from.top.min(to.top),
             right: from.right.max(to.right),
             bottom: from.bottom.max(to.bottom),
-        }),
-        _ => None,
-    };
+        });
+    write_cells(&start, tick_ms, to, fill, selection, config, machine, sink);
+    None
+}
+
+/// A fill handle's cell known only by its corner: the cells filled start past it.
+fn corner_box((x, y): (i32, i32)) -> PxRect {
+    PxRect {
+        left: x,
+        top: y,
+        right: x,
+        bottom: y,
+    }
+}
+
+/// A double-click on a fill handle: Excel fills down as far as the column beside it goes, so
+/// there's no end cell to name, and the screenshot shows its handle.
+fn write_fill_down(
+    start: &DragStart,
+    tick_ms: u32,
+    config: &PipelineConfig,
+    machine: Option<&Mutex<RecorderStateMachine>>,
+    sink: &mut dyn Sink,
+) {
+    write_cells(
+        start,
+        tick_ms,
+        None,
+        Some(FillKind::Double),
+        None,
+        config,
+        machine,
+        sink,
+    );
+}
+
+/// Writes cells selected or filled from `start` to `to` (none for a fill down the column, or one
+/// dragged to where no cell was found), with the window's screenshot as it is now.
+#[allow(clippy::too_many_arguments)] // The drag's outcome and the pipeline's own context.
+fn write_cells(
+    start: &DragStart,
+    tick_ms: u32,
+    to: Option<String>,
+    fill: Option<FillKind>,
+    selection: Option<PxRect>,
+    config: &PipelineConfig,
+    machine: Option<&Mutex<RecorderStateMachine>>,
+    sink: &mut dyn Sink,
+) {
+    let shot = shoot_field(&start.window, config, machine);
     let capture = shot.as_ref().map(|shot| CaptureFacts {
         mode: config.mode.as_str(),
         rect: shot.rect,
@@ -1374,16 +1485,22 @@ fn write_drag(
         .as_ref()
         .zip(selection)
         .and_then(|(shot, area)| rect_to_pct(&shot.rect, &area));
+    let handle_pct = shot
+        .as_ref()
+        .zip(fill.and(start.fill_corner))
+        .and_then(|(shot, (x, y))| point_to_pct(&shot.rect, x, y));
     sink.write(
         Record::Drag(crate::facts::DragRecord {
-            id,
+            id: NEXT_DRAG_ID.fetch_add(1, Ordering::Relaxed),
             of: start.of,
             tick_ms,
-            from: start.cell,
+            from: start.cell.clone(),
             to,
+            fill,
             window: window_facts(&start.window),
             capture,
             selection_pct,
+            handle_pct,
         }),
         shot.map(|shot| shot.image),
     );

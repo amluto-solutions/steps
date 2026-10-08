@@ -28,6 +28,8 @@ export type {
   Hotkeys,
   LinkStatus,
   LocalFonts,
+  MediaDestination,
+  MediaRename,
   RecorderBridge,
   RecorderRestarted,
   RecorderSnapshot,

@@ -29,7 +29,12 @@ export type {
   Recording,
   StartOptions,
 } from "./bridge/recording";
-export type { RecordingJournal, RecoverySession } from "./bridge/recording-journal";
+export type {
+  MediaDestination,
+  MediaRename,
+  RecordingJournal,
+  RecoverySession,
+} from "./bridge/recording-journal";
 export type { SettingsFiles } from "./bridge/settings-files";
 export type { Support, WebPage } from "./bridge/support";
 export type { UpdateChannel, UpdateInfo, Updates } from "./bridge/updates";

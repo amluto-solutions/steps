@@ -22,6 +22,7 @@ import {
 import { policy } from "../settings/policy";
 import { readRecordPcAndLogin } from "../settings/preferences";
 import { askConfirm } from "./ask";
+import { underEditLock } from "./edit-lock";
 
 /**
  * The guide locks every library goes through (docs/spec/03-data-and-sharing.md#password-locks),
@@ -206,10 +207,23 @@ export function useLockAndBin(context: {
         ];
   };
 
-  const trashGuide = async ({ libraryId: id, guideId }: GuideRef, title: string) => {
+  /**
+   * Move to Bin. From the list it's done under the guide's edit lock (`held`: the editor holds
+   * it), and never taken from someone editing it: their unsaved edits would have nowhere to go.
+   */
+  const trashGuide = async (ref: GuideRef, title: string, held: boolean) => {
     if (!library) return;
+    const { libraryId: id, guideId } = ref;
     try {
-      const entry = await library.trashGuide(id, guideId);
+      const bin = () => library.trashGuide(id, guideId);
+      const binned = held
+        ? { done: true as const, value: await bin() }
+        : await underEditLock(library, ref, null, bin);
+      if (!binned.done) {
+        notify({ kind: "error", text: t("library.binEditing", { name: binned.lock.name }) });
+        return;
+      }
+      const entry = binned.value;
       await refreshGuides(id);
       notify({
         text: t("library.trashed", { title }),
@@ -227,8 +241,11 @@ export function useLockAndBin(context: {
     }
   };
 
-  /** The end of a guide's menu: its lock entries, Properties, and Move to Bin. */
-  const guideEntries = (ref: GuideRef, title: string): MenuEntry[] => [
+  /**
+   * The end of a guide's menu: its lock entries, Properties, and Move to Bin. `held` when the menu
+   * is the editor's, which holds the guide's edit lock.
+   */
+  const guideEntries = (ref: GuideRef, title: string, held = false): MenuEntry[] => [
     ...lockEntries(ref, title),
     {
       label: t("locks.properties"),
@@ -240,7 +257,8 @@ export function useLockAndBin(context: {
       label: t("library.toTrash"),
       icon: "trash",
       danger: true,
-      onSelect: () => void withPassword(ref, title, t("locks.toBin"), () => trashGuide(ref, title)),
+      onSelect: () =>
+        void withPassword(ref, title, t("locks.toBin"), () => trashGuide(ref, title, held)),
     },
   ];
 

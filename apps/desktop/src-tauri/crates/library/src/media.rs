@@ -285,7 +285,7 @@ impl Library {
     }
 }
 
-fn read_image_file(path: &std::path::Path) -> Result<Vec<u8>> {
+pub(crate) fn read_image_file(path: &std::path::Path) -> Result<Vec<u8>> {
     if let Err(error) = crate::util::check_size(path, crate::util::MAX_IMAGE_FILE) {
         return Err(if error.kind() == std::io::ErrorKind::NotFound {
             LibraryError::ImageNotFound

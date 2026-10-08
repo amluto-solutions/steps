@@ -62,6 +62,7 @@ export type Phrase =
   | { key: "rightClickIn"; title: string }
   | { key: "rightClickBare" }
   | { key: "selectRange"; range: string }
+  | { key: "fill"; from: string; to: string | null }
   | { key: "typeValueInField"; value: string; field: string }
   | { key: "typeInField"; field: string }
   | { key: "chooseValueIn"; value: string; field: string }
@@ -101,6 +102,14 @@ export interface Phrasebook {
   rightClickBare: string;
   /** Cells selected by dragging: `{range}` is "D38:F42" (04/10/2026). */
   selectRange: string;
+  /**
+   * Excel's fill handle (08/10/2026): dragged straight down from `{from}` to `{to}` ("H8" to
+   * "H250"); dragged any other way; and double-clicked, which fills down as far as the column
+   * next to it goes, so there's no end cell to name.
+   */
+  fillDown: string;
+  fillTo: string;
+  fillColumn: string;
   typeValueInField: string;
   typeInField: string;
   /** A choice made in a drop-down list by typing: `{value}`, `{field}` (F010). */
@@ -200,6 +209,12 @@ export function renderPhrase(phrase: Phrase, language: string, tone: Tone): stri
       return book.rightClickBare;
     case "selectRange":
       return fill(book.selectRange, { range: phrase.range });
+    case "fill":
+      if (phrase.to === null) return fill(book.fillColumn, { from: phrase.from });
+      return fill(fillsDown(phrase.from, phrase.to) ? book.fillDown : book.fillTo, {
+        from: phrase.from,
+        to: phrase.to,
+      });
     case "typeValueInField":
       return fill(book.typeValueInField, {
         value: shorten(phrase.value),
@@ -250,6 +265,16 @@ export function renderPhrase(phrase: Phrase, language: string, tone: Tone): stri
     case "captureNow":
       return book.captureNow;
   }
+}
+
+/** A cell reference's column letters and row ("H8" → H, 8). */
+const CELL = /^([A-Z]{1,3})(\d{1,7})$/;
+
+/** Whether a fill from one cell ends further down the same column ("H8" to "H250"). */
+function fillsDown(from: string, to: string): boolean {
+  const start = CELL.exec(from);
+  const end = CELL.exec(to);
+  return Boolean(start && end && start[1] === end[1] && Number(end[2]) > Number(start[2]));
 }
 
 // ----- From what was recorded to a phrase -----

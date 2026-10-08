@@ -17,7 +17,7 @@ import {
   type StepTarget,
 } from "@amluto-steps/core";
 
-import type { Change, EditorDoc, Edit } from "./document";
+import { applyChanges, mergeEdits, type Change, type EditorDoc, type Edit } from "./document";
 
 /** Who made an edit and when, stamped onto every file it touches. */
 export interface Stamp {
@@ -83,12 +83,14 @@ export function updateStep(
 /**
  * Why a recorded step asks to be checked, so the editor names that one reason (F031).
  * `checkName`: a click named from its screenshot's words, which text recognition may misread.
+ * `fillEnd`: a fill handle dragged to where no cell was found (08/10/2026).
  */
-export type ReviewReason = "unnamed" | "checkName" | "missed" | "typing" | "code";
+export type ReviewReason = "unnamed" | "checkName" | "missed" | "typing" | "code" | "fillEnd";
 
 export function reviewReason(step: GuideStep): ReviewReason | null {
   if (!step.reviewRequired) return null;
   if (step.textParts.kind === "warning") return "missed";
+  if (step.textParts.verb === "fill") return "fillEnd";
   if (["command", "code", "formula"].includes(step.action)) return "code";
   if (step.action === "type") return "typing";
   if (step.action === "click" && step.naming?.source === "screen") return "checkName";
@@ -97,12 +99,16 @@ export function reviewReason(step: GuideStep): ReviewReason | null {
 
 /**
  * The wording, written by hand. A click that couldn't be named, or whose name was read from the
- * screenshot, has been named by the person now, so it no longer asks to be checked.
+ * screenshot, has been named by the person now, so it no longer asks to be checked; so has a
+ * fill whose end cell wasn't found.
  */
 export const setStepText = (doc: EditorDoc, id: string, text: string, stamp: Stamp) => {
   const step = findStep(doc, id);
   const reason = step && reviewReason(step);
-  const named = reason === "unnamed" || reason === "checkName" ? { reviewRequired: false } : {};
+  const named =
+    reason === "unnamed" || reason === "checkName" || reason === "fillEnd"
+      ? { reviewRequired: false }
+      : {};
   return updateStep(
     doc,
     id,
@@ -331,6 +337,123 @@ export function moveStep(doc: EditorDoc, id: string, toIndex: number, stamp: Sta
   );
 }
 
+/**
+ * Puts the guide's steps in the order of `final` as one edit: each step in `placing` (moved, or
+ * new) gets a key between its neighbours', the rest keep theirs, so only their files change.
+ * When there's no room between two keys, every step gets a fresh key instead.
+ */
+function placeAll(
+  doc: EditorDoc,
+  final: GuideStep[],
+  placing: ReadonlySet<string>,
+  label: string,
+  stamp: Stamp,
+): Edit | null {
+  // Nothing new and nothing moved: no edit, rather than new keys for the same order.
+  if (
+    final.length === doc.steps.length &&
+    final.every((step, index) => step.id === doc.steps[index]?.id)
+  )
+    return null;
+  const keys: (string | null)[] = final.map((step) => (placing.has(step.id) ? null : step.sortKey));
+  let spread = false;
+  for (let index = 0; index < final.length && !spread; index += 1) {
+    if (keys[index] !== null) continue;
+    let next = index + 1;
+    while (next < final.length && keys[next] === null) next += 1;
+    const key = keyBetween(index > 0 ? (keys[index - 1] ?? null) : null, keys[next] ?? null);
+    if (key === null) spread = true;
+    else keys[index] = key;
+  }
+  const finalKeys = spread ? spreadKeys(final.length) : keys;
+  const before = new Map(doc.steps.map((step) => [step.id, step]));
+  const changes = final.flatMap((step, index) => {
+    const key = finalKeys[index] ?? step.sortKey;
+    const old = before.get(step.id) ?? null;
+    if (old && old.sortKey === key) return [];
+    return [stepChange(old, touched({ ...step, sortKey: key }, stamp))];
+  });
+  return changes.length ? edit(label, changes, stamp) : null;
+}
+
+/** The guide's steps with `ids` in their place, in guide order. */
+const stepsIn = (doc: EditorDoc, ids: readonly string[]) => {
+  const wanted = new Set(ids);
+  return doc.steps.filter((step) => wanted.has(step.id));
+};
+
+/**
+ * Moves several steps one place up (-1) or down (1) as one edit: each passes the step beside it
+ * that isn't moving, so a run of steps moves as a block, and a step already at the end stays.
+ */
+export function moveStepsBy(
+  doc: EditorDoc,
+  ids: readonly string[],
+  delta: -1 | 1,
+  stamp: Stamp,
+): Edit | null {
+  const moving = new Set(stepsIn(doc, ids).map((step) => step.id));
+  const order = [...doc.steps];
+  const swapIfFree = (index: number) => {
+    const here = order[index];
+    const there = order[index + delta];
+    if (!here || !there || !moving.has(here.id) || moving.has(there.id)) return;
+    order[index] = there;
+    order[index + delta] = here;
+  };
+  if (delta < 0) for (let index = 1; index < order.length; index += 1) swapIfFree(index);
+  else for (let index = order.length - 2; index >= 0; index -= 1) swapIfFree(index);
+  return placeAll(doc, order, moving, "move steps", stamp);
+}
+
+/**
+ * Moves several steps to where `overId` is, together and in their order: after it when they came
+ * from above, before it when from below (dragging a group in the steps list).
+ */
+export function moveStepsTo(
+  doc: EditorDoc,
+  ids: readonly string[],
+  overId: string,
+  stamp: Stamp,
+): Edit | null {
+  const group = stepsIn(doc, ids);
+  const moving = new Set(group.map((step) => step.id));
+  if (moving.has(overId) || group.length === 0) return null;
+  const from = doc.steps.findIndex((step) => moving.has(step.id));
+  const over = doc.steps.findIndex((step) => step.id === overId);
+  if (over < 0) return null;
+  const rest = doc.steps.filter((step) => !moving.has(step.id));
+  const at = rest.findIndex((step) => step.id === overId) + (over > from ? 1 : 0);
+  return placeAll(
+    doc,
+    [...rest.slice(0, at), ...group, ...rest.slice(at)],
+    moving,
+    "move steps",
+    stamp,
+  );
+}
+
+/** Copies of several steps, in their order, straight after the last of them, as one edit. */
+export function duplicateSteps(
+  doc: EditorDoc,
+  ids: readonly string[],
+  newId: () => string,
+  stamp: Stamp,
+): Edit | null {
+  const group = stepsIn(doc, ids);
+  const last = group.at(-1);
+  if (!last) return null;
+  const copies = group.map((step) => ({ ...step, id: newId() }));
+  const at = doc.steps.indexOf(last) + 1;
+  return placeAll(
+    doc,
+    [...doc.steps.slice(0, at), ...copies, ...doc.steps.slice(at)],
+    new Set(copies.map((step) => step.id)),
+    "duplicate steps",
+    stamp,
+  );
+}
+
 /** Inserts `step` at `index` (its sort key is assigned here). */
 export function insertStepAt(
   doc: EditorDoc,
@@ -350,6 +473,28 @@ export function insertStepAt(
     [...renumbered, stepChange(null, touched({ ...step, sortKey: key }, stamp))],
     stamp,
   );
+}
+
+/**
+ * Inserts `steps`, in order, at `index` as one edit, so one Undo takes them all out again
+ * (Record steps here, docs/spec/04-editor.md#record-steps-here). Null when there are none.
+ */
+export function insertStepsAt(
+  doc: EditorDoc,
+  steps: readonly GuideStep[],
+  index: number,
+  label: string,
+  stamp: Stamp,
+): Edit | null {
+  let working = doc;
+  let made: Edit | null = null;
+  const start = Math.max(0, Math.min(doc.steps.length, index));
+  for (const [offset, step] of steps.entries()) {
+    const next = insertStepAt(working, step, start + offset, label, stamp);
+    working = applyChanges(working, next.changes, "do");
+    made = made ? mergeEdits(made, next) : next;
+  }
+  return made;
 }
 
 export function duplicateStep(

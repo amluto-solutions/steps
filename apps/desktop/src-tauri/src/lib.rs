@@ -133,6 +133,7 @@ pub fn run() {
             recorder::commands::recorder_set_target_monitor,
             recorder::commands::recorder_append_step,
             recorder::commands::recorder_finalize,
+            recorder::commands::recorder_copy_media,
             recorder::commands::recorder_get_recoveries,
             recorder::commands::recorder_recover_session,
             recorder::commands::recorder_get_recovery_records,

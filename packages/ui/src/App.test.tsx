@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_RECORDING_SETTINGS,
   newBrandProfile,
+  type GuideStep,
   type RecordedStep,
   type RecorderPreferences,
   type RecordingFact,
@@ -56,7 +57,7 @@ function makeRecorder(overrides: Partial<RecorderBridge> = {}, unsaved: string[]
     const member = recorder[key];
     if (typeof member === "function" && !vi.isMockFunction(member)) vi.spyOn(recorder, key);
   }
-  return Object.assign(recorder, { fire: live.fire });
+  return Object.assign(recorder, { fire: live.fire, addMedia: live.addMedia });
 }
 
 const guideFile = (id: string, title: string) => ({
@@ -1257,6 +1258,7 @@ describe("Editing a saved guide", () => {
     const library = makeLibrary({
       listLibraries: vi.fn().mockResolvedValue(libraries),
       listGuides: vi.fn().mockResolvedValue([summary("g1", "Add a supplier")]),
+      openForEditing: vi.fn().mockResolvedValue({ kind: "editing" }),
       moveGuide: vi.fn((_from: string, guideId: string) =>
         Promise.resolve(summary(`moved-${guideId}`, guideId)),
       ),
@@ -1270,6 +1272,82 @@ describe("Editing a saved guide", () => {
     await waitFor(() =>
       expect(library.moveGuide).toHaveBeenCalledWith("lib-2", "moved-g1", "lib-1"),
     );
+  });
+
+  it("waits for someone editing a guide before a card's Move or Move to Bin, and offers to take over to rename", async () => {
+    const libraries = [
+      { id: "lib-1", name: "My guides", path: "C:\\Guides", isDefault: true },
+      { id: "lib-2", name: "Finance team", path: "S:\\Finance", isDefault: false },
+    ].map((item) => ({ ...item, managed: false, synced: false, guideCount: 1 }));
+    const sam = { name: "Sam Jones", pc: "SAMS-PC", session: "s", counter: 1, since: "" };
+    const library = makeLibrary({
+      listLibraries: vi.fn().mockResolvedValue(libraries),
+      listGuides: vi.fn().mockResolvedValue([
+        {
+          id: "g1",
+          title: "Add a supplier",
+          updatedAt: "2026-09-25T10:00:00.000Z",
+          stepCount: 2,
+          tags: [],
+          owner: "Robin",
+          reviewBy: null,
+          thumbnailMediaId: null,
+        },
+      ]),
+      loadGuide: vi.fn().mockResolvedValue({
+        guide: guideFile("g1", "Add a supplier"),
+        steps: [],
+      }),
+      openForEditing: vi.fn((_library: string, _guide: string, takeOver: boolean) =>
+        Promise.resolve(
+          takeOver ? { kind: "editing" as const } : { kind: "readOnly" as const, lock: sam },
+        ),
+      ),
+      listTrash: vi.fn().mockResolvedValue([]),
+    });
+    render(<App recorder={makeRecorder()} library={library} />);
+    const menu = async () =>
+      fireEvent.click(
+        await screen.findByRole("button", { name: "More actions for Add a supplier" }),
+      );
+
+    await menu();
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Move to Bin" }));
+    expect(
+      await screen.findByText(
+        "Sam Jones is editing this guide, so it can’t go to the Bin now. Try again once they’ve finished.",
+      ),
+    ).toBeDefined();
+    await menu();
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Move to Finance team" }));
+    expect(
+      await screen.findByText(
+        "Sam Jones is editing this guide, so it can’t be moved now. Try again once they’ve finished.",
+      ),
+    ).toBeDefined();
+    expect(library.trashGuide).not.toHaveBeenCalled();
+    expect(library.moveGuide).not.toHaveBeenCalled();
+    expect(library.openForEditing).not.toHaveBeenCalledWith("lib-1", "g1", true);
+
+    await menu();
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Rename…" }));
+    fireEvent.change(await screen.findByRole("textbox", { name: "Title" }), {
+      target: { value: "Add a new supplier" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Rename" }));
+    const ask = await screen.findByRole("alertdialog", {
+      name: "Take over editing from Sam Jones?",
+    });
+    fireEvent.click(within(ask).getByRole("button", { name: "Take over editing" }));
+    await waitFor(() =>
+      expect(library.saveGuide).toHaveBeenCalledWith(
+        "lib-1",
+        "g1",
+        expect.objectContaining({ title: "Add a new supplier" }),
+      ),
+    );
+    expect(library.openForEditing).toHaveBeenCalledWith("lib-1", "g1", true);
+    expect(library.releaseLock).toHaveBeenCalledWith("lib-1", "g1");
   });
 
   it("merges two guides into a new one with a first version, and Undo puts it in the Bin", async () => {
@@ -1627,5 +1705,184 @@ describe("Editing a saved guide", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Open Add a supplier" }));
     await screen.findByDisplayValue("Click Contacts");
     await expectNoSeriousAxeViolations(container);
+  });
+});
+
+describe("Record steps here (docs/spec/04-editor.md#record-steps-here)", () => {
+  const INTO = "amluto-steps-recording-into";
+
+  const manual = shortcutFact.record as Extract<RecordingFact["record"], { kind: "manual" }>;
+  /** A Capture now in `sessionId`, with a screenshot of its own. */
+  const shot = (sessionId: string, sequence: number) =>
+    ({
+      ...shortcutFact,
+      sessionId,
+      sequence,
+      record: {
+        ...manual,
+        id: 300 + sequence,
+        purpose: "captureNow",
+        capture: { ...manual.capture, image: `manual-${sequence}.webp` },
+      },
+    }) as RecordingFact;
+
+  const stop = (recorder: ReturnType<typeof makeRecorder>, sessionId: string, gone = false) =>
+    act(() =>
+      recorder.fire.finished({
+        sessionId,
+        snapshot: { ...idle, sessionId: gone ? null : sessionId },
+        title: "New guide 08/10/2026",
+      }),
+    );
+
+  /** Opens "Add a supplier", then Add > Record steps here and Start, with its first step chosen. */
+  async function recordIntoTheGuide(
+    recorder: ReturnType<typeof makeRecorder>,
+    library: FakeLibrary,
+  ) {
+    render(<App recorder={recorder} library={library} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Open Add a supplier" }));
+    await screen.findByDisplayValue("Click Contacts");
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Record steps here/ }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Recording into “Add a supplier”")).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Start recording" }));
+    await waitFor(() => expect(recorder.start).toHaveBeenCalled());
+  }
+
+  it("puts the new steps after the chosen one as one undo step, their screenshots in the guide", async () => {
+    const recorder = makeRecorder();
+    const library = makeLibrary();
+    await recordIntoTheGuide(recorder, library);
+    // The editor stays open, holding the guide's edit lock, and the bar is told where it goes.
+    expect(screen.getByDisplayValue("Click Contacts")).toBeTruthy();
+    expect(library.releaseLock).not.toHaveBeenCalled();
+    expect(JSON.parse(window.localStorage.getItem(INTO) ?? "null")).toMatchObject({
+      title: "Add a supplier",
+      sessionId: "session-9",
+    });
+
+    recorder.addMedia("session-9", ["manual-1", "manual-2"]);
+    act(() => {
+      recorder.fire.fact(shot("session-9", 1));
+      recorder.fire.fact(shot("session-9", 2));
+    });
+    stop(recorder, "session-9");
+    expect(await screen.findByText("Added 2 recorded steps.")).toBeTruthy();
+    await waitFor(() => expect(recorder.discard).toHaveBeenCalled());
+    expect(recorder.saveDraft).not.toHaveBeenCalled();
+
+    const [sessionId, into, media] = vi.mocked(recorder.copyMedia).mock.calls[0] ?? [];
+    expect(sessionId).toBe("session-9");
+    expect(into).toEqual({ kind: "guide", libraryId: "lib-1", guideId: "guide-1" });
+    expect(media?.map((item) => item.mediaId)).toEqual(["manual-1", "manual-2"]);
+    const saved = vi
+      .mocked(library.saveStep)
+      .mock.calls.map(([, guideId, step]) => ({ guideId, ...(step as GuideStep) }));
+    expect(saved).toHaveLength(2);
+    expect(saved.map((step) => step.guideId)).toEqual(["guide-1", "guide-1"]);
+    // New ids, and the screenshots' new ids, so nothing clashes with the guide's own.
+    expect(saved.map((step) => step.media?.id)).toEqual(media?.map((item) => item.newMediaId));
+    expect(saved.some((step) => step.id.startsWith("capture-"))).toBe(false);
+    // Between "Click Contacts" (a) and "Click Save" (b).
+    expect(saved.every((step) => step.sortKey > "a" && step.sortKey < "b")).toBe(true);
+    expect(window.localStorage.getItem(INTO)).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(library.deleteStep).toHaveBeenCalledTimes(2));
+    expect(
+      vi
+        .mocked(library.deleteStep)
+        .mock.calls.map(([, , id]) => id)
+        .sort(),
+    ).toEqual(saved.map((step) => step.id).sort());
+  });
+
+  it("inserts nothing when the recording is discarded", async () => {
+    const recorder = makeRecorder();
+    const library = makeLibrary();
+    await recordIntoTheGuide(recorder, library);
+    recorder.addMedia("session-9", ["manual-1"]);
+    act(() => recorder.fire.fact(shot("session-9", 1)));
+    // Discarded from the bar: it finishes with no recording left.
+    stop(recorder, "session-9", true);
+    await waitFor(() => expect(window.localStorage.getItem(INTO)).toBeNull());
+    expect(recorder.copyMedia).not.toHaveBeenCalled();
+    expect(recorder.saveDraft).not.toHaveBeenCalled();
+    expect(library.saveStep).not.toHaveBeenCalled();
+  });
+
+  it("keeps the steps as a recording of their own when the guide was closed meanwhile", async () => {
+    const recorder = makeRecorder();
+    const library = makeLibrary();
+    await recordIntoTheGuide(recorder, library);
+    fireEvent.click(screen.getByRole("button", { name: "Guides" }));
+    await waitFor(() => expect(library.releaseLock).toHaveBeenCalled());
+    recorder.addMedia("session-9", ["manual-1"]);
+    act(() => recorder.fire.fact(shot("session-9", 1)));
+    stop(recorder, "session-9");
+    expect(
+      await screen.findByText(
+        "The new steps couldn't go into “Add a supplier”: it was closed, or someone else is editing it. They're in a recording of their own instead.",
+      ),
+    ).toBeTruthy();
+    await waitFor(() => expect(recorder.saveDraft).toHaveBeenCalledOnce());
+    expect(vi.mocked(recorder.saveDraft).mock.calls[0]?.[0]).toBe("session-9");
+    expect(recorder.copyMedia).not.toHaveBeenCalled();
+    expect(recorder.discard).not.toHaveBeenCalled();
+    expect(library.saveStep).not.toHaveBeenCalled();
+  });
+
+  it("keeps them as a recording of their own when the guide can't take the screenshots", async () => {
+    const recorder = makeRecorder({
+      copyMedia: vi.fn().mockRejectedValue({ code: "lockLost", message: "Sam is editing it." }),
+    });
+    const library = makeLibrary();
+    await recordIntoTheGuide(recorder, library);
+    recorder.addMedia("session-9", ["manual-1"]);
+    act(() => recorder.fire.fact(shot("session-9", 1)));
+    stop(recorder, "session-9");
+    await waitFor(() => expect(recorder.saveDraft).toHaveBeenCalledOnce());
+    expect(recorder.discard).not.toHaveBeenCalled();
+    expect(library.saveStep).not.toHaveBeenCalled();
+  });
+
+  it("records into an unsaved recording being edited, its screenshots joining that recording's", async () => {
+    const recorder = makeRecorder();
+    render(<App recorder={recorder} library={makeLibrary()} />);
+    fireEvent.click(await screen.findByRole("button", { name: "New recording" }));
+    fireEvent.click(
+      within(await screen.findByRole("dialog")).getByRole("button", { name: "Start recording" }),
+    );
+    await waitFor(() => expect(recorder.start).toHaveBeenCalledOnce());
+    recorder.addMedia("session-9", ["manual-1"]);
+    act(() => recorder.fire.fact(shot("session-9", 1)));
+    stop(recorder, "session-9");
+    await waitFor(() => expect(recorder.saveDraft).toHaveBeenCalledOnce());
+    await screen.findByRole("button", { name: "Save guide" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Record steps here/ }));
+    fireEvent.click(
+      within(await screen.findByRole("dialog")).getByRole("button", { name: "Start recording" }),
+    );
+    await waitFor(() => expect(recorder.start).toHaveBeenCalledTimes(2));
+    recorder.addMedia("session-2", ["manual-1"]);
+    act(() => recorder.fire.fact(shot("session-2", 1)));
+    stop(recorder, "session-2");
+    await waitFor(() => expect(recorder.discard).toHaveBeenCalled());
+    expect(vi.mocked(recorder.copyMedia).mock.calls[0]?.slice(0, 2)).toEqual([
+      "session-2",
+      { kind: "draft", sessionId: "session-9" },
+    ]);
+    // The new step goes into the draft being edited, beside its own step; no second draft.
+    expect(recorder.saveDraft).toHaveBeenCalledOnce();
+    const added = vi
+      .mocked(recorder.saveDraftStep)
+      .mock.calls.map(([sessionId, step]) => [sessionId, (step as GuideStep).id]);
+    expect(added).toHaveLength(1);
+    expect(added[0]?.[0]).toBe("session-9");
+    expect(added[0]?.[1]).not.toBe("capture-1");
   });
 });

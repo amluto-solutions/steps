@@ -640,6 +640,71 @@ fn a_saved_draft_is_what_gets_published() {
 }
 
 #[test]
+fn a_recording_made_into_an_unsaved_one_copies_its_screenshots_there() {
+    let root = tempfile::tempdir().unwrap();
+    let (service, _library, _session) = draft_test_service(root.path());
+    let open = root.path().join("recordings").join("session-2");
+    fs::create_dir_all(open.join("media")).unwrap();
+    fs::write(open.join("session.json"), br#"{"author":"Robin"}"#).unwrap();
+    fs::write(open.join("media/click-1.webp"), b"its own first click").unwrap();
+
+    let pair = |from: &str, to: &str| (from.to_string(), to.to_string());
+    service
+        .copy_media_to_draft(
+            "session-1",
+            "session-2",
+            &[pair("click-1", "rec-a"), pair("click-3", "rec-b")],
+        )
+        .unwrap();
+    assert_eq!(
+        fs::read(open.join("media/rec-a.webp")).unwrap(),
+        b"RIFF image"
+    );
+    assert!(open.join("media/rec-b.webp").is_file());
+    // Its own screenshot of the same name is left alone.
+    assert_eq!(
+        fs::read(open.join("media/click-1.webp")).unwrap(),
+        b"its own first click"
+    );
+
+    // A new id already taken: nothing from that call stays, nothing is replaced.
+    let taken = service
+        .copy_media_to_draft(
+            "session-1",
+            "session-2",
+            &[pair("click-2", "rec-c"), pair("click-1", "click-1")],
+        )
+        .unwrap_err();
+    assert_eq!(taken.code, "storageError");
+    assert!(!open.join("media/rec-c.webp").exists());
+    assert_eq!(
+        service
+            .copy_media_to_draft("session-1", "session-2", &[pair("click-9", "rec-d")])
+            .unwrap_err()
+            .code,
+        "imageNotFound"
+    );
+    assert_eq!(
+        service
+            .copy_media_to_draft("session-1", "session-2", &[pair("click-1", "../out")])
+            .unwrap_err()
+            .code,
+        "invalidImage"
+    );
+    assert_eq!(
+        service
+            .media_files("session-1", &["..\\x"])
+            .unwrap_err()
+            .code,
+        "invalidImage"
+    );
+    assert_eq!(
+        service.media_files("session-1", &["click-2"]).unwrap(),
+        vec![root.path().join("recordings/session-1/media/click-2.webp")]
+    );
+}
+
+#[test]
 fn draft_edits_need_a_draft_and_safe_ids() {
     let root = tempfile::tempdir().unwrap();
     let (service, _library, _session) = draft_test_service(root.path());

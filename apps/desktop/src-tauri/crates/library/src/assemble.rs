@@ -11,7 +11,8 @@ use serde_json::Value;
 
 use crate::error::{LibraryError, Result};
 use crate::guides::{GuideSummary, Library};
-use crate::util::{check_format_version, checked, write_json_new};
+use crate::media::read_image_file;
+use crate::util::{check_format_version, checked, write_json_new, write_new};
 
 /// A screenshot to copy into the guide being built, under a new id.
 #[derive(Debug, Clone)]
@@ -111,6 +112,42 @@ impl Library {
         }
         built?;
         self.summary(&id)
+    }
+}
+
+impl Library {
+    /// Adds screenshots taken elsewhere to a guide that's already here, under their new ids: the
+    /// steps of a recording made into the guide (docs/spec/04-editor.md#record-steps-here). They
+    /// are copied byte for byte, as Save guide publishes a recording's, so a lossless screenshot
+    /// stays lossless. Nothing here is written over; if one can't be copied, those this call
+    /// copied are removed again, so a failed attempt leaves no stray pictures in a shared folder.
+    ///
+    /// # Errors
+    /// `InvalidId` (the guide or a new id), `GuideNotFound`, `ImageNotFound` (a source that's
+    /// gone), `Storage` (a new id already taken, a full disk).
+    pub fn add_media(&self, guide_id: &str, media: &[MediaCopy]) -> Result<()> {
+        let folder = self.guide_dir(guide_id)?.join("media");
+        for copy in media {
+            checked(&copy.new_id, "image")?;
+        }
+        fs::create_dir_all(&folder)?;
+        let mut written = Vec::new();
+        let mut copy_all = || -> Result<()> {
+            for copy in media {
+                let bytes = read_image_file(&copy.source)?;
+                let target = folder.join(format!("{}.webp", copy.new_id));
+                write_new(&target, &bytes)?;
+                written.push(target);
+            }
+            Ok(())
+        };
+        let copied = copy_all();
+        if copied.is_err() {
+            for path in &written {
+                let _ = fs::remove_file(path);
+            }
+        }
+        copied
     }
 }
 
@@ -227,6 +264,54 @@ mod tests {
         assert!(matches!(
             to.create_from_parts(&new_guide("../x"), &[], &[]),
             Err(LibraryError::InvalidId(_))
+        ));
+    }
+    #[test]
+    fn adds_a_recording_s_screenshots_to_a_guide_byte_for_byte_and_never_over_one() {
+        let (root, to) = library();
+        let guide = to.create_guide("Payroll", "").unwrap().guide["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let recording = root.path().join("recording");
+        fs::create_dir_all(&recording).unwrap();
+        fs::write(recording.join("click-1.webp"), b"first click").unwrap();
+        fs::write(recording.join("click-2.webp"), b"second click").unwrap();
+        let copy = |file: &str, new_id: &str| MediaCopy {
+            source: recording.join(file),
+            thumbnail: None,
+            new_id: new_id.into(),
+        };
+        to.add_media(
+            &guide,
+            &[copy("click-1.webp", "r1"), copy("click-2.webp", "r2")],
+        )
+        .unwrap();
+        let media = to.guides_dir().join(&guide).join("media");
+        assert_eq!(fs::read(media.join("r1.webp")).unwrap(), b"first click");
+        assert_eq!(fs::read(media.join("r2.webp")).unwrap(), b"second click");
+
+        // An id taken, or a source gone: nothing from that call stays, and nothing is replaced.
+        assert!(
+            to.add_media(
+                &guide,
+                &[copy("click-2.webp", "r3"), copy("click-1.webp", "r1")]
+            )
+            .is_err()
+        );
+        assert!(!media.join("r3.webp").exists());
+        assert_eq!(fs::read(media.join("r1.webp")).unwrap(), b"first click");
+        assert!(matches!(
+            to.add_media(&guide, &[copy("click-9.webp", "r4")]),
+            Err(LibraryError::ImageNotFound)
+        ));
+        assert!(matches!(
+            to.add_media(&guide, &[copy("click-1.webp", "../r5")]),
+            Err(LibraryError::InvalidId(_))
+        ));
+        assert!(matches!(
+            to.add_media("no-such-guide", &[copy("click-1.webp", "r6")]),
+            Err(LibraryError::GuideNotFound)
         ));
     }
 }

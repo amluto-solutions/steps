@@ -243,6 +243,7 @@ function recordingJournal(
 ): RecordingJournal {
   return {
     appendStep: (sessionId, step) => journal.appendStep(sessionId, step),
+    copyMedia: (sessionId, into, media) => journal.copyMedia(sessionId, into, media, target),
     async finalize(sessionId, guide, libraryId) {
       // First, while the Save click still counts: a shared folder may ask for permission again.
       const library = await target(libraryId);

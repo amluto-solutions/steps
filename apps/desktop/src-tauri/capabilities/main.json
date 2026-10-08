@@ -33,6 +33,7 @@
     "allow-recorder-set-target-monitor",
     "allow-recorder-append-step",
     "allow-recorder-finalize",
+    "allow-recorder-copy-media",
     "allow-recorder-get-recoveries",
     "allow-recorder-recover-session",
     "allow-recorder-get-recovery-records",
