@@ -104,8 +104,8 @@ describe("suggested blurs", () => {
   });
 
   it("finds a phone number OCR misread", () => {
-    expect(kinds("+447562265886 ✓")).toEqual(["phone"]);
-    expect(kinds("+ 44 7562 265886")).toEqual(["phone"]);
+    expect(kinds("+447700900456 ✓")).toEqual(["phone"]);
+    expect(kinds("+ 44 7700 900456")).toEqual(["phone"]);
     expect(kinds("O7700 9OO123")).toEqual(["phone"]);
     // Too few real digits to be a number at all.
     expect(kinds("OIlO OIlO OIlO")).toEqual([]);
@@ -123,11 +123,11 @@ describe("suggested blurs", () => {
       at("Contact name", 5, 22),
       at("Robin Hale", 45, 22),
       at("Contact phone number", 5, 26),
-      at("+447562265886", 45, 26),
+      at("+447700900456", 45, 26),
       at("Home address", 5, 30),
-      at("Truwood House", 45, 30),
-      at("Queens Lane", 45, 33),
-      at("Mold", 45, 36),
+      at("Elm House", 45, 30),
+      at("Station Road", 45, 33),
+      at("Anytown", 45, 36),
       at("Website", 5, 42),
       at("https://amluto.com/", 45, 42),
     ];
@@ -136,8 +136,8 @@ describe("suggested blurs", () => {
       ["id", "7968074806044369000", "Developer account ID"],
       ["name", "robin@amluto.com (Robin Hale)", "Account owner"],
       ["name", "Robin Hale", "Contact name"],
-      ["phone", "+447562265886", "Contact phone number"],
-      ["address", "Truwood House, Queens Lane, Mold", "Home address"],
+      ["phone", "+447700900456", "Contact phone number"],
+      ["address", "Elm House, Station Road, Anytown", "Home address"],
     ]);
     // The account owner's email is one detail, blurred with the name beside it.
     const owner = findSensitive(page).find((item) => item.label === "Account owner");
