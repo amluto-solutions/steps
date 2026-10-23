@@ -478,6 +478,133 @@
       "text": "Click \"Q3 report.txt\""
     },
     {
+      "case": "a combo box's own drop-down button is named by its combo box",
+      "from": "Excel's Number Format drop-down, 10/10/2026 (P5, #92): read once the list had opened, its button said \"Close\", and the step read Click \"Close\"",
+      "evidence": {
+        "element": {
+          "controlType": "Button",
+          "localizedControlType": "button",
+          "name": "Close",
+          "frameworkId": "NetUI",
+          "ancestors": [
+            { "controlType": "ComboBox", "name": "Number Format" },
+            { "controlType": "Group", "name": "Number" }
+          ]
+        },
+        "window": { "title": "Book1 - Excel", "exe": "EXCEL.EXE", "shell": false }
+      },
+      "naming": {
+        "name": "Number Format",
+        "kind": "dropdown",
+        "source": "ancestor",
+        "needsReview": false
+      },
+      "text": "Click \"Number Format\""
+    },
+    {
+      "case": "the drop-down button read before the click is named by its combo box too",
+      "from": "Excel's Number Format drop-down as the pointer rests on it before the click (#92); its button says \"Open\" until the list opens",
+      "evidence": {
+        "element": {
+          "controlType": "Button",
+          "localizedControlType": "button",
+          "name": "Open",
+          "frameworkId": "NetUI",
+          "ancestors": [
+            { "controlType": "ComboBox", "name": "Number Format" },
+            { "controlType": "Group", "name": "Number" }
+          ]
+        },
+        "window": { "title": "Book1 - Excel", "exe": "EXCEL.EXE", "shell": false }
+      },
+      "naming": {
+        "name": "Number Format",
+        "kind": "dropdown",
+        "source": "ancestor",
+        "needsReview": false
+      },
+      "text": "Click \"Number Format\""
+    },
+    {
+      "case": "a click on a header's filter drop-down opens the filter on that header",
+      "from": "Excel, 10/10/2026 (P39, #70): the click on A1's filter arrow read Click \"Item\" from the screenshot, so a reader clicked the cell. Excel says a cell has a filter drop-down (its HasFilterDropdown property), and the press was on the drop-down's square at the cell's bottom right",
+      "evidence": {
+        "element": {
+          "controlType": "DataItem",
+          "localizedControlType": "item",
+          "name": "A1",
+          "className": "XLSpreadsheetCell",
+          "filterHeader": "Item",
+          "ancestors": [{ "controlType": "DataGrid", "name": "Sheet1" }]
+        },
+        "window": { "title": "Prices.xlsx - Excel", "exe": "EXCEL.EXE", "shell": false },
+        "filterButton": true
+      },
+      "naming": {
+        "name": "Item",
+        "kind": "filterButton",
+        "source": "element",
+        "needsReview": false
+      },
+      "text": "Open the filter on \"Item\""
+    },
+    {
+      "case": "a click elsewhere in a header cell with a filter is a click on the cell",
+      "from": "the header cell above, clicked away from its drop-down (#70: unchanged)",
+      "evidence": {
+        "element": {
+          "controlType": "DataItem",
+          "localizedControlType": "item",
+          "name": "A1",
+          "className": "XLSpreadsheetCell",
+          "filterHeader": "Item",
+          "ancestors": [{ "controlType": "DataGrid", "name": "Sheet1" }]
+        },
+        "window": { "title": "Prices.xlsx - Excel", "exe": "EXCEL.EXE", "shell": false }
+      },
+      "naming": { "name": "A1", "kind": "listItem", "source": "element", "needsReview": false },
+      "text": "Click \"A1\""
+    },
+    {
+      "case": "the filter drop-down of a header with no words is named by its cell",
+      "from": "made up, after the header above: an empty header cell can carry a filter too",
+      "evidence": {
+        "element": {
+          "controlType": "DataItem",
+          "localizedControlType": "item",
+          "name": "C1",
+          "className": "XLSpreadsheetCell",
+          "filterHeader": " ",
+          "ancestors": [{ "controlType": "DataGrid", "name": "Sheet1" }]
+        },
+        "window": { "title": "Prices.xlsx - Excel", "exe": "EXCEL.EXE", "shell": false },
+        "filterButton": true
+      },
+      "naming": {
+        "name": "C1",
+        "kind": "filterButton",
+        "source": "element",
+        "needsReview": false
+      },
+      "text": "Open the filter on \"C1\""
+    },
+    {
+      "case": "a button in a combo box with no name keeps its own",
+      "from": "made up: with nothing to name the list by, its button's name is better than none",
+      "evidence": {
+        "element": {
+          "controlType": "Button",
+          "localizedControlType": "button",
+          "name": "Open",
+          "frameworkId": "Win32",
+          "ancestors": [{ "controlType": "ComboBox", "name": "" }]
+        },
+        "window": { "title": "Options", "exe": "tool.exe", "shell": false }
+      },
+      "naming": { "name": "Open", "kind": "button", "source": "element", "needsReview": false },
+      "text": "Click \"Open\""
+    },
+    {
       "case": "a lookup that reached only the window is named by the window, not as a control",
       "from": "made up, after Chrome on Linux, which keeps pages off the accessibility bus (Phase 10)",
       "evidence": {
@@ -513,6 +640,129 @@
       "evidence": { "element": null, "window": { "title": "", "exe": null, "shell": false } },
       "naming": { "name": "", "kind": "other", "source": "window", "needsReview": true },
       "text": "Click"
+    },
+    {
+      "case": "a window's Close button, told by Windows' hit test as the button went down, is named from its title",
+      "from": "Excel, 10/10/2026 (P8, #48): named after the window behind, as Book2 had closed before UI Automation looked",
+      "evidence": {
+        "element": null,
+        "window": { "title": "Book2 - Excel", "exe": "EXCEL.EXE", "shell": false },
+        "titleBarButton": "close"
+      },
+      "naming": {
+        "name": "Book2 - Excel",
+        "kind": "closeButton",
+        "source": "titleBar",
+        "needsReview": false
+      },
+      "text": "Close \"Book2 - Excel\""
+    },
+    {
+      "case": "a title-bar button's own name gives way to what it does to its window",
+      "from": "Calculator, 10/10/2026 (P8 re-test): a held click on its X read Click \"Close Calculator\"",
+      "evidence": {
+        "element": {
+          "controlType": "Button",
+          "localizedControlType": "button",
+          "name": "Close Calculator",
+          "automationId": "Close",
+          "ancestors": [{ "controlType": "TitleBar", "name": "Calculator" }]
+        },
+        "window": { "title": "Calculator", "exe": "ApplicationFrameHost.exe", "shell": false },
+        "titleBarButton": "close"
+      },
+      "naming": {
+        "name": "Calculator",
+        "kind": "closeButton",
+        "source": "titleBar",
+        "needsReview": false
+      },
+      "text": "Close \"Calculator\""
+    },
+    {
+      "case": "a window's Minimise button",
+      "from": "made up, after the Excel close above (#48)",
+      "evidence": {
+        "element": {
+          "controlType": "Button",
+          "localizedControlType": "button",
+          "name": "Minimize",
+          "ancestors": [{ "controlType": "TitleBar", "name": "" }]
+        },
+        "window": { "title": "Untitled - Notepad", "exe": "Notepad.exe", "shell": false },
+        "titleBarButton": "minimise"
+      },
+      "naming": {
+        "name": "Untitled - Notepad",
+        "kind": "minimiseButton",
+        "source": "titleBar",
+        "needsReview": false
+      },
+      "text": "Minimise \"Untitled - Notepad\""
+    },
+    {
+      "case": "a window's Maximise button",
+      "from": "made up, after the Excel close above (#48): the window had grown before UI Automation looked",
+      "evidence": {
+        "element": null,
+        "window": { "title": "Budget.xlsx - Excel", "exe": "EXCEL.EXE", "shell": false },
+        "titleBarButton": "maximise"
+      },
+      "naming": {
+        "name": "Budget.xlsx - Excel",
+        "kind": "maximiseButton",
+        "source": "titleBar",
+        "needsReview": false
+      },
+      "text": "Maximise \"Budget.xlsx - Excel\""
+    },
+    {
+      "case": "the Maximise button of a window already maximised restores it",
+      "from": "made up, after the Excel close above (#48)",
+      "evidence": {
+        "element": null,
+        "window": { "title": "Budget.xlsx - Excel", "exe": "EXCEL.EXE", "shell": false },
+        "titleBarButton": "restore"
+      },
+      "naming": {
+        "name": "Budget.xlsx - Excel",
+        "kind": "restoreButton",
+        "source": "titleBar",
+        "needsReview": false
+      },
+      "text": "Restore \"Budget.xlsx - Excel\""
+    },
+    {
+      "case": "a title-bar button of a window with no title is named as any other click",
+      "from": "made up: a window that clears its own title; Close \"\" would say nothing",
+      "evidence": {
+        "element": { "controlType": "Button", "localizedControlType": "button", "name": "Close" },
+        "window": { "title": " ", "exe": "tool.exe", "shell": false },
+        "titleBarButton": "close"
+      },
+      "naming": { "name": "Close", "kind": "button", "source": "element", "needsReview": false },
+      "text": "Click \"Close\""
+    },
+    {
+      "case": "a window gone before its click was read, its button not told, stays unnamed: never named from the window behind",
+      "from": "Excel, 10/10/2026 (P8, #48), with a close button the hit test couldn't tell (F019): the screenshot shows the window behind at the click",
+      "evidence": {
+        "element": null,
+        "window": { "title": "Book2 - Excel", "exe": "EXCEL.EXE", "shell": false },
+        "screen": {
+          "lines": [{ "words": [{ "text": "Inbox", "x": 95.1, "y": 0.6, "w": 3.2, "h": 1.4 }] }],
+          "x": 97.9,
+          "y": 1.2,
+          "windowGone": true
+        }
+      },
+      "naming": {
+        "name": "Book2 - Excel",
+        "kind": "other",
+        "source": "window",
+        "needsReview": true
+      },
+      "text": "Click in \"Book2 - Excel\""
     },
     {
       "case": "a UI framework's name is no name: the window names it",
@@ -570,6 +820,161 @@
       },
       "naming": { "name": "Edit", "kind": "menuItem", "source": "ancestor", "needsReview": false },
       "text": "Click \"Edit\""
+    },
+    {
+      "case": "a menu item's trailing ellipsis is taken off its name",
+      "from": "Excel's right-click menu, 10/10/2026 (P34, #56): the item opens a dialog, which the ellipsis says on screen; a guide tells the reader what to click",
+      "evidence": {
+        "element": {
+          "controlType": "MenuItem",
+          "localizedControlType": "menu item",
+          "name": "Format Cells…",
+          "frameworkId": "NetUI",
+          "ancestors": [{ "controlType": "Menu", "name": "Context Menu" }]
+        },
+        "window": { "title": "Book1 - Excel", "exe": "EXCEL.EXE", "shell": false }
+      },
+      "naming": {
+        "name": "Format Cells",
+        "kind": "menuItem",
+        "source": "element",
+        "needsReview": false
+      },
+      "text": "Click \"Format Cells\""
+    },
+    {
+      "case": "three dots after a menu item's text are taken off too",
+      "from": "made up, after Notepad's classic File menu",
+      "evidence": {
+        "element": {
+          "controlType": "Text",
+          "name": "Save As...",
+          "ancestors": [{ "controlType": "MenuItem", "name": "Save As..." }]
+        },
+        "window": { "title": "Untitled - Notepad", "exe": "notepad.exe", "shell": false }
+      },
+      "naming": {
+        "name": "Save As",
+        "kind": "menuItem",
+        "source": "ancestor",
+        "needsReview": false
+      },
+      "text": "Click \"Save As\""
+    },
+    {
+      "case": "a name that is only an ellipsis keeps it",
+      "from": "made up: a browse button labelled with three dots",
+      "evidence": {
+        "element": { "controlType": "Button", "localizedControlType": "button", "name": "..." },
+        "window": { "title": "Options", "exe": "app.exe", "shell": false }
+      },
+      "naming": { "name": "...", "kind": "button", "source": "element", "needsReview": false },
+      "text": "Click \"...\""
+    },
+    {
+      "case": "a tooltip's shortcut after a button's name is taken off it",
+      "from": "Notepad's formatting bar, 10/10/2026 (P38, #71): read Click \"Bold (Ctrl+B)\"; the shortcut is the tooltip's, and the step says what to click",
+      "evidence": {
+        "element": {
+          "controlType": "Button",
+          "localizedControlType": "button",
+          "name": "Bold (Ctrl+B)",
+          "frameworkId": "XAML"
+        },
+        "window": { "title": "Untitled - Notepad", "exe": "Notepad.exe", "shell": false }
+      },
+      "naming": { "name": "Bold", "kind": "button", "source": "element", "needsReview": false },
+      "text": "Click \"Bold\""
+    },
+    {
+      "case": "a shortcut written with spaces is taken off too",
+      "from": "made up, after Notepad's Save button",
+      "evidence": {
+        "element": {
+          "controlType": "Button",
+          "localizedControlType": "button",
+          "name": "Save (Ctrl + S)"
+        },
+        "window": { "title": "Untitled - Notepad", "exe": "Notepad.exe", "shell": false }
+      },
+      "naming": { "name": "Save", "kind": "button", "source": "element", "needsReview": false },
+      "text": "Click \"Save\""
+    },
+    {
+      "case": "a shortcut in the app's language is taken off",
+      "from": "made up, after Notepad in German: Strg is Ctrl on German keyboards",
+      "evidence": {
+        "element": {
+          "controlType": "Button",
+          "localizedControlType": "button",
+          "name": "Fett (Strg+B)"
+        },
+        "window": { "title": "Unbenannt - Editor", "exe": "Notepad.exe", "shell": false }
+      },
+      "naming": { "name": "Fett", "kind": "button", "source": "element", "needsReview": false },
+      "text": "Click \"Fett\""
+    },
+    {
+      "case": "a shortcut with two modifiers and an ellipsis before it both come off",
+      "from": "made up, after a toolbar's Save As button",
+      "evidence": {
+        "element": {
+          "controlType": "Button",
+          "localizedControlType": "button",
+          "name": "Save As... (Ctrl+Shift+S)"
+        },
+        "window": { "title": "Untitled - Paint", "exe": "mspaint.exe", "shell": false }
+      },
+      "naming": { "name": "Save As", "kind": "button", "source": "element", "needsReview": false },
+      "text": "Click \"Save As\""
+    },
+    {
+      "case": "a name that is only a shortcut keeps it",
+      "from": "made up: a key-binding list whose button shows only the keys",
+      "evidence": {
+        "element": {
+          "controlType": "Button",
+          "localizedControlType": "button",
+          "name": "(Ctrl+B)"
+        },
+        "window": { "title": "Options", "exe": "app.exe", "shell": false }
+      },
+      "naming": { "name": "(Ctrl+B)", "kind": "button", "source": "element", "needsReview": false },
+      "text": "Click \"(Ctrl+B)\""
+    },
+    {
+      "case": "a page's name loses its tooltip shortcut as UI Automation's does",
+      "from": "made up, after Google Docs' toolbar, whose Bold button is labelled with its shortcut",
+      "evidence": {
+        "element": { "controlType": "Button", "name": "Bold (Ctrl+B)", "frameworkId": "Chrome" },
+        "window": {
+          "title": "Minutes - Google Docs - Google Chrome",
+          "exe": "chrome.exe",
+          "shell": false
+        },
+        "page": { "tagName": "DIV", "role": "button", "ariaLabel": "Bold (Ctrl+B)" }
+      },
+      "naming": { "name": "Bold", "kind": "button", "source": "page", "needsReview": false },
+      "text": "Click \"Bold\""
+    },
+    {
+      "case": "brackets that aren't a shortcut stay",
+      "from": "made up, after a mail app's folder button with its unread count",
+      "evidence": {
+        "element": {
+          "controlType": "Button",
+          "localizedControlType": "button",
+          "name": "Inbox (3)"
+        },
+        "window": { "title": "Mail", "exe": "olk.exe", "shell": false }
+      },
+      "naming": {
+        "name": "Inbox (3)",
+        "kind": "button",
+        "source": "element",
+        "needsReview": false
+      },
+      "text": "Click \"Inbox (3)\""
     },
     {
       "case": "the layer a menu lays over its window to close it is no \"Close\" button",
@@ -693,6 +1098,372 @@
       },
       "naming": { "name": "Settings", "kind": "other", "source": "window", "needsReview": true },
       "text": "Click in \"Settings\""
+    },
+    {
+      "case": "screen words on a menu are its item UI Automation read as it opened: a misread letter",
+      "from": "Excel's right-click menu, 10/10/2026 (P34, #56): the menu had closed before the click could be read, and the screenshot's words read \"Eormat Cells...\". The items are the menu's, read when it opened; boxes made up",
+      "evidence": {
+        "element": null,
+        "window": { "title": "", "exe": "EXCEL.EXE", "shell": false },
+        "screen": {
+          "lines": [
+            {
+              "words": [
+                { "text": "Eormat", "x": 43.1, "y": 50.3, "w": 3.4, "h": 1.5 },
+                { "text": "Cells...", "x": 46.9, "y": 50.3, "w": 3.6, "h": 1.5 }
+              ]
+            }
+          ],
+          "x": 45.2,
+          "y": 51,
+          "menuItems": [
+            { "name": "Insert…", "box": { "x": 40.5, "y": 40.6, "w": 14.2, "h": 2.4 } },
+            { "name": "Delete…", "box": { "x": 40.5, "y": 43, "w": 14.2, "h": 2.4 } },
+            { "name": "Clear Contents", "box": { "x": 40.5, "y": 45.4, "w": 14.2, "h": 2.4 } },
+            { "name": "Format Cells…", "box": { "x": 40.5, "y": 49.8, "w": 14.2, "h": 2.4 } },
+            { "name": "Define Name…", "box": { "x": 40.5, "y": 52.2, "w": 14.2, "h": 2.4 } }
+          ]
+        }
+      },
+      "naming": {
+        "name": "Format Cells",
+        "kind": "menuItem",
+        "source": "menu",
+        "needsReview": false
+      },
+      "text": "Click \"Format Cells\""
+    },
+    {
+      "case": "screen words cut short on a menu are the item clicked, though another item starts the same",
+      "from": "Paint's File menu, 10/10/2026 (P42, #56): Save as was read \"Sav\"; Save, just above, starts the same. Items as Paint lists them; boxes made up",
+      "evidence": {
+        "element": null,
+        "window": { "title": "Untitled - Paint", "exe": "mspaint.exe", "shell": false },
+        "screen": {
+          "lines": [{ "words": [{ "text": "Sav", "x": 2.5, "y": 30.9, "w": 2.2, "h": 1.5 }] }],
+          "x": 5,
+          "y": 31.5,
+          "menuItems": [
+            { "name": "New", "box": { "x": 1, "y": 10, "w": 14, "h": 3.6 } },
+            { "name": "Open", "box": { "x": 1, "y": 14, "w": 14, "h": 3.6 } },
+            { "name": "Import to canvas", "box": { "x": 1, "y": 18, "w": 14, "h": 3.6 } },
+            { "name": "Recent", "box": { "x": 1, "y": 22, "w": 14, "h": 3.6 } },
+            { "name": "Save", "box": { "x": 1, "y": 26, "w": 14, "h": 3.6 } },
+            { "name": "Save as", "box": { "x": 1, "y": 30, "w": 14, "h": 3.6 } },
+            { "name": "Print", "box": { "x": 1, "y": 34, "w": 14, "h": 3.6 } },
+            { "name": "Exit", "box": { "x": 1, "y": 38, "w": 14, "h": 3.6 } }
+          ]
+        }
+      },
+      "naming": { "name": "Save as", "kind": "menuItem", "source": "menu", "needsReview": false },
+      "text": "Click \"Save as\""
+    },
+    {
+      "case": "screen words on a menu like none of its items stand, flagged",
+      "from": "made up, after Excel's right-click menu: \"Paste Options:\" heads a row of buttons and isn't an item",
+      "evidence": {
+        "element": null,
+        "window": { "title": "", "exe": "EXCEL.EXE", "shell": false },
+        "screen": {
+          "lines": [
+            {
+              "words": [
+                { "text": "Paste", "x": 43.1, "y": 36.3, "w": 2.9, "h": 1.5 },
+                { "text": "Options:", "x": 46.4, "y": 36.3, "w": 4.2, "h": 1.5 }
+              ]
+            }
+          ],
+          "x": 44,
+          "y": 37,
+          "menuItems": [
+            { "name": "Cut", "box": { "x": 40.5, "y": 28.4, "w": 14.2, "h": 2.4 } },
+            { "name": "Copy", "box": { "x": 40.5, "y": 30.8, "w": 14.2, "h": 2.4 } },
+            { "name": "Paste Special…", "box": { "x": 40.5, "y": 43, "w": 14.2, "h": 2.4 } },
+            { "name": "Insert…", "box": { "x": 40.5, "y": 45.4, "w": 14.2, "h": 2.4 } }
+          ]
+        }
+      },
+      "naming": {
+        "name": "Paste Options:",
+        "kind": "other",
+        "source": "screen",
+        "needsReview": true
+      },
+      "text": "Click \"Paste Options:\""
+    },
+    {
+      "case": "screen words that end in an ellipsis lose it, still flagged, with no menu to match",
+      "from": "Excel's right-click menu, 10/10/2026 (P34), in a recording made before menus' items were kept",
+      "evidence": {
+        "element": null,
+        "window": { "title": "", "exe": "EXCEL.EXE", "shell": false },
+        "screen": {
+          "lines": [
+            {
+              "words": [
+                { "text": "Eormat", "x": 43.1, "y": 50.3, "w": 3.4, "h": 1.5 },
+                { "text": "Cells...", "x": 46.9, "y": 50.3, "w": 3.6, "h": 1.5 }
+              ]
+            }
+          ],
+          "x": 45.2,
+          "y": 51
+        }
+      },
+      "naming": {
+        "name": "Eormat Cells",
+        "kind": "other",
+        "source": "screen",
+        "needsReview": true
+      },
+      "text": "Click \"Eormat Cells\""
+    },
+    {
+      "case": "a name UI Automation gave isn't replaced from the menu's items",
+      "from": "made up, after Paint's File menu read before the click (its pre-read)",
+      "evidence": {
+        "element": {
+          "controlType": "MenuItem",
+          "localizedControlType": "menu item",
+          "name": "Save",
+          "frameworkId": "XAML"
+        },
+        "window": { "title": "Untitled - Paint", "exe": "mspaint.exe", "shell": false },
+        "screen": {
+          "lines": [{ "words": [{ "text": "Sav", "x": 2.5, "y": 30.9, "w": 2.2, "h": 1.5 }] }],
+          "x": 5,
+          "y": 31.5,
+          "menuItems": [
+            { "name": "Save", "box": { "x": 1, "y": 26, "w": 14, "h": 3.6 } },
+            { "name": "Save as", "box": { "x": 1, "y": 30, "w": 14, "h": 3.6 } }
+          ]
+        }
+      },
+      "naming": { "name": "Save", "kind": "menuItem", "source": "element", "needsReview": false },
+      "text": "Click \"Save\""
+    },
+    {
+      "case": "a click in a pop-up host nothing named is named by the window it came from",
+      "from": "Paint's File menu, 12/10/2026 (#106): Save clicked at once read `Click in \"Pop-upHost\"`, its lookup timed out. The window under the press was WinUI's pop-up host, titled in Windows' language (en-GB's \"Pop-upHost\"), owned by Paint's window",
+      "evidence": {
+        "element": null,
+        "window": {
+          "title": "Pop-upHost",
+          "exe": "mspaint.exe",
+          "shell": false,
+          "ownerTitle": "Untitled - Paint"
+        }
+      },
+      "naming": {
+        "name": "Untitled - Paint",
+        "kind": "other",
+        "source": "window",
+        "needsReview": true
+      },
+      "text": "Click in \"Untitled - Paint\""
+    },
+    {
+      "case": "a pop-up host's own title never names a click",
+      "from": "Paint's File menu as #106 found it, in a recording made before the window a pop-up came from was kept",
+      "evidence": {
+        "element": null,
+        "window": { "title": "PopupHost", "exe": "mspaint.exe", "shell": false }
+      },
+      "naming": { "name": "", "kind": "other", "source": "window", "needsReview": true },
+      "text": "Click"
+    },
+    {
+      "case": "a menu's own untitled window is named by the window it came from",
+      "from": "made up, after Excel's right-click menu (a window of Windows' own menu class, with no title), whose item the lookup couldn't read",
+      "evidence": {
+        "element": null,
+        "window": { "title": "", "exe": "EXCEL.EXE", "shell": false, "ownerTitle": "Book1 - Excel" }
+      },
+      "naming": {
+        "name": "Book1 - Excel",
+        "kind": "other",
+        "source": "window",
+        "needsReview": true
+      },
+      "text": "Click in \"Book1 - Excel\""
+    },
+    {
+      "case": "a pop-up host's title in Windows' language never names a click",
+      "from": "Paint's File menu (#106) on a French Windows: WinUI's pop-up host is titled as Windows App SDK 2.5 translates \"PopupHost\" (fr-FR \"Hôte contextuel\"), which no list of framework names can know",
+      "evidence": {
+        "element": null,
+        "window": {
+          "title": "Hôte contextuel",
+          "exe": "mspaint.exe",
+          "shell": false,
+          "ownerTitle": "Sans titre - Paint"
+        }
+      },
+      "naming": {
+        "name": "Sans titre - Paint",
+        "kind": "other",
+        "source": "window",
+        "needsReview": true
+      },
+      "text": "Click in \"Sans titre - Paint\""
+    },
+    {
+      "case": "a pop-up that draws a title of its own is named by the window it came from too",
+      "from": "made up: a window without a title bar of Windows' that draws its own, owned by the app's main window. Nothing tells its title from a pop-up host's, translated, and the step is flagged either way",
+      "evidence": {
+        "element": null,
+        "window": {
+          "title": "Quick note",
+          "exe": "notes.exe",
+          "shell": false,
+          "ownerTitle": "Notes"
+        }
+      },
+      "naming": { "name": "Notes", "kind": "other", "source": "window", "needsReview": true },
+      "text": "Click in \"Notes\""
+    },
+    {
+      "case": "a quick click in a WinUI menu, gone by its screenshot, is the item whose box holds it",
+      "from": "Paint's File menu, 12/10/2026 (#106): Save clicked at once; the menu closed with the click, before its screenshot was checked, so the picture's words can't name it. Its items were read as it opened, in the pop-up host the button went down on. Items as Paint lists them; boxes made up",
+      "evidence": {
+        "element": null,
+        "window": {
+          "title": "Pop-upHost",
+          "exe": "mspaint.exe",
+          "shell": false,
+          "ownerTitle": "Untitled - Paint"
+        },
+        "screen": {
+          "lines": [{ "words": [{ "text": "Save", "x": 2.5, "y": 26.9, "w": 2.8, "h": 1.5 }] }],
+          "x": 5,
+          "y": 27.8,
+          "windowGone": true,
+          "menuShowing": true,
+          "menuItems": [
+            { "name": "New", "box": { "x": 1, "y": 10, "w": 14, "h": 3.6 } },
+            { "name": "Open", "box": { "x": 1, "y": 14, "w": 14, "h": 3.6 } },
+            { "name": "Import to canvas", "box": { "x": 1, "y": 18, "w": 14, "h": 3.6 } },
+            { "name": "Recent", "box": { "x": 1, "y": 22, "w": 14, "h": 3.6 } },
+            { "name": "Save", "box": { "x": 1, "y": 26, "w": 14, "h": 3.6 } },
+            { "name": "Save as", "box": { "x": 1, "y": 30, "w": 14, "h": 3.6 } },
+            { "name": "Print", "box": { "x": 1, "y": 34, "w": 14, "h": 3.6 } },
+            { "name": "Exit", "box": { "x": 1, "y": 38, "w": 14, "h": 3.6 } }
+          ]
+        }
+      },
+      "naming": { "name": "Save", "kind": "menuItem", "source": "menu", "needsReview": false },
+      "text": "Click \"Save\""
+    },
+    {
+      "case": "a click in a showing menu with no word at it is the item whose box holds it",
+      "from": "made up, after Paint's File menu (#106): an item's icon, left of its words, with nothing readable under the click",
+      "evidence": {
+        "element": null,
+        "window": {
+          "title": "Pop-upHost",
+          "exe": "mspaint.exe",
+          "shell": false,
+          "ownerTitle": "Untitled - Paint"
+        },
+        "screen": {
+          "lines": [],
+          "x": 1.6,
+          "y": 31.8,
+          "menuShowing": true,
+          "menuItems": [
+            { "name": "Save", "box": { "x": 1, "y": 26, "w": 14, "h": 3.6 } },
+            { "name": "Save as", "box": { "x": 1, "y": 30, "w": 14, "h": 3.6 } }
+          ]
+        }
+      },
+      "naming": { "name": "Save as", "kind": "menuItem", "source": "menu", "needsReview": false },
+      "text": "Click \"Save as\""
+    },
+    {
+      "case": "words read at a click in a WinUI menu pick out its item",
+      "from": "Paint's File menu (#106), its screenshot taken before the menu closed: the words and the item's box agree",
+      "evidence": {
+        "element": null,
+        "window": {
+          "title": "Pop-upHost",
+          "exe": "mspaint.exe",
+          "shell": false,
+          "ownerTitle": "Untitled - Paint"
+        },
+        "screen": {
+          "lines": [{ "words": [{ "text": "Save", "x": 2.5, "y": 26.9, "w": 2.8, "h": 1.5 }] }],
+          "x": 5,
+          "y": 27.8,
+          "menuShowing": true,
+          "menuItems": [
+            { "name": "Save", "box": { "x": 1, "y": 26, "w": 14, "h": 3.6 } },
+            { "name": "Save as", "box": { "x": 1, "y": 30, "w": 14, "h": 3.6 } }
+          ]
+        }
+      },
+      "naming": { "name": "Save", "kind": "menuItem", "source": "menu", "needsReview": false },
+      "text": "Click \"Save\""
+    },
+    {
+      "case": "a kept menu's box doesn't name a click when the menu may not have shown under it",
+      "from": "made up, after #106: a menu drawn inside its app's window rather than in a window of its own, so the window under the press doesn't say it still showed",
+      "evidence": {
+        "element": null,
+        "window": {
+          "title": "Pop-upHost",
+          "exe": "mspaint.exe",
+          "shell": false,
+          "ownerTitle": "Untitled - Paint"
+        },
+        "screen": {
+          "lines": [],
+          "x": 5,
+          "y": 27.8,
+          "windowGone": true,
+          "menuItems": [
+            { "name": "Save", "box": { "x": 1, "y": 26, "w": 14, "h": 3.6 } },
+            { "name": "Save as", "box": { "x": 1, "y": 30, "w": 14, "h": 3.6 } }
+          ]
+        }
+      },
+      "naming": {
+        "name": "Untitled - Paint",
+        "kind": "other",
+        "source": "window",
+        "needsReview": true
+      },
+      "text": "Click in \"Untitled - Paint\""
+    },
+    {
+      "case": "a click between a showing menu's items is named by no item",
+      "from": "made up, after Paint's File menu (#106): a click on the line between two groups of items",
+      "evidence": {
+        "element": null,
+        "window": {
+          "title": "Pop-upHost",
+          "exe": "mspaint.exe",
+          "shell": false,
+          "ownerTitle": "Untitled - Paint"
+        },
+        "screen": {
+          "lines": [],
+          "x": 5,
+          "y": 29.8,
+          "windowGone": true,
+          "menuShowing": true,
+          "menuItems": [
+            { "name": "Save", "box": { "x": 1, "y": 26, "w": 14, "h": 3.6 } },
+            { "name": "Save as", "box": { "x": 1, "y": 30, "w": 14, "h": 3.6 } }
+          ]
+        }
+      },
+      "naming": {
+        "name": "Untitled - Paint",
+        "kind": "other",
+        "source": "window",
+        "needsReview": true
+      },
+      "text": "Click in \"Untitled - Paint\""
     },
     {
       "case": "a page's button named by its text",
@@ -887,6 +1658,143 @@
         "needsReview": false
       },
       "text": "Click \"Loading bay bookings\""
+    },
+    {
+      "case": "a click into a Word document's page is a click in the document",
+      "from": "Word in the test of 10/10/2026 (P38): read Click \"Page 1\". The page's control type wasn't kept; its parents stop at Word's body, a Document of Word's class _WwG",
+      "evidence": {
+        "element": {
+          "controlType": "Custom",
+          "localizedControlType": "page",
+          "name": "Page 1",
+          "bounds": { "left": 420, "top": 260, "right": 1236, "bottom": 1316 },
+          "documentClass": "_WwG"
+        },
+        "window": { "title": "Document3 - Word", "exe": "WINWORD.EXE", "shell": false }
+      },
+      "naming": { "name": "", "kind": "document", "source": "element", "needsReview": false },
+      "text": "Click in the document"
+    },
+    {
+      "case": "a click on a Word document's body between its pages is a click in the document",
+      "from": "made up, after the Word case above: the body itself, named after the file",
+      "evidence": {
+        "element": {
+          "controlType": "Document",
+          "localizedControlType": "document",
+          "name": "Document3",
+          "className": "_WwG",
+          "bounds": { "left": 300, "top": 200, "right": 1500, "bottom": 1000 }
+        },
+        "window": { "title": "Document3 - Word", "exe": "WINWORD.EXE", "shell": false }
+      },
+      "naming": { "name": "", "kind": "document", "source": "element", "needsReview": false },
+      "text": "Click in the document"
+    },
+    {
+      "case": "a link in a Word document keeps its own name",
+      "from": "made up, after the Word case above: a link in the text is something to click by name",
+      "evidence": {
+        "element": {
+          "controlType": "Hyperlink",
+          "localizedControlType": "link",
+          "name": "Club website",
+          "ancestors": [{ "controlType": "Custom", "name": "Page 1" }],
+          "documentClass": "_WwG"
+        },
+        "window": { "title": "Document3 - Word", "exe": "WINWORD.EXE", "shell": false }
+      },
+      "naming": {
+        "name": "Club website",
+        "kind": "link",
+        "source": "element",
+        "needsReview": false
+      },
+      "text": "Click \"Club website\""
+    },
+    {
+      "case": "Outlook's message body, in Word's window class, is named as before",
+      "from": "made up: Outlook writes mail in Word's editor, named for the message rather than a file",
+      "evidence": {
+        "element": {
+          "controlType": "Document",
+          "localizedControlType": "document",
+          "name": "Message",
+          "className": "_WwG"
+        },
+        "window": { "title": "Untitled - Message (HTML)", "exe": "OUTLOOK.EXE", "shell": false }
+      },
+      "naming": { "name": "Message", "kind": "other", "source": "element", "needsReview": false },
+      "text": "Click \"Message\""
+    },
+    {
+      "case": "a click on a clipboard history item never quotes the item",
+      "from": "#109, made up from the brief: UI Automation names a clipboard history (Win+V) item after the text it holds, so the click read that text. The words on its screenshot are the item's too, should the panel ever show in it",
+      "evidence": {
+        "element": {
+          "controlType": "ListItem",
+          "localizedControlType": "list item",
+          "name": "Door code 4417, flat 2",
+          "ancestors": [{ "controlType": "List", "name": "Clipboard history" }]
+        },
+        "window": {
+          "title": "Windows Input Experience",
+          "exe": "TextInputHost.exe",
+          "shell": true
+        },
+        "screen": {
+          "lines": [
+            {
+              "words": [
+                { "text": "Door", "x": 40, "y": 30, "w": 4, "h": 2 },
+                { "text": "code", "x": 45, "y": 30, "w": 4, "h": 2 },
+                { "text": "4417", "x": 50, "y": 30, "w": 4, "h": 2 }
+              ]
+            }
+          ],
+          "x": 46,
+          "y": 31
+        }
+      },
+      "naming": { "name": "", "kind": "inputPanel", "source": "window", "needsReview": true },
+      "text": "Click in the input panel"
+    },
+    {
+      "case": "an emoji picked from the emoji panel is a click in the input panel too",
+      "from": "#109, made up: the emoji panel (Win+.) is drawn by the same program as clipboard history, and its windows can't be told apart",
+      "evidence": {
+        "element": {
+          "controlType": "ListItem",
+          "localizedControlType": "list item",
+          "name": "grinning face"
+        },
+        "window": {
+          "title": "Windows Input Experience",
+          "exe": "textinputhost.exe",
+          "shell": true
+        }
+      },
+      "naming": { "name": "", "kind": "inputPanel", "source": "window", "needsReview": true },
+      "text": "Click in the input panel"
+    },
+    {
+      "case": "the input panel Windows 11 shows in a frame of explorer.exe's is the input panel too",
+      "from": "#109, checked live on build 26300 (12/10/2026): with the emoji panel open over Notepad, the window under the pointer was an untitled ApplicationFrameWindow of explorer.exe's, round the text input host's core window; the element is made up",
+      "evidence": {
+        "element": {
+          "controlType": "ListItem",
+          "localizedControlType": "list item",
+          "name": "Door code 4417, flat 2"
+        },
+        "window": {
+          "title": "",
+          "exe": "explorer.exe",
+          "hostedExe": "TextInputHost.exe",
+          "shell": true
+        }
+      },
+      "naming": { "name": "", "kind": "inputPanel", "source": "window", "needsReview": true },
+      "text": "Click in the input panel"
     }
   ]
 }

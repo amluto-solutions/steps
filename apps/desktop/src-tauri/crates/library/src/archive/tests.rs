@@ -72,7 +72,7 @@ fn read_zip(path: &Path) -> BTreeMap<String, Vec<u8>> {
         let mut entry = archive.by_index(index).unwrap();
         let mut bytes = Vec::new();
         entry.read_to_end(&mut bytes).unwrap();
-        entries.insert(entry.name().to_string(), bytes);
+        entries.insert(entry.name().unwrap().into_owned(), bytes);
     }
     entries
 }
@@ -607,6 +607,20 @@ fn rule_sizes_are_checked_against_the_bytes_actually_read() {
         "{error:?}"
     );
     assert_library_empty(&library);
+}
+
+#[test]
+fn rule_a_header_that_understates_the_size_is_named_as_that_rule() {
+    // Since zip 9 the reader itself stops at the declared size (#124); the person still has to
+    // be told which rule failed, not that the file is "damaged".
+    let name = "guide/steps/step-2.json";
+    let mut bytes = build_zip(&valid_entries());
+    patch_uncompressed_size(&mut bytes, name, 10);
+    assert_rejected(
+        &bytes,
+        &defaults(),
+        &format!("{name} is larger than its header says"),
+    );
 }
 
 /// Rewrites the uncompressed size of `name` in its local header and central-directory record.

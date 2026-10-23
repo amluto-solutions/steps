@@ -6,7 +6,7 @@ import { blankStep } from "../editor/edits";
 import type { ExportChoices } from "../settings/preferences";
 import { AMLUTO_PROFILE } from "../settings/brands";
 import { fakeExportFiles, type FakeExportFiles } from "../bridge/export-files-fake";
-import { exportJob, type ExportJobInput, type ExportRequest } from "./job";
+import { exportJob, type AmlstepsTarget, type ExportJobInput, type ExportRequest } from "./job";
 
 const guide: Guide = newGuide("g", "Add a supplier", "Robin");
 const step = (id: string): GuideStep => ({
@@ -153,21 +153,55 @@ describe("an export in several languages", () => {
   });
 });
 
-describe("the other formats", () => {
-  it("always asks where a Steps file goes, and writes it with or without the originals", async () => {
-    const written: [string, boolean][] = [];
-    const saveAmlsteps = (path: string, includeOriginals: boolean) => {
-      written.push([path, includeOriginals]);
-      return Promise.resolve();
-    };
-    const {
-      job: exporting,
-      files,
-      asked,
-    } = job({
-      answer: String.raw`D:\Out\Add a supplier.amlsteps`,
-      saveAmlsteps,
+describe("a recorded double-click (12/10/2026, #55)", () => {
+  // As recorded, not written by hand, so each language words it from what it stores.
+  const twice: GuideStep = {
+    ...step("a"),
+    textEdited: false,
+    actionText: 'Double-click "Sheet1"',
+    textParts: { verb: "doubleClick", target: "Sheet1", kind: "tabitem" },
+    naming: { name: "Sheet1", kind: "tab", source: "element", needsReview: false },
+  };
+  const doc = { guide, steps: [twice] };
+
+  it("is copied as a double-click, in the language chosen", async () => {
+    const copied: string[] = [];
+    const { job: exporting } = job({
+      copy: (_html, text) => {
+        copied.push(text);
+        return Promise.resolve();
+      },
     });
+    await exporting.run(request({ format: "copy", doc }));
+    await exporting.run(request({ format: "copy", doc, language: "de" }));
+    expect(copied[0]).toContain('Double-click "Sheet1"');
+    expect(copied[1]).toContain("Auf „Sheet1“ doppelklicken");
+  });
+
+  it("says so in every language the web page carries", async () => {
+    const { job: exporting, files } = job();
+    await exporting.run(request({ format: "html", doc, pageLanguages: "all" }));
+    const page = new TextDecoder().decode(files.saved[0]?.bytes);
+    expect(page).toContain("Auf „Sheet1“ doppelklicken");
+    expect(page).toContain("「Sheet1」をダブルクリック");
+    expect(page).toContain("双击“Sheet1”");
+  });
+});
+
+describe("the other formats", () => {
+  /** A Steps file written from the saved guide: where it went, and whether the originals did. */
+  const savingSteps = () => {
+    const written: { where: AmlstepsTarget; includeOriginals: boolean }[] = [];
+    const saveAmlsteps = (where: AmlstepsTarget, includeOriginals: boolean) => {
+      written.push({ where, includeOriginals });
+      return Promise.resolve("path" in where ? where.path : `${where.folder}\\${where.name}`);
+    };
+    return { written, saveAmlsteps };
+  };
+
+  it("saves a Steps file in the export folder, as the other files are (12/10/2026, #88)", async () => {
+    const { written, saveAmlsteps } = savingSteps();
+    const { job: exporting, files, asked } = job({ saveAmlsteps });
     const outcome = await exporting.run(
       request({
         format: "amlsteps",
@@ -175,16 +209,52 @@ describe("the other formats", () => {
         choices: choices({ folder: String.raw`C:\Exports` }),
       }),
     );
-    expect(asked).toEqual(["Add a supplier.amlsteps"]);
-    expect(written).toEqual([[String.raw`D:\Out\Add a supplier.amlsteps`, true]]);
+    expect(asked).toEqual([]);
+    expect(written).toEqual([
+      {
+        where: { folder: String.raw`C:\Exports`, name: "Add a supplier - 06-10-2026.amlsteps" },
+        includeOriginals: true,
+      },
+    ]);
     // Written from the saved guide, not through the export's files.
     expect(files.saved).toEqual([]);
-    expect(outcome).toEqual({ kind: "amlsteps" });
+    expect(outcome).toEqual({
+      kind: "saved",
+      count: 1,
+      path: String.raw`C:\Exports\Add a supplier - 06-10-2026.amlsteps`,
+      fontsMissing: false,
+    });
+
+    // No folder in Settings: Downloads, as for the others.
+    const downloads = savingSteps();
+    await job({ saveAmlsteps: downloads.saveAmlsteps }).job.run(request({ format: "amlsteps" }));
+    expect(downloads.written[0]?.where).toEqual({
+      folder: String.raw`C:\Users\Robin\Downloads`,
+      name: "Add a supplier - 06-10-2026.amlsteps",
+    });
+  });
+
+  it("asks where a Steps file goes only when the choices say to", async () => {
+    const { written, saveAmlsteps } = savingSteps();
+    const { job: exporting, asked } = job({
+      answer: String.raw`D:\Out\Add a supplier.amlsteps`,
+      saveAmlsteps,
+    });
+    const askEveryTime = choices({ askEveryTime: true });
+    const outcome = await exporting.run(request({ format: "amlsteps", choices: askEveryTime }));
+    expect(asked).toEqual(["Add a supplier - 06-10-2026.amlsteps"]);
+    expect(written).toEqual([
+      { where: { path: String.raw`D:\Out\Add a supplier.amlsteps` }, includeOriginals: false },
+    ]);
+    expect(outcome).toMatchObject({
+      kind: "saved",
+      path: String.raw`D:\Out\Add a supplier.amlsteps`,
+    });
 
     const cancelled = job({ saveAmlsteps });
-    expect(await cancelled.job.run(request({ format: "amlsteps" }))).toEqual({
-      kind: "cancelled",
-    });
+    expect(await cancelled.job.run(request({ format: "amlsteps", choices: askEveryTime }))).toEqual(
+      { kind: "cancelled" },
+    );
     expect(written).toHaveLength(1);
   });
 
@@ -256,6 +326,29 @@ describe("a PDF's fonts", () => {
     // Still saved: the characters no font has may print as boxes, and the message says so.
     expect(files.saved).toHaveLength(1);
     expect(outcome).toMatchObject({ kind: "saved", fontsMissing: true });
+  });
+
+  it("draws emoji from the bundled emoji font, without saying characters are missing", async () => {
+    // The 10/10/2026 test's P45 (#89): 🎉 printed as an empty box.
+    const { job: exporting, files, families } = noFonts();
+    const noted: GuideStep = {
+      ...step("a"),
+      notes: {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [{ type: "text", text: "Great job! 🎉 Ask Gran ☎️ if stuck" }],
+          },
+        ],
+      },
+    };
+    const outcome = await exporting.run(request({ format: "pdf", doc: { guide, steps: [noted] } }));
+    // The brand's fonts and the bundled ones show the words; no other font is looked for.
+    expect(families).toEqual(["Century Gothic", "Aptos"]);
+    expect(outcome).toMatchObject({ kind: "saved", fontsMissing: false });
+    const pdf = new TextDecoder("latin1").decode(files.saved[0]?.bytes);
+    expect(pdf).toMatch(/\/FontName \/\w+\+NotoEmoji/);
   });
 
   it("says so when any one of several languages' files lacks a font", async () => {

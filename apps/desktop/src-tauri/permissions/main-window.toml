@@ -1,0 +1,9 @@
+[[permission]]
+identifier = "allow-main-window-ask-before-close"
+description = "Allows the main window to hold its own close button while the editor has changes it couldn't save, so it can ask first (docs/spec/04-editor.md#leaving-the-editor)."
+commands.allow = ["main_window_ask_before_close"]
+
+[[permission]]
+identifier = "allow-main-window-quit"
+description = "Allows the main window to quit Steps when the person chooses Quit anyway after the tray's Quit asked first, while the editor has changes it couldn't save (docs/spec/04-editor.md#leaving-the-editor)."
+commands.allow = ["main_window_quit"]

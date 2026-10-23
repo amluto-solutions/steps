@@ -32,7 +32,10 @@ export type SensitiveKind =
   | "term"
   | "account"
   | "file"
-  | "path";
+  | "path"
+  // A notification toast the desktop recorder saw on the screenshot (P35), known by its window
+  // rather than its words: suggested whatever the strength, and never found in words.
+  | "notification";
 
 /**
  * How much the suggestions look for (Settings > Privacy, "Blur suggestions"; 01/10/2026).
@@ -108,6 +111,31 @@ export interface Finding {
 
 const digitsOf = (text: string) => text.replace(/\D/g, "");
 
+/**
+ * Whether a number is one glyph over and over, reading OCR's O as 0 and I or l as 1. That's no
+ * one's phone number: it's how OCR reads a row of round shapes, such as Paint's colour swatches
+ * read as "0000000000" (#51, P17). Windows OCR says nothing of how sure it is, so the digits
+ * themselves have to show it.
+ */
+const oneGlyph = (text: string) =>
+  new Set(digitsOf(text.replace(/O/g, "0").replace(/[Il]/g, "1"))).size === 1;
+
+/**
+ * The ways a number is read, the first being the one whose digits are counted. Some write the
+ * trunk zero in brackets after the country code ("+44 (0)20 7946 0958", #99): it's left out when
+ * dialling from abroad, so the number is counted without it ("+44 20 7946 0958"), and it's read at
+ * home without the +44 ("020 7946 0958"). Only straight after +44: a "(0)" anywhere else ("Inbox
+ * (0)") is never part of a number. Any other number is read as written.
+ */
+function readings(text: string): [counted: string, ...others: string[]] {
+  // OCR may read the bracketed 0 as O, as it does a number's other zeros.
+  const trunk = /^(\+ ?44[\s-]?)\([0O]\)(.*)$/su.exec(text);
+  return trunk ? [`${trunk[1] ?? ""}${trunk[2] ?? ""}`, `0${trunk[2] ?? ""}`] : [text];
+}
+
+/** One glyph repeated however the number is read: "+44 (0)0000 000000" is "00000 000000". */
+const oneGlyphRead = (text: string) => readings(text).some(oneGlyph);
+
 /** The Luhn check card numbers carry. */
 export function luhnValid(digits: string): boolean {
   let sum = 0;
@@ -162,12 +190,13 @@ const RULES: Rule[] = [
     pattern: /[\p{L}\p{N}._%+'\-!#$&*/=?^`{|}~]+@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)*\.\p{L}{2,}/giu,
   },
   // UK numbers: 0 or +44, then 9 or 10 more digits, spaces or dashes allowed between, and the
-  // area code may be in brackets ("(020) 7946 0958").
+  // area code may be in brackets ("(020) 7946 0958"), as may the 0 after +44 ("+44 (0)20 …").
   {
     kind: "phone",
     pattern: /(?:\+44[\s-]?(?:\(0\)[\s-]?)?|\(?\b0)\d(?:\)?[\s-]?\d){8,9}\b/g,
     check: (match) => {
-      const digits = digitsOf(match);
+      if (oneGlyphRead(match)) return false;
+      const digits = digitsOf(readings(match)[0]);
       return digits.startsWith("44")
         ? digits.length === 12
         : digits.length >= 10 && digits.length <= 11;
@@ -200,14 +229,16 @@ const RULES: Rule[] = [
       /\b(?!BG|GB|NK|KN|TN|NT|ZZ)[A-CEGHJ-PR-TW-Z][A-CEGHJ-NPR-TW-Z] ?\d{2} ?\d{2} ?\d{2} ?[A-D]\b/gi,
   },
   { kind: "iban", pattern: /\b[A-Z]{2}\d{2}(?: ?[A-Z0-9]){11,30}\b/g, check: ibanValid },
-  // OCR reads 0 as O and 1 as I or l in numbers too, and "+44" as "+ 44"; a number read like
-  // that still needs 8 real digits.
+  // OCR reads 0 as O and 1 as I or l in numbers too, and "+44" as "+ 44", with or without the
+  // bracketed 0 after it; a number read like that still needs 8 real digits.
   {
     kind: "phone",
-    pattern: /(?:\+ ?44[\s-]?|\b[0O])[\dOIl](?:[\s-]?[\dOIl]){8,10}(?![\p{L}\p{N}])/gu,
+    pattern:
+      /(?:\+ ?44[\s-]?(?:\([0O]\)[\s-]?)?|\b[0O])[\dOIl](?:[\s-]?[\dOIl]){8,10}(?![\p{L}\p{N}])/gu,
     check: (match) => {
-      if (digitsOf(match).length < 8) return false;
-      const digits = digitsOf(match.replace(/O/g, "0").replace(/[Il]/g, "1"));
+      const [counted] = readings(match);
+      if (digitsOf(counted).length < 8 || oneGlyphRead(match)) return false;
+      const digits = digitsOf(counted.replace(/O/g, "0").replace(/[Il]/g, "1"));
       return digits.startsWith("44")
         ? digits.length === 12
         : digits.length >= 10 && digits.length <= 11;
@@ -272,7 +303,7 @@ function fitsKind(kind: SensitiveKind, value: string): boolean {
       // IDs only where a label says so, and then only real numbers: at least 4 digits.
       return digitsOf(text).length >= 4;
     case "phone":
-      return digitsOf(text).length >= 6;
+      return digitsOf(text).length >= 6 && !oneGlyphRead(text);
     case "dateOfBirth":
       return /\d/.test(text);
     case "email":
@@ -374,6 +405,94 @@ const unionOf = (rects: Finding["rect"][]): Finding["rect"] => {
 const stripLabelEnd = (text: string) => text.replace(/[\s:*：]+$/, "");
 
 /**
+ * The lines under `top` and lined up with it, one after another, up to the first label: the rows
+ * of a column when `top` is at the head of one. A line with no letter or digit (a radio button's
+ * dot, a tick) isn't a row.
+ */
+function rowsUnder(top: LaidOut, all: LaidOut[], isLabel: (item: LaidOut) => boolean): LaidOut[] {
+  const height = Math.max(0.5, top.box.bottom - top.box.top);
+  const rows: LaidOut[] = [];
+  let last = top;
+  while (rows.length < 12) {
+    const lastHeight = Math.max(0.5, last.box.bottom - last.box.top);
+    const next = all
+      .filter(
+        (other) =>
+          other !== top &&
+          !rows.includes(other) &&
+          /[\p{L}\p{N}]/u.test(other.text) &&
+          other.box.top >= last.box.bottom - lastHeight * 0.3 &&
+          other.box.top <= last.box.bottom + height * 6 &&
+          Math.abs(other.box.left - top.box.left) <= Math.max(3, height * 2),
+      )
+      .sort((a, b) => a.box.top - b.box.top)[0];
+    if (!next || isLabel(next)) break;
+    rows.push(next);
+    last = next;
+  }
+  return rows;
+}
+
+/**
+ * Whether a label is the first of a list's rows (a menu's items, a column under its heading)
+ * rather than a form's label (#51, P37: Explorer's Sort menu gave "name next to “Name”" for "Date
+ * modified" below it). At least three rows follow it at an even spacing, and it's no closer to the
+ * first than they are to each other. A form puts a label close to its own field, and the next
+ * field further on, so its lines aren't evenly spaced; and its next label ends the rows.
+ */
+function headsList(label: LaidOut, rows: LaidOut[]): boolean {
+  const [first, second] = rows;
+  if (!first || !second || rows.length < 3) return false;
+  const pitch = second.box.top - first.box.top;
+  if (pitch <= 0 || first.box.top - label.box.top < pitch * 0.8) return false;
+  let even = 2;
+  while (even < rows.length) {
+    const step = (rows[even]?.box.top ?? 0) - (rows[even - 1]?.box.top ?? 0);
+    if (Math.abs(step - pitch) > pitch * 0.25) break;
+    even += 1;
+  }
+  return even >= 3;
+}
+
+/**
+ * Whether a label heads a column of a table (#51, P37: Explorer's Details view gave "name next
+ * to “Name”" for its "Date modified" heading). The label has at least two rows under it, and at
+ * least two more headings to its right on its row have rows that start level with one of them
+ * (the one next to it needn't: OneDrive's Status column shows only icons). A form's label has its
+ * value beside it and another label under it, which ends its rows; a value and an Edit button
+ * don't make two headings; and only headings to the right count, as a side menu's items can line
+ * up with a form's rows.
+ */
+function headsTable(label: LaidOut, all: LaidOut[], isLabel: (item: LaidOut) => boolean): boolean {
+  const rows = rowsUnder(label, all, isLabel);
+  if (rows.length < 2) return false;
+  const level = (heading: LaidOut) => {
+    const start = rowsUnder(heading, all, isLabel)[0];
+    return (
+      start !== undefined &&
+      rows.some(
+        (row) =>
+          Math.abs(start.box.top - row.box.top) <=
+          Math.max(start.box.bottom - start.box.top, row.box.bottom - row.box.top),
+      )
+    );
+  };
+  const middle = (label.box.top + label.box.bottom) / 2;
+  const headings = all.filter(
+    (other) =>
+      other !== label &&
+      other.box.left >= label.box.right &&
+      other.box.top <= middle &&
+      other.box.bottom >= middle &&
+      /\p{L}/u.test(other.text) &&
+      !NOT_A_VALUE.test(other.text) &&
+      !FORM_WORDS.test(other.text) &&
+      level(other),
+  );
+  return headings.length >= 2;
+}
+
+/**
  * Values a label names: "Account owner   Robin Hale", "Username: rhale", or a form field under
  * its label. The value is looked for after the label on its own line (after a colon or a wide
  * gap), then on the same row to the right, then just below. An empty field has no value, so
@@ -443,6 +562,14 @@ function findLabelled(lines: OcrLine[]): Finding[] {
       .sort((a, b) => a.box.top - b.box.top)[0];
     const value = right ?? below;
     if (!value) continue;
+    // A table's heading isn't labelling the next heading along, nor a menu item or a list's
+    // heading the row under it: that matters where the label is all that says what a value is.
+    // A phone number or an email must look like one, so is one, list or not. Nor is an address's
+    // label a list's: its lines run on under its first.
+    if (kind !== "phone" && kind !== "email") {
+      if (right && headsTable(item, all, isLabel)) continue;
+      if (!right && kind !== "address" && headsList(item, rowsUnder(item, all, isLabel))) continue;
+    }
     const parts = [{ item: value, from: 0 }];
     // An address runs on over the lines under its first, lined up with it.
     if (kind === "address") {

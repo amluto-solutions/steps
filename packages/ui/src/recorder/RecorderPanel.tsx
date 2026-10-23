@@ -42,6 +42,10 @@ export function RecorderPanel({
   /** The site of the last step, which the person can stop recording from here. */
   const [lastSite, setLastSite] = useState<string | null>(null);
   const [excludedNote, setExcludedNote] = useState<string | null>(null);
+  /** "Nothing was recorded": the last recording had no steps, so it wasn't kept (#52). */
+  const [nothingNote, setNothingNote] = useState<string | null>(null);
+  /** From Stop until it's known whether anything was recorded. */
+  const [stopping, setStopping] = useState(false);
   const list = useRef<HTMLOListElement>(null);
   const wordingRef = useRef(wording);
   /**
@@ -148,16 +152,79 @@ export function RecorderPanel({
     list.current?.lastElementChild?.scrollIntoView({ block: "nearest" });
   }, [steps.length]);
 
+  /** Runs a recorder action, showing the state it answers; true when it worked. */
   const run = async (action: () => Promise<RecorderSnapshot>) => {
     setBusy(true);
     setProblem(null);
     try {
       setSnapshot(await action());
+      return true;
     } catch {
       setProblem(t("panel.failed"));
+      return false;
     } finally {
       setBusy(false);
     }
+  };
+
+  /**
+   * Whether a stopped recording made no steps, worked out as its draft would be
+   * (docs/spec/02-capture.md#recording-to-draft) from its journal and the facts this panel saw.
+   * Steps that couldn't be read aren't nothing.
+   */
+  const recordedNothing = async (sessionId: string) => {
+    const [journalled, saved, restart, own] = await Promise.all([
+      recorder.getRecoveryRecords(sessionId).catch(() => []),
+      recorder.getSessionSteps(sessionId).catch(() => []),
+      recorder.getRestartPoint(sessionId).catch(() => null),
+      recorder.getRecordingSettings(sessionId).catch(() => null),
+    ]);
+    const known = new Set(journalled.map((fact) => fact.sequence));
+    const facts = [
+      ...journalled,
+      ...factsRef.current.filter(
+        (fact) => fact.sessionId === sessionId && !known.has(fact.sequence),
+      ),
+    ];
+    const kept = settingsRef.current;
+    const { steps, skipped } = await recordingToDraft({
+      facts,
+      saved,
+      live: [],
+      restart,
+      wording: wordingRef.current(sessionId),
+      settings:
+        own ?? (kept?.sessionId === sessionId ? kept.settings : null) ?? readRecordingSettings(),
+      words: null,
+    });
+    return steps.length === 0 && skipped === 0;
+  };
+
+  /**
+   * Stop. A recording with no steps isn't kept to review as an empty guide (#52): it goes, and
+   * the panel says "Nothing was recorded". The Steps tab, when it's open, lets it go too;
+   * whichever is first, the other finds it gone. Discard lets go of whatever recording is
+   * current, so it's used only while that's still the one that stopped: by then a new one may
+   * have started from the Steps tab.
+   */
+  const stop = async () => {
+    const sessionId = snapshot?.sessionId ?? null;
+    const intoTitle = into?.title ?? null;
+    setStopping(true);
+    setNothingNote(null);
+    if (sessionId && (await run(() => recorder.stop()))) {
+      const nothing = await recordedNothing(sessionId).catch(() => false);
+      const now = nothing ? await recorder.getState().catch(() => null) : null;
+      const stillThisOne = now?.state === "idle" && now.sessionId === sessionId;
+      const gone = now !== null && now.sessionId === null;
+      if (gone || (stillThisOne && (await run(() => recorder.discard()))))
+        setNothingNote(
+          intoTitle
+            ? t("recorder.intoNothing", { title: intoTitle })
+            : t("recorder.nothingRecorded"),
+        );
+    }
+    setStopping(false);
   };
 
   const start = () => {
@@ -166,6 +233,7 @@ export function RecorderPanel({
     setSteps([]);
     setLastSite(null);
     setExcludedNote(null);
+    setNothingNote(null);
     // Read once, here, and saved with the recording.
     const settings = readRecordingSettings(i18n.language);
     settingsRef.current = { sessionId: null, settings };
@@ -193,7 +261,8 @@ export function RecorderPanel({
 
   const state = snapshot?.state ?? "idle";
   const recording = state === "recording" || state === "paused";
-  const waiting = !recording && Boolean(snapshot?.sessionId);
+  // Not while Stop is finding out whether anything was recorded: that may be nothing to review.
+  const waiting = !recording && Boolean(snapshot?.sessionId) && !stopping;
   // Record steps here, asked for in the Steps tab: the guide the next recording goes into, or the
   // one this recording's steps are going into.
   const nextInto = useRecordingInto(null);
@@ -223,6 +292,11 @@ export function RecorderPanel({
 
       {!recording && (
         <section className="flex flex-col gap-4 p-4">
+          {nothingNote && !waiting && (
+            <p role="status" className="card p-4 font-semibold text-navy">
+              {nothingNote}
+            </p>
+          )}
           {waiting && (
             <div role="status" className="card flex flex-col gap-2 p-4">
               <p className="font-semibold text-navy">
@@ -311,7 +385,7 @@ export function RecorderPanel({
               type="button"
               className="btn btn-primary"
               disabled={busy}
-              onClick={() => void run(() => recorder.stop())}
+              onClick={() => void stop()}
             >
               <Icon name="stop" size={14} />
               {t("recorder.stop")}

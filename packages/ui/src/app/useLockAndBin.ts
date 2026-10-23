@@ -23,6 +23,7 @@ import { policy } from "../settings/policy";
 import { readRecordPcAndLogin } from "../settings/preferences";
 import { askConfirm } from "./ask";
 import { underEditLock } from "./edit-lock";
+import { moveGuide } from "./move";
 
 /**
  * The guide locks every library goes through (docs/spec/03-data-and-sharing.md#password-locks),
@@ -72,6 +73,29 @@ export interface LockAndBinDialogs {
   properties: (libraryId: string, guideId: string) => Promise<void>;
 }
 
+/**
+ * The open editor, when a guide's menu is its own (docs/spec/04-editor.md#guide-actions): it holds
+ * the guide's edit lock. Move to Bin closes it for the library, and Move to opens the guide again
+ * from the library it went to.
+ */
+export interface EditorSide {
+  /** Writes the edits still waiting; rejects while a save is failing. */
+  flush: () => Promise<void>;
+  /** Asks whether to go on with edits that couldn't be saved; false to stay. */
+  askLeave: () => Promise<boolean>;
+  /** Makes the editor take no edits (`true`) while its guide goes, or take them again. */
+  hold: (on: boolean) => void;
+  /** Back to the library; the editor closing lets go of the edit lock. */
+  close: () => void;
+  /** Opens a guide in the editor: Undo opens the guide it brought back. */
+  reopen: (ref: GuideRef) => Promise<void>;
+  /**
+   * Opens a guide in this editor's place, the person having chosen to leave it already: a moved
+   * guide, from where it is now. If it can't be opened, that library's guides show instead.
+   */
+  replace: (ref: GuideRef) => Promise<void>;
+}
+
 const DIALOGS: LockAndBinDialogs = {
   newPassword: askNewPassword,
   count: askCount,
@@ -82,9 +106,10 @@ const DIALOGS: LockAndBinDialogs = {
 /**
  * The guide-lock and Bin actions of the library and the editor's guide menu
  * (docs/spec/03-data-and-sharing.md#password-locks): Lock, Remove lock, Change password and
- * Properties, one guide or several, and Move to Bin with its Undo, Restore, Delete for good and
- * Empty Bin. What a password opens is the guide locks' to decide; this only wires the menus and
- * the Bin to them and says how each went.
+ * Properties, one guide or several, Move to Bin with its Undo, Restore, Delete for good and
+ * Empty Bin, and Move to another library with its Undo, which take the guide from under an editor
+ * open on it (docs/spec/04-editor.md#guide-actions). What a password opens is the guide locks' to
+ * decide; this only wires the menus and the Bin to them and says how each went.
  */
 export function useLockAndBin(context: {
   /** The guide locks every library goes through; null without a library. */
@@ -99,10 +124,13 @@ export function useLockAndBin(context: {
   run: (action: () => Promise<unknown>, done?: string) => Promise<void>;
   /** The display name, which a new lock names. */
   author: string;
+  /** The editor open on a guide now, if any: a move's Undo takes the guide from under it. */
+  openEditor?: (ref: GuideRef) => EditorSide | undefined;
   dialogs?: Partial<LockAndBinDialogs>;
 }) {
   const { t } = useTranslation();
-  const { locks, libraryId, guides, trash, refreshGuides, notify, run, author } = context;
+  const { locks, libraryId, guides, trash, refreshGuides, notify, run, author, openEditor } =
+    context;
   const library = locks?.library;
   const dialogs = { ...DIALOGS, ...context.dialogs };
 
@@ -208,15 +236,33 @@ export function useLockAndBin(context: {
   };
 
   /**
-   * Move to Bin. From the list it's done under the guide's edit lock (`held`: the editor holds
-   * it), and never taken from someone editing it: their unsaved edits would have nowhere to go.
+   * Before the guide open in the editor goes from where it is (Move to Bin, Move to), the edits
+   * still waiting are written: nothing can be written to a guide that has gone. While a save is
+   * failing they can't be, and the person is asked before they go (#80); false when they stay.
+   * The editor takes no edits from now until the guide has gone (#94): one made meanwhile would be
+   * written after it, to where the guide has left. The caller lets go of the hold once done.
    */
-  const trashGuide = async (ref: GuideRef, title: string, held: boolean) => {
+  const leaving = async (editor: EditorSide) => {
+    editor.hold(true);
+    const saved = await editor.flush().then(
+      () => true,
+      () => false,
+    );
+    return saved || editor.askLeave();
+  };
+
+  /**
+   * Move to Bin. From the list it's done under the guide's edit lock, and never taken from someone
+   * editing it: their unsaved edits would have nowhere to go. From the editor, which holds the
+   * lock, the editor closes: a guide in the Bin can't be edited.
+   */
+  const trashGuide = async (ref: GuideRef, title: string, editor: EditorSide | undefined) => {
     if (!library) return;
     const { libraryId: id, guideId } = ref;
     try {
+      if (editor && !(await leaving(editor))) return;
       const bin = () => library.trashGuide(id, guideId);
-      const binned = held
+      const binned = editor
         ? { done: true as const, value: await bin() }
         : await underEditLock(library, ref, null, bin);
       if (!binned.done) {
@@ -224,6 +270,7 @@ export function useLockAndBin(context: {
         return;
       }
       const entry = binned.value;
+      editor?.close();
       await refreshGuides(id);
       notify({
         text: t("library.trashed", { title }),
@@ -231,21 +278,97 @@ export function useLockAndBin(context: {
           label: t("common.undo"),
           run: () =>
             void run(async () => {
-              await library.restoreGuide(id, entry.trashId);
+              const restored = await library.restoreGuide(id, entry.trashId);
               await refreshGuides(id);
+              // From the editor, Undo takes the person back to where they were.
+              await editor?.reopen({ libraryId: id, guideId: restored.id });
             }),
         },
       });
     } catch (problem) {
       notify({ kind: "error", text: errorMessage(problem, t("library.actionFailed")) });
+    } finally {
+      editor?.hold(false);
     }
   };
 
   /**
-   * The end of a guide's menu: its lock entries, Properties, and Move to Bin. `held` when the menu
-   * is the editor's, which holds the guide's edit lock.
+   * Move to another library: the guide takes everything with it and leaves its library for good,
+   * so moving it back is the Undo (F053). From the list it's done under the guide's edit lock, and
+   * never taken from someone editing it. From the editor, which holds the lock, the guide opens
+   * again from the library it went to (#94): an editor left on its old place could save nothing.
    */
-  const guideEntries = (ref: GuideRef, title: string, held = false): MenuEntry[] => [
+  const moveTo = async (
+    ref: GuideRef,
+    title: string,
+    to: { id: string; name: string },
+    editor: EditorSide | undefined,
+  ) => {
+    if (!library) return;
+    try {
+      // Asked before the app is busy: the question waits for the person.
+      if (editor && !(await leaving(editor))) return;
+      await run(async () => {
+        const { libraryId: from, guideId } = ref;
+        const move = () => moveGuide(library, from, guideId, to.id);
+        const moved = editor
+          ? { done: true as const, value: await move() }
+          : await underEditLock(library, ref, null, move);
+        if (!moved.done) {
+          notify({ kind: "error", text: t("library.moveEditing", { name: moved.lock.name }) });
+          return;
+        }
+        const there = { libraryId: to.id, guideId: moved.value.id };
+        if (editor) await editor.replace(there);
+        else await refreshGuides(from);
+        notify({
+          text: t("library.moved", { name: to.name }),
+          action: {
+            label: t("common.undo"),
+            run: () => void moveBack(there, ref, title, editor?.reopen),
+          },
+        });
+      });
+    } finally {
+      editor?.hold(false);
+    }
+  };
+
+  /**
+   * Undo of a move: the guide goes back to the library it came from. An editor open on it where it
+   * went (the one a move from the editor opened, or one opened since) gives it up as the move's
+   * did, and it opens again from where it's back. After a move from the editor, `reopen` opens it
+   * there anyway, as Undo of Move to Bin does.
+   */
+  const moveBack = async (
+    there: GuideRef,
+    home: GuideRef,
+    title: string,
+    reopen: EditorSide["reopen"] | undefined,
+  ) => {
+    if (!library) return;
+    const open = openEditor?.(there);
+    try {
+      if (open && !(await leaving(open))) return;
+      await run(async () => {
+        await withPassword(there, title, t("locks.move"), async () => {
+          const back = await moveGuide(library, there.libraryId, there.guideId, home.libraryId);
+          const ref = { libraryId: home.libraryId, guideId: back.id };
+          if (open) await open.replace(ref);
+          else if (reopen) await reopen(ref);
+          else await refreshGuides(home.libraryId);
+        });
+      });
+    } finally {
+      open?.hold(false);
+    }
+  };
+
+  /**
+   * The end of a guide's menu: its lock entries, Properties, and Move to Bin. `editor` when the
+   * menu is the editor's.
+   */
+  const guideEntries = (ref: GuideRef, title: string, editor?: EditorSide): MenuEntry[] => [
     ...lockEntries(ref, title),
     {
       label: t("locks.properties"),
@@ -258,7 +381,7 @@ export function useLockAndBin(context: {
       icon: "trash",
       danger: true,
       onSelect: () =>
-        void withPassword(ref, title, t("locks.toBin"), () => trashGuide(ref, title, held)),
+        void withPassword(ref, title, t("locks.toBin"), () => trashGuide(ref, title, editor)),
     },
   ];
 
@@ -362,5 +485,5 @@ export function useLockAndBin(context: {
         }
       : {};
 
-  return { withPassword, guideEntries, bulkLocks, bin };
+  return { withPassword, guideEntries, moveTo, bulkLocks, bin };
 }

@@ -160,3 +160,59 @@ describe("suggested blurs on a step", () => {
     expect(area && area.w > 20).toBe(true);
   });
 });
+
+describe("notification toasts on a screenshot (P35)", () => {
+  // Where the recorder saw a toast, in the bottom-right corner of a whole-monitor screenshot.
+  const message = { x: 80, y: 75, w: 19, h: 19 };
+  const withToast = {
+    ...step,
+    media: {
+      id: "m-a",
+      width: 1920,
+      height: 1080,
+      scale: 1,
+      captureRect: null,
+      notifications: [message],
+    },
+  };
+  /** The sender's address in the toast, as text recognition reads it. */
+  const inToast: OcrLine[] = [{ words: [{ text: "jo@example.com", x: 82, y: 78, w: 12, h: 2 }] }];
+  const kinds = (value: typeof withToast, read: OcrLine[] = []) =>
+    openFindings(value, read, [], standard).map((finding) => finding.kind);
+
+  it("are suggested for blurring as notifications, however hard it looks, with no words read", () => {
+    expect(openFindings(withToast, [], [], standard)).toEqual([
+      { kind: "notification", text: "", rect: message },
+    ]);
+    expect(openFindings(withToast, [], [], { strength: "light", safe: [] })).toHaveLength(1);
+    expect(openFindings(step, [], [], standard)).toEqual([]);
+  });
+
+  it("aren't suggested once blurred, marked not personal, or cropped away", () => {
+    const blur = { x: 79, y: 74, w: 21, h: 21, source: "manual" as const };
+    expect(kinds({ ...withToast, redactions: [blur] })).toEqual([]);
+    expect(kinds({ ...withToast, notPersonal: [message] })).toEqual([]);
+    const crop = { x: 0, y: 0, w: 50, h: 50, source: "manual" as const };
+    expect(kinds({ ...withToast, crop })).toEqual([]);
+  });
+
+  it("take in what's read inside them, so it isn't suggested twice", () => {
+    expect(kinds(withToast, [...lines, ...inToast])).toEqual(["email", "phone", "notification"]);
+    // Marked not personal, the toast's area is, as any such area: what's inside it too.
+    expect(kinds({ ...withToast, notPersonal: [message] }, [...lines, ...inToast])).toEqual([
+      "email",
+      "phone",
+    ]);
+  });
+
+  it("are found in a guide even where its screenshot's words couldn't be read", async () => {
+    const words = screenWords(fakeTextReader({ "m-a": "unavailable" }), (id) =>
+      Promise.resolve(fakeScreenshot(id)),
+    );
+    const { found, unread } = await findOpenInGuide([withToast], words, [], standard);
+    expect(found).toEqual([
+      { stepId: "s", findings: [{ kind: "notification", text: "", rect: message }] },
+    ]);
+    expect(unread).toBe(1);
+  });
+});

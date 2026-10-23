@@ -3,17 +3,18 @@
 use std::sync::Arc;
 
 use capture::coords::{PxRect, point_to_pct};
-use capture::facts::{CaptureFacts, ManualRecord, Record, WindowFacts};
+use capture::facts::{CaptureFacts, ManualRecord, Record};
 use capture::pipeline::Sink;
 use capture::platform::display::{cursor_pos, now_tick};
 use capture::platform::window::{
-    Elevation, foreground_window, front_window_except, own_process_id, root_window_at,
+    foreground_window, front_window_except, own_process_id, root_window_at,
 };
 use capture::{pipeline, screenshot};
 use tauri::{AppHandle, Manager};
 
 use super::journal::JournalSink;
-use super::{CommandError, RecorderService, lock, manual_media_id};
+use super::{RecorderService, lock, manual_media_id, publish_state, snapshot_locked};
+use crate::error::CommandError;
 
 /// How long Capture now and Add shortcut wait for earlier clicks to be journalled.
 const MANUAL_WAITS_FOR_CLICKS: std::time::Duration = std::time::Duration::from_secs(5);
@@ -102,20 +103,20 @@ impl RecorderService {
             .map_err(|_| {
                 CommandError::new("screenshotFailed", "The screen could not be captured.")
             })?;
-        if capture_mode == screenshot::CaptureMode::Window {
-            screenshot::hide_covering(&mut shot, window.pid, None);
-        }
+        screenshot::handle_other_windows(
+            &mut shot,
+            capture_mode,
+            &screenshot::Target::window(window.pid, frame),
+            screenshot::Cover::Others,
+            None,
+            // The window was read at the pointer just before the picture.
+            false,
+        );
         let excluded = lock(&machine).excluded_apps().to_vec();
         screenshot::hide_excluded(&mut shot, &excluded);
-        let exe = window.exe_name().map(str::to_string);
-        let remote_session = exe
-            .as_deref()
-            .is_some_and(capture::pipeline::is_remote_client);
-        let elevation = match window.elevation {
-            Elevation::NotElevated => "notElevated",
-            Elevation::Elevated => "elevated",
-            Elevation::Unknown => "unknown",
-        };
+        // With the app's own name, as a click has: the recording bar names "Never record" by it
+        // (#85). A screenshot step's wording doesn't use it.
+        let window_facts = pipeline::window_facts(&window);
         let tick_ms = now_tick();
         let media_id = manual_media_id();
         let record = ManualRecord {
@@ -128,26 +129,8 @@ impl RecorderService {
                 "Capture this screen"
             }
             .into(),
-            window: WindowFacts {
-                title: window.title,
-                exe,
-                pid: window.pid,
-                frame,
-                elevation,
-                remote_session,
-                // A screenshot step, not an app switch: its wording doesn't use the app's name.
-                app_name: None,
-                shell: false,
-            },
-            capture: CaptureFacts {
-                mode: capture_mode.as_str(),
-                rect: shot.rect,
-                monitor: shot.monitor,
-                scale: shot.scale,
-                width: shot.image.width(),
-                height: shot.image.height(),
-                image: None,
-            },
+            window: window_facts,
+            capture: CaptureFacts::of(&shot, capture_mode),
             click_pct: point_to_pct(&shot.rect, x, y),
         };
         if purpose == "captureNow" {
@@ -187,6 +170,24 @@ impl RecorderService {
                 "shortcutPopupUnavailable",
                 "The shortcut popup could not be opened.",
             )
-        })
+        })?;
+        let snapshot = {
+            let inner = lock(&self.inner);
+            lock(&inner.machine).wait_for_shortcut();
+            snapshot_locked(&inner)
+        };
+        publish_state(app, &snapshot);
+        Ok(())
+    }
+
+    /// The shortcut popup closed, with the keys saved as a step (`added`) or cancelled: the bar
+    /// stops waiting, and a saved step counts.
+    pub(crate) fn shortcut_done(&self, app: &AppHandle, added: bool) {
+        let snapshot = {
+            let inner = lock(&self.inner);
+            lock(&inner.machine).shortcut_done(added);
+            snapshot_locked(&inner)
+        };
+        publish_state(app, &snapshot);
     }
 }

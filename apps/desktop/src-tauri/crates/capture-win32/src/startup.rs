@@ -47,6 +47,7 @@ fn from_winrt(state: StartupTaskState) -> StartupState {
 
 fn task() -> Option<StartupTask> {
     package_full_name()?;
+    crate::com::keep_multithreaded_apartment();
     StartupTask::GetAsync(&HSTRING::from(STARTUP_TASK_ID))
         .and_then(|operation| operation.join())
         .ok()
@@ -79,10 +80,13 @@ pub fn set_startup(enabled: bool) -> Option<StartupState> {
 /// start in the tray, as the Run key's `--minimized` does for the backup installers).
 #[must_use]
 pub fn launched_by_startup_task() -> bool {
-    package_full_name().is_some()
-        && AppInstance::GetActivatedEventArgs()
-            .and_then(|arguments| arguments.Kind())
-            .is_ok_and(|kind| kind == ActivationKind::StartupTask)
+    if package_full_name().is_none() {
+        return false;
+    }
+    crate::com::keep_multithreaded_apartment();
+    AppInstance::GetActivatedEventArgs()
+        .and_then(|arguments| arguments.Kind())
+        .is_ok_and(|kind| kind == ActivationKind::StartupTask)
 }
 
 #[cfg(test)]

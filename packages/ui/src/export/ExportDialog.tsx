@@ -16,7 +16,7 @@ import { headerCount, type PdfOptions } from "@amluto-steps/export";
 import { Spinner } from "../components/Spinner";
 import { Icon } from "../components/icons";
 import type { Edit, EditorDoc } from "../editor/document";
-import { errorMessage } from "../errors";
+import { errorMessage, failureReason } from "../errors";
 import type { FileFilter, VersionInfo } from "../library-bridge";
 import { ModalDialog } from "../ModalDialog";
 import type { Fonts } from "../bridge/fonts";
@@ -26,7 +26,14 @@ import { askConfirm } from "../app/ask";
 import type { ExportChoices } from "../settings/preferences";
 import { blurFoundEdit } from "../editor/suggestions";
 import type { TextReader } from "../screen-words";
-import { FORMATS, exportJob, fullyWritten, type ExportFormat, type PageLanguages } from "./job";
+import {
+  FORMATS,
+  exportJob,
+  fullyWritten,
+  type AmlstepsTarget,
+  type ExportFormat,
+  type PageLanguages,
+} from "./job";
 import { exportPreparation } from "./preparation";
 import { StepQuickEdit } from "./StepQuickEdit";
 import { UndoButtons } from "./UndoButtons";
@@ -65,9 +72,10 @@ export interface ExportDialogProps {
   choices: ExportChoices;
   /**
    * .amlsteps only: writes the file from the saved guide (after the editor's pending edits),
-   * with blur burned in unless the unblurred originals are asked for.
+   * with blur burned in unless the unblurred originals are asked for; answers where it went.
    */
-  saveAmlsteps?: ((path: string, includeOriginals: boolean) => Promise<void>) | undefined;
+  saveAmlsteps?:
+    ((where: AmlstepsTarget, includeOriginals: boolean) => Promise<string>) | undefined;
   /** The guide's saved versions, for the document-control page (a guide in a library). */
   listVersions?: (() => Promise<VersionInfo[]>) | undefined;
   /**
@@ -267,7 +275,6 @@ export function ExportDialog(props: ExportDialogProps) {
     files: props.recorder,
     askWhere: (defaultName) =>
       props.pickSaveLocation(
-        // A .amlsteps file is for handing a guide to another Steps user, so it's always asked.
         props.format === "amlsteps" ? t("export.amlsteps.pickTitle") : t("export.saveTitle"),
         defaultName,
         [{ name: t(`export.filters.${props.format}`), extensions: [format.extension ?? ""] }],
@@ -295,6 +302,14 @@ export function ExportDialog(props: ExportDialogProps) {
     now: new Date(),
   });
 
+  /** The failure shown here, and its reason noted in the app's log, which never sees it otherwise. */
+  const failed = (error: unknown) => {
+    void props.recorder
+      .logExportFailure?.(props.format, failureReason(error))
+      .catch(() => undefined);
+    setProblem(errorMessage(error, t("export.failed")));
+  };
+
   /** The walkthrough in the default browser, exactly as a recipient will see it. */
   const preview = async () => {
     setBusy(true);
@@ -302,7 +317,7 @@ export function ExportDialog(props: ExportDialogProps) {
     try {
       await job.preview(request());
     } catch (error) {
-      setProblem(errorMessage(error, t("export.failed")));
+      failed(error);
     } finally {
       setBusy(false);
     }
@@ -318,8 +333,6 @@ export function ExportDialog(props: ExportDialogProps) {
         return;
       }
       if (outcome.kind === "copied") props.onExported("copy", t("export.copied"), null);
-      else if (outcome.kind === "amlsteps")
-        props.onExported("amlsteps", t("export.amlsteps.done"), null);
       else {
         const savedName = outcome.path.split(/[\\/]/).at(-1) ?? outcome.path;
         props.onExported(
@@ -329,6 +342,9 @@ export function ExportDialog(props: ExportDialogProps) {
               ? t("export.savedSeveral", { count: outcome.count, name: savedName })
               : t("export.saved", { name: savedName }),
             ...(outcome.fontsMissing ? [t("export.fontsMissing")] : []),
+            ...(props.format === "amlsteps" && !includeOriginals
+              ? [t("export.amlsteps.blurredForGood")]
+              : []),
           ].join(" "),
           // A browser saves by name only: no path to copy or file to open.
           props.recorder.capabilities.openExports ? outcome.path : null,
@@ -336,7 +352,7 @@ export function ExportDialog(props: ExportDialogProps) {
       }
       props.onClose();
     } catch (error) {
-      setProblem(errorMessage(error, t("export.failed")));
+      failed(error);
       setBusy(false);
     }
   };
@@ -965,9 +981,14 @@ function StepChips(props: {
   const { t } = useTranslation();
   if (props.ids.length === 0) return null;
   const label = (id: string) => t("export.stepNumber", { number: props.numbers.get(id) ?? "?" });
+  // In step order: the screenshots are checked several at once, so the findings and missing
+  // pictures arrive in whatever order they finished (10/10/2026).
+  const ordered = [...props.ids].sort(
+    (a, b) => (props.numbers.get(a) ?? Infinity) - (props.numbers.get(b) ?? Infinity),
+  );
   return (
     <span className="flex flex-wrap gap-1">
-      {props.ids.map((id) =>
+      {ordered.map((id) =>
         props.onShowStep ? (
           <button
             key={id}

@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { expectNoSeriousAxeViolations } from "../../test/axe";
 import { initI18n } from "../i18n";
 import { StartRecordingDialog } from "./dialogs";
 
@@ -67,5 +68,33 @@ describe("StartRecordingDialog", () => {
     fireEvent.click(box("Include command output"));
     fireEvent.click(screen.getByRole("button", { name: "Start recording" }));
     expect(onStart).toHaveBeenCalledWith({ keys: true, output: false });
+  });
+
+  it("keeps Start recording where it is when what's typed is ticked (#87)", async () => {
+    render(
+      <StartRecordingDialog
+        defaults={{ keys: false, output: false }}
+        onCancel={vi.fn()}
+        onStart={vi.fn()}
+      />,
+    );
+    const dialog = screen.getByRole("dialog");
+    // jsdom has no layout, so the check is that nothing is added or taken away above the
+    // buttons: the note's place is held, hidden, while the box is unticked.
+    const before = Array.from(dialog.children);
+    const unmoved = () =>
+      dialog.children.length === before.length &&
+      before.every((element, index) => dialog.children[index] === element);
+    expect(screen.queryByRole("note")).toBeNull();
+    await expectNoSeriousAxeViolations(document.body);
+
+    fireEvent.click(box("Record what's typed"));
+    expect(unmoved()).toBe(true);
+    expect(screen.getByRole("note").textContent).toBe("Keys are read during this recording only.");
+    await expectNoSeriousAxeViolations(document.body);
+
+    fireEvent.click(box("Record what's typed"));
+    expect(unmoved()).toBe(true);
+    expect(screen.queryByRole("note")).toBeNull();
   });
 });

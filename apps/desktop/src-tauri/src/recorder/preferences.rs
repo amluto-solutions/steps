@@ -6,7 +6,8 @@ use std::path::{Path, PathBuf};
 use serde_json::Value;
 
 use super::files::{ensure_library_metadata, write_new_bytes};
-use super::{CommandError, RecorderPreferences, storage_error, unique_id};
+use super::{RecorderPreferences, unique_id};
+use crate::error::{CommandError, storage_error};
 
 pub(super) fn validate_preferences(
     mut preferences: RecorderPreferences,

@@ -28,11 +28,12 @@ use super::preferences::{
     prepare_library, read_preferences, save_preferences, validate_preferences,
 };
 use super::{
-    CommandError, ERROR_EVENT, FINISHED_EVENT, JournalGap, RESTART_EVENT, RecorderPreferences,
-    RecorderService, RecorderSnapshot, Session, join_finished_worker, lock, not_recording,
-    nothing_to_undo, publish_state, safe_executable_name, snapshot_locked,
-    spawn_indicator_watchdog, storage_error, unique_id, unix_millis,
+    ERROR_EVENT, FINISHED_EVENT, JournalGap, RESTART_EVENT, RecorderPreferences, RecorderService,
+    RecorderSnapshot, Session, join_finished_worker, lock, not_recording, nothing_to_undo,
+    publish_state, safe_executable_name, snapshot_locked, spawn_indicator_watchdog, unique_id,
+    unix_millis,
 };
+use crate::error::{CommandError, storage_error};
 use capture::queued_sink::{Backlog, QueuedSink};
 
 /// After this many capture-worker panics in one recording, it is stopped rather than restarted.
@@ -103,6 +104,31 @@ impl RecordingSettings {
     }
 }
 
+/// The folder of the default library, where new recordings are saved. The library keeps it the
+/// same as the default on its list; whether it may change now is the recorder's rule, the one
+/// Settings follows: not while a recording runs (`recordingActive`).
+#[derive(Debug, Clone)]
+pub struct DefaultLibraryFolder(RecorderService);
+
+impl DefaultLibraryFolder {
+    /// The folder, once the recorder is set up.
+    pub(crate) fn get(&self) -> Option<PathBuf> {
+        self.0.library_folder()
+    }
+
+    /// Points new recordings at `folder` and saves that choice, with the name as it is, in the
+    /// recorder's settings file.
+    pub(crate) fn set(&self, folder: PathBuf) -> Result<(), CommandError> {
+        let display_name = self.0.user.display_name();
+        self.0
+            .set_preferences(RecorderPreferences {
+                display_name,
+                library_folder: folder,
+            })
+            .map(|_| ())
+    }
+}
+
 /// A recording's `session.json`: its id, title, author, start time and settings.
 pub(super) fn session_metadata(
     session_id: &str,
@@ -124,34 +150,33 @@ impl RecorderService {
     /// Creates private app-data and visible library folders. Mouse input is only registered
     /// while a recording runs (see `start`), never while the app merely sits open.
     pub fn initialize(&self, app: &AppHandle) -> Result<(), String> {
+        // The recorder's lock first, then the app-wide value's, as everywhere: anyone reading
+        // either waits until both are set up, or neither is.
         let mut inner = lock(&self.inner);
-        if inner.app_data.is_some() {
-            return Ok(());
-        }
-        let app_data = crate::app_folder::app_folder(app)
-            .ok_or_else(|| "Windows did not provide an app-data folder".to_string())?;
-        let default_library = crate::app_folder::default_library(app)?;
-        let preferences = read_preferences(&app_data, default_library.clone());
-        fs::create_dir_all(app_data.join("recordings")).map_err(|error| error.to_string())?;
-        // A library on a drive that isn't connected today falls back to the default library for
-        // this session; the saved choice is kept for next time.
-        let library = match prepare_library(&preferences.library_folder) {
-            Ok(()) => preferences.library_folder,
-            Err(error) => {
-                log::error!(
-                    "The library folder {} is unavailable ({error}); using {} for now.",
-                    preferences.library_folder.display(),
-                    default_library.display()
-                );
-                prepare_library(&default_library)?;
-                default_library
-            }
-        };
+        self.user.initialize(|| {
+            let app_data = crate::app_folder::app_folder(app)
+                .ok_or_else(|| "Windows did not provide an app-data folder".to_string())?;
+            let default_library = crate::app_folder::default_library(app)?;
+            let preferences = read_preferences(&app_data, default_library.clone());
+            fs::create_dir_all(app_data.join("recordings")).map_err(|error| error.to_string())?;
+            // A library on a drive that isn't connected today falls back to the default library
+            // for this session; the saved choice is kept for next time.
+            let library = match prepare_library(&preferences.library_folder) {
+                Ok(()) => preferences.library_folder,
+                Err(error) => {
+                    log::error!(
+                        "The library folder {} is unavailable ({error}); using {} for now.",
+                        preferences.library_folder.display(),
+                        default_library.display()
+                    );
+                    prepare_library(&default_library)?;
+                    default_library
+                }
+            };
 
-        inner.app_data = Some(app_data);
-        inner.library = Some(library);
-        inner.display_name = preferences.display_name;
-        Ok(())
+            inner.library = Some(library);
+            Ok((app_data, preferences.display_name))
+        })
     }
 
     pub(super) fn snapshot(&self) -> RecorderSnapshot {
@@ -160,35 +185,20 @@ impl RecorderService {
     }
 
     /// The folder new recordings are saved to, once `initialize` has run.
-    pub(crate) fn library_folder(&self) -> Option<PathBuf> {
+    pub(super) fn library_folder(&self) -> Option<PathBuf> {
         lock(&self.inner).library.clone()
     }
 
-    /// The app-data folder (`%APPDATA%\Amluto\Steps`), once `initialize` has run.
-    pub(crate) fn app_data(&self) -> Option<PathBuf> {
-        lock(&self.inner).app_data.clone()
-    }
-
-    /// The name the user gave in settings (may be empty).
-    pub(crate) fn display_name(&self) -> String {
-        lock(&self.inner).display_name.clone()
-    }
-
-    /// Points new recordings at `folder` (the default library) and saves that choice. Refused
-    /// while a recording is running or waiting for review, like any other settings change.
-    pub(crate) fn set_library_folder(&self, folder: PathBuf) -> Result<(), CommandError> {
-        let display_name = self.display_name();
-        self.set_preferences(RecorderPreferences {
-            display_name,
-            library_folder: folder,
-        })
-        .map(|_| ())
+    /// The default library's folder as the library reaches it, and no more of the recorder.
+    #[must_use]
+    pub fn default_library_folder(&self) -> DefaultLibraryFolder {
+        DefaultLibraryFolder(self.clone())
     }
 
     pub(super) fn preferences(&self) -> Result<RecorderPreferences, CommandError> {
         let inner = lock(&self.inner);
         Ok(RecorderPreferences {
-            display_name: inner.display_name.clone(),
+            display_name: self.user.display_name(),
             library_folder: inner.library.clone().ok_or_else(|| {
                 CommandError::new("notReady", "The library folder is not initialized.")
             })?,
@@ -209,15 +219,15 @@ impl RecorderService {
                 "Save or discard the current recording before changing these settings.",
             ));
         }
-        let app_data = inner
-            .app_data
-            .as_ref()
+        let app_data = self
+            .user
+            .app_data()
             .ok_or_else(|| CommandError::new("notReady", "The recorder is not initialized."))?;
         fs::create_dir_all(preferences.library_folder.join("guides")).map_err(storage_error)?;
         ensure_library_metadata(&preferences.library_folder).map_err(storage_error)?;
-        save_preferences(app_data, &preferences)?;
+        save_preferences(&app_data, &preferences)?;
         inner.library = Some(preferences.library_folder.clone());
-        inner.display_name.clone_from(&preferences.display_name);
+        self.user.set_display_name(preferences.display_name.clone());
         Ok(preferences)
     }
 
@@ -272,9 +282,9 @@ impl RecorderService {
                 "The recording indicator is unavailable.",
             )
         })?;
-        let app_data = inner
-            .app_data
-            .as_ref()
+        let app_data = self
+            .user
+            .app_data()
             .ok_or_else(|| CommandError::new("notReady", "The recorder is not initialized."))?;
         let session_id = unique_id();
         let session_dir = app_data.join("recordings").join(&session_id);
@@ -289,7 +299,7 @@ impl RecorderService {
         let metadata = session_metadata(
             &session_id,
             session_title,
-            &inner.display_name,
+            &self.user.display_name(),
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .map_or(0, |duration| {
@@ -318,7 +328,7 @@ impl RecorderService {
         .map_err(|error| {
             log::error!("recorder start: UI Automation unavailable: {error}");
             let _ = fs::remove_dir_all(&session_dir);
-            CommandError::new("uiaUnavailable", error)
+            CommandError::new("uiaUnavailable", error.to_string())
         })?;
         log::info!("recorder start: UI Automation ready; showing indicator");
 

@@ -1,7 +1,5 @@
 {
   "app": {
-    "alreadyOpenTitle": "Steps zaten açık",
-    "alreadyOpenBody": "Aynı anda yalnızca bir Steps çalışabilir, bu yüzden zaten açık olanı sizin için öne getirdik.",
     "name": "Steps",
     "by": "by",
     "logoAlt": "Amluto"
@@ -75,6 +73,8 @@
     "heading": "Kılavuzlarınız",
     "count_one": "{{count}} kılavuz",
     "count_other": "{{count}} kılavuz",
+    "countOf_one": "{{count}} kılavuzdan {{shown}}",
+    "countOf_other": "{{count}} kılavuzdan {{shown}}",
     "steps_one": "{{count}} adım",
     "steps_other": "{{count}} adım",
     "search": "Kılavuzlarda ara",
@@ -204,7 +204,7 @@
       "note": "Başka bir Steps kullanıcısı için",
       "pickTitle": "Kılavuzu Steps dosyası olarak kaydet",
       "filter": "Steps kılavuzu",
-      "done": "Kılavuz dışarı aktarıldı. Bulanıklaştırılan alanlar dosyada kalıcı olarak bulanık.",
+      "blurredForGood": "Bulanıklaştırılan alanlar dosyada kalıcı olarak bulanık.",
       "originals": "Bulanıklaştırılmamış özgün görüntüleri ekle (kurum içi devir için)",
       "originalsWarning": "Dosya her ekran görüntüsünü bulanıklaştırma olmadan içerecek. Dosyayı alan herkes bulanıklaştırılan yerleri görebilir. Bunu yalnızca bulanıklaştırmayı düzenlemesi gereken bir iş arkadaşınıza kılavuzu devrederken kullanın.",
       "burnedIn": "Bulanıklaştırılan alanlar dosyada kalıcı olarak bulanık. Gizlenen yazılan değerler, yorumlar ve sürümler dosyaya eklenmez."
@@ -472,6 +472,14 @@
       "error": "Kaydedilemedi, yeniden deneniyor",
       "saved": "Tüm değişiklikler kaydedildi"
     },
+    "leave": {
+      "title": "Son değişiklikleriniz kaydedilmeden çıkılsın mı?",
+      "body": "Steps son değişikliklerinizi kaydedemedi ve denemeye devam ediyor. Şimdi çıkarsanız bu değişiklikler kaybolabilir.",
+      "leave": "Yine de çık",
+      "close": "Yine de kapat",
+      "quit": "Yine de çık",
+      "stay": "Kal"
+    },
     "stepsList": "Adımlar",
     "stepCount_one": "{{count}} adım",
     "stepCount_other": "{{count}} adım",
@@ -519,6 +527,7 @@
       "typing": "Bu adımı denetleyin: yazılanlar tam eşleşmeyebilir.",
       "code": "Bu adımı denetleyin: içindeki bir gizli bilgi bulanıklaştırılmak üzere ekran görüntüsünde bulunamadı ya da metin tam eşleşmeyebilir.",
       "fillEnd": "Bu adımı denetleyin: kayıt, doldurmanın hangi hücrede bittiğini belirleyemedi. Nereye kadar gittiğini yazın ya da “Doğru görünüyor” düğmesini seçin.",
+      "appSwitch": "Bu adımı denetleyin: hiçbir tıklama ya da tuşa basma bu uygulamayı öne getirmedi, bu yüzden kendiliğinden öne gelmiş olabilir. Kılavuz bu uygulamaya geçmediyse adımı silin ya da “Doğru görünüyor” düğmesini seçin.",
       "looksRight": "Doğru görünüyor"
     },
     "stepText": "Adım metni",
@@ -917,6 +926,20 @@
       "inUse": "Zaten “{{name}}” için kullanılıyor.",
       "unavailable": "Bunu başka bir uygulama zaten kullanıyor, bu yüzden şu anda çalışmıyor.",
       "heldBySteps": "Steps'in başka bir kopyası açık ve bunu kullanıyor. Onu kapatın, ardından bunu yeniden başlatın.",
+      "commonUse": "Diğer uygulamalar {{keys}} kısayolunu “{{use}}” için kullanır. Steps bu kısayola sahipken orada bu işi yapmaz.",
+      "commonMany": "Birçok uygulama {{keys}} kısayolunu kendisi kullanır. Steps bu kısayola sahipken onlarda çalışmaz.",
+      "uses": {
+        "reloadNoCache": "Önbelleksiz yeniden yükle",
+        "reopenTab": "Kapatılan sekmeyi yeniden aç",
+        "privateWindow": "Yeni gizli pencere",
+        "closeWindow": "Pencereyi kapat",
+        "closeTab": "Sekmeyi kapat",
+        "devTools": "Geliştirici araçları",
+        "pastePlain": "Düz metin olarak yapıştır",
+        "redo": "Yinele",
+        "saveAs": "Farklı kaydet",
+        "bookmarksBar": "Yer imleri çubuğunu göster"
+      },
       "failed": "Bu kısayol kaydedilemedi.",
       "reset": "Varsayılanlara sıfırla",
       "resetDone": "Kısayollar sıfırlandı.",
@@ -1029,6 +1052,9 @@
     "excludeApp": "{{app}} uygulamasını hiç kaydetme",
     "excludeAppEmpty": "Bu uygulamayı hiç kaydetme",
     "appExcluded": "{{app}} hiç kaydedilmez",
+    "excludeAppsLike": "{{app}} gibi Windows uygulamalarını hiç kaydetme",
+    "appsLikeExcluded": "{{app}} gibi Windows uygulamaları hiç kaydedilmez",
+    "waitingForKeys": "Tuşlar bekleniyor",
     "startAgain": "Baştan başla",
     "startAgainHelp_one": "Bu {{count}} adımı siler ve kayda devam eder",
     "startAgainHelp_other": "Bu {{count}} adımı siler ve kayda devam eder",
@@ -1052,6 +1078,7 @@
     "into": "“{{title}}” içine kaydediliyor",
     "intoFallback": "Yeni adımlar “{{title}}” içine eklenemedi: kılavuz kapatılmış ya da başkası düzenliyor. Adımlar bunun yerine ayrı bir kayıtta duruyor.",
     "intoNothing": "Hiçbir şey kaydedilmedi, bu yüzden “{{title}}” olduğu gibi kaldı.",
+    "nothingRecorded": "Hiçbir şey kaydedilmedi, bu yüzden kılavuz oluşturulmadı.",
     "startRecording": "Kaydı başlat",
     "startTitle": "Kayıt başlat",
     "keysChoice": "Yazılanları kaydet",
@@ -1107,6 +1134,7 @@
       "mergeClickIntoTyping": "Tıklamayı ardından gelen yazmayla birleştir: {{steps}}",
       "removeDoubleClick": "Tekrarlanan tıklamayı kaldır: {{steps}}",
       "removeOpenApp": "Sonraki tıklamanın zaten gösterdiği bir “Aç” adımını kaldır: {{steps}}",
+      "removeOpenBeforeOpen": "Hemen ardından başka bir “Aç” adımı gelen bir “Aç” adımını kaldır: {{steps}}",
       "removeRedirect": "Bağlantının yalnızca içinden geçtiği bir “Git” adımını kaldır: {{steps}}"
     },
     "apply_one": "{{count}} değişikliği uygula",
@@ -1327,6 +1355,8 @@
     "found_one": "{{steps}} adımda {{count}} eşleşme bulundu.",
     "found_other": "{{steps}} adımda {{count}} eşleşme bulundu.",
     "nothing": "Hiçbir şey bulunamadı.",
+    "matches_one": "{{count}} eşleşme",
+    "matches_other": "{{count}} eşleşme",
     "unread_one": "{{count}} ekran görüntüsü okunamadı, bu yüzden aranmadı. Kendiniz denetleyin.",
     "unread_other": "{{count}} ekran görüntüsü okunamadı, bu yüzden aranmadı. Kendiniz denetleyin.",
     "notGuaranteed": "Öneriler bazı şeyleri gözden kaçırabilir. Kılavuzu paylaşmadan önce her ekran görüntüsünü denetleyin.",
@@ -1355,17 +1385,18 @@
       "term": "her zaman bulanıklaştırılan sözcük",
       "account": "hesap adınız",
       "file": "dosya adı",
-      "path": "dosya yolu"
+      "path": "dosya yolu",
+      "notification": "bildirim"
     },
     "nextTo": "“{{label}}” yanındaki {{kind}}"
   },
   "zoom": {
     "menu": "Her tıklamaya yakınlaştır",
-    "menuNote": "Çok geniş ekran görüntülerini, sayfada iyi okunmaları için tıklamanın çevresinden kırpar",
+    "menuNote": "{{width}} pikselden geniş ekran görüntülerini, sayfadaki metin daha büyük görünsün diye tıklamanın çevresindeki alana kırpar",
     "auto": "Otomatik",
     "done_one": "{{count}} ekran görüntüsünde yakınlaştırıldı.",
     "done_other": "{{count}} ekran görüntüsünde yakınlaştırıldı.",
-    "nothing": "Yakınlaştırılması gereken ekran görüntüsü yok: hepsi sayfada zaten iyi okunuyor."
+    "nothing": "Yakınlaştırılacak bir şey yok: yalnızca tıklaması olan ve henüz kırpılmamış, {{width}} pikselden geniş ekran görüntülerini kırpar."
   },
   "exportSettings": {
     "folder": "Dışarı aktarılanları kaydetme yeri",
@@ -1506,7 +1537,7 @@
       "eyebrow": "Tur tamamlandı",
       "title": "Her şey hazır",
       "body": "Tur bu kadar. İstediğiniz zaman Ayarlar'dan yeniden başlatabilirsiniz.",
-      "finish": "Bitir"
+      "gotIt": "Anladım"
     },
     "pill": {
       "label": "Tur",

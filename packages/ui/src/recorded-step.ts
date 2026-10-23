@@ -1,5 +1,6 @@
 import {
   CODE_LANGUAGES,
+  appNameOf,
   asRightClick,
   CODE_LANGUAGE_LABELS,
   clickPhrase,
@@ -8,19 +9,24 @@ import {
   describeCommand,
   describeFormula,
   describeInput,
+  isWordBody,
   keyBetween,
   keyCombo,
   nameClick,
   phraseFor,
+  phraseOfStep,
   readableFacts,
   renderPhrase,
   taskbarAppName,
+  typingInDocument,
   uiaToStepTarget,
+  windowTitleOf,
 } from "@amluto-steps/core";
 import type {
   ClickFact,
   CodeLanguage,
   DragFact,
+  DrawFact,
   CommandFact,
   KeysFact,
   NavigationFact,
@@ -136,7 +142,10 @@ function fieldHighlight(field: { x: number; y: number; w: number; h: number }) {
   };
 }
 
-/** A screenshot as a step's media, or null when the recorder took none. */
+/**
+ * A screenshot as a step's media, or null when the recorder took none. Where a notification toast
+ * showed on it goes with it, for the suggested blurs (P35).
+ */
 const mediaOf = (capture: Capture | null): RecordedStep["media"] =>
   capture?.image
     ? {
@@ -145,6 +154,7 @@ const mediaOf = (capture: Capture | null): RecordedStep["media"] =>
         height: capture.height,
         scale: capture.scale,
         captureRect: [capture.rect.left, capture.rect.top, capture.rect.right, capture.rect.bottom],
+        ...(capture.notifications?.length ? { notifications: capture.notifications } : {}),
       }
     : null;
 
@@ -188,6 +198,7 @@ function typingStep(
   settings: RecordingSettings,
 ): RecordedStep {
   const review = record.checkScreenshot || record.approximate;
+  if (record.form === "goTo" && record.cell) return goToCellStep(fact, record, wording);
   if (record.form === "formula" || record.form === "code") {
     const formula = record.form === "formula";
     const step = baseStep(
@@ -216,16 +227,24 @@ function typingStep(
     : record.element
       ? uiaToStepTarget(record.element)
       : null;
+  // Word's body is the document, not a field named after the file (#74).
+  const inDocument =
+    !record.cell && record.element !== null && isWordBody(record.element, record.window.exe);
   const label = record.cell ?? (record.element?.labeledBy || record.element?.name || "");
+  // No text: the recorder couldn't be sure where the keys went (another program's element had
+  // focus, or none of the window's), so it kept no value (10/10/2026). The step reads "Type".
+  const withheld = record.text === "";
   // Typing into something unnamed keeps its text out of the wording unless chosen (A1): the value
   // is still kept, and can be shown step by step.
-  const shown = Boolean(label) || settings.showUnnamedTyping;
+  const shown = !withheld && (Boolean(label) || settings.showUnnamedTyping);
   const actionText = say(
-    phraseFor(
-      "input",
-      target && { ...target, value: shown ? record.text : undefined },
-      target || !shown ? null : record.text,
-    ) ?? (shown ? { key: "typeValue", value: record.text } : { key: "type" }),
+    inDocument
+      ? typingInDocument(shown ? record.text : undefined)
+      : (phraseFor(
+          "input",
+          target && { ...target, value: shown ? record.text : undefined },
+          target || !shown ? null : record.text,
+        ) ?? (shown ? { key: "typeValue", value: record.text } : { key: "type" })),
     wording,
   );
   const step = baseStep(
@@ -234,12 +253,34 @@ function typingStep(
     actionText,
     target && record.approximate ? { ...target, approximate: true } : target,
     label,
-    record.cell ? "cell" : "field",
+    record.cell ? "cell" : inDocument ? "document" : "field",
     review,
   );
   step.textParts.verb = "Type";
-  step.textParts.value = record.text;
+  if (!withheld) step.textParts.value = record.text;
   step.showValue = shown;
+  step.context = { app: record.window.exe, windowTitle: record.window.title };
+  step.media = mediaOf(record.capture);
+  return step;
+}
+
+/**
+ * A cell's reference typed into Excel's Go To or Name Box, then Enter (#69): `Go to cell "D11"`.
+ * Before, Go To left only its Ctrl+G step, and the reader couldn't tell where to go. The step
+ * keeps the cell as its target, so its words can be worked out again in another language.
+ */
+function goToCellStep(fact: RecordingFact, record: TypingFact, wording: StepWording) {
+  const cell = record.cell ?? record.text;
+  const step = baseStep(
+    fact,
+    "goToCell",
+    say({ key: "goToCell", cell }, wording),
+    { tagName: "TD", role: "gridcell", labelText: cell },
+    cell,
+    "cell",
+    record.checkScreenshot,
+  );
+  step.textParts.verb = "goTo";
   step.context = { app: record.window.exe, windowTitle: record.window.title };
   step.media = mediaOf(record.capture);
   return step;
@@ -251,7 +292,7 @@ function keysStep(fact: RecordingFact, record: KeysFact, wording: StepWording): 
   const step = baseStep(
     fact,
     "keypress",
-    say({ key: "press", keys: combo }, wording),
+    say({ key: "press", keys: combo, app: record.window.exe }, wording),
     null,
     combo,
     "shortcut",
@@ -279,23 +320,48 @@ function clickStep(fact: RecordingFact, record: ClickFact, wording: StepWording)
   // In Chrome or Edge, what the page itself said the element was, when it named it
   // (docs/spec/02-capture.md#steps-for-chrome-and-the-desktop-together).
   const page = record.page ? { ...record.page.target } : null;
-  const naming = nameClick({ element, window: record.window, page });
+  const naming = nameClick({
+    element,
+    window: record.window,
+    page,
+    titleBarButton: record.titleBarButton,
+    filterButton: record.filterButton,
+  });
   // A right-click says so (04/10/2026), or a context menu's choice seems to come from nowhere.
   const right = record.button === "right";
   const phrase = clickPhrase(naming);
   const fromPage = naming.source === "page";
+  // A click in Windows' input panel keeps nothing of what it was on: a clipboard history item can
+  // be named after the text it holds (#109).
+  const inPanel = naming.kind === "inputPanel";
+  // A window's title-bar button and a header's filter drop-down are named by something other
+  // than the element's own name: the window's title, the header's words (#70); a click in a
+  // document's text by none (#74), nor one in the input panel.
+  const namedApart =
+    naming.source === "titleBar" ||
+    naming.kind === "filterButton" ||
+    naming.kind === "document" ||
+    inPanel;
   const step = baseStep(
     fact,
     "click",
     say(right ? asRightClick(phrase) : phrase, wording),
-    fromPage ? page : element ? uiaToStepTarget(element) : null,
-    fromPage ? pageName(page, record.window.title) : element?.name || record.window.title || "",
-    // A taskbar button is marked as one, so 1.0.0 can work its wording out again.
+    inPanel ? null : fromPage ? page : element ? uiaToStepTarget(element) : null,
+    fromPage
+      ? pageName(page, record.window.title)
+      : namedApart
+        ? naming.name
+        : // Never a pop-up host's title: the window it came from, as the naming says (#106).
+          element?.name || windowTitleOf(record.window),
+    // A taskbar button is marked as one, and a title-bar button or filter drop-down by its kind,
+    // so their wording can be worked out again without the naming.
     fromPage
       ? page?.tagName?.toLowerCase() || "page"
       : naming.source === "taskbar"
         ? "taskbar"
-        : element?.controlType.toLowerCase() || "window",
+        : namedApart
+          ? naming.kind
+          : element?.controlType.toLowerCase() || "window",
     naming.needsReview,
   );
   step.naming = naming;
@@ -373,8 +439,32 @@ function dragStep(fact: RecordingFact, record: DragFact, wording: StepWording): 
 }
 
 /**
+ * A pencil or brush dragged across a canvas (#73): `Draw on the canvas`, its screenshot taken as
+ * the stroke ended, with where it began marked. The step keeps the canvas as its target, which
+ * a version that doesn't know drawing words as the click it was.
+ */
+function drawStep(fact: RecordingFact, record: DrawFact, wording: StepWording): RecordedStep {
+  const step = baseStep(
+    fact,
+    "click",
+    say({ key: "drawOnCanvas" }, wording),
+    uiaToStepTarget(record.element),
+    record.element.name,
+    "canvas",
+  );
+  step.textParts.verb = "draw";
+  step.context = { app: record.window.exe, windowTitle: record.window.title };
+  const { capture } = record;
+  if (capture?.image) step.media = mediaOf(capture);
+  if (record.fromPct && capture)
+    step.highlight = clickHighlight(record.fromPct, capture.width, capture.height);
+  return step;
+}
+
+/**
  * A drag replaces the click it began with: the drag's step takes the click's place, and the
- * click's step goes (04/10/2026). So does a fill, dragged or double-clicked (08/10/2026).
+ * click's step goes (04/10/2026). So does a fill, dragged or double-clicked (08/10/2026), and a
+ * stroke drawn on a canvas (#73).
  */
 export function applyDrags(
   steps: readonly RecordedStep[],
@@ -384,7 +474,7 @@ export function applyDrags(
   for (const fact of facts) if (fact.record.kind === "click") clickFact.set(fact.record.id, fact);
   const replaced = new Map<string, string>();
   for (const fact of facts) {
-    if (fact.record.kind !== "drag") continue;
+    if (fact.record.kind !== "drag" && fact.record.kind !== "draw") continue;
     const started = clickFact.get(fact.record.of);
     if (started) replaced.set(captureStepId(started.sequence), captureStepId(fact.sequence));
   }
@@ -397,6 +487,42 @@ export function applyDrags(
       const sortKey = click ? sortKeys.get(click) : undefined;
       return sortKey ? { ...step, sortKey } : step;
     });
+}
+
+/**
+ * A double-click says so (12/10/2026, #55): `Double-click "Budget.xlsx"`, or a reader clicks once
+ * where the app wanted two. The recorder writes the second press as a `double` fact naming the
+ * click it followed, which already has its step (shown, and journalled, before the second press
+ * came), so that step is worded again here with the verb `doubleClick`. Only a left click: a
+ * right-click stays one. A window's own title-bar button keeps its words (`Maximise "Book1"`,
+ * #48), and a fill handle's double-click has become a Fill step already (`applyDrags`).
+ */
+export function applyDoubleClicks(
+  steps: readonly RecordedStep[],
+  facts: readonly RecordingFact[],
+  wording: StepWording,
+): RecordedStep[] {
+  const leftClicks = new Map<number, number>();
+  for (const fact of facts)
+    if (fact.record.kind === "click" && fact.record.button === "left")
+      leftClicks.set(fact.record.id, fact.sequence);
+  const doubled = new Set<string>();
+  for (const fact of facts) {
+    if (fact.record.kind !== "double") continue;
+    const sequence = leftClicks.get(fact.record.of);
+    if (sequence !== undefined) doubled.add(captureStepId(sequence));
+  }
+  if (doubled.size === 0) return [...steps];
+  return steps.map((step) => {
+    if (!doubled.has(step.id) || step.action !== "click" || step.textParts.verb !== "click")
+      return step;
+    const twice = { ...step, textParts: { ...step.textParts, verb: "doubleClick" } };
+    const phrase = phraseOfStep(twice);
+    // Cut to the format's limits as a fact's own step is: a window's title can be long.
+    return phrase?.key.startsWith("doubleClick")
+      ? fitToFormat({ ...twice, actionText: say(phrase, wording) })
+      : step;
+  });
 }
 
 /**
@@ -701,6 +827,7 @@ function buildStep(
   }
   if (record.kind === "click") return clickStep(fact, record, wording);
   if (record.kind === "drag") return dragStep(fact, record, wording);
+  if (record.kind === "draw") return drawStep(fact, record, wording);
   if (record.kind === "input") {
     const target = uiaToStepTarget(record.element);
     const actionText = describeInput(record.element, record.value ?? undefined, wording);
@@ -732,7 +859,9 @@ function buildStep(
     return step;
   }
   if (record.kind === "appSwitch") {
-    const name = record.window.appName || record.window.title || record.window.exe || "application";
+    const name = appNameOf(record.window) ?? "application";
+    // An app no click, tap or key brought forward may have come forward by itself (#67): kept,
+    // since a switch made some way Steps can't see is still a step, but to be checked.
     const step = baseStep(
       fact,
       "appswitch",
@@ -740,6 +869,7 @@ function buildStep(
       null,
       name,
       "application",
+      record.unprompted === true,
     );
     step.context = { app: record.window.exe, windowTitle: record.window.title };
     if (record.capture) step.media = mediaOf(record.capture);
@@ -759,20 +889,7 @@ function buildStep(
       targetName,
       "screenshot",
     );
-    if (record.capture.image) {
-      step.media = {
-        id: mediaIdOf(record.capture.image),
-        width: record.capture.width,
-        height: record.capture.height,
-        scale: record.capture.scale,
-        captureRect: [
-          record.capture.rect.left,
-          record.capture.rect.top,
-          record.capture.rect.right,
-          record.capture.rect.bottom,
-        ],
-      };
-    }
+    step.media = mediaOf(record.capture);
     step.context = { app: record.window.exe, windowTitle: record.window.title };
     // No click marker: the pointer was where the last click left it, not on anything this step
     // is about, and the circle read as a click that never happened (F009).

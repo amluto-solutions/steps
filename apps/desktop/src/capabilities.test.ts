@@ -1,41 +1,10 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+
+import { capabilities, commandsOf, permissions, tauriText as text } from "./test/capabilities";
 
 // App hardening (docs/spec/08-privacy-and-security.md#app-hardening): one permission per command,
 // no wildcards, and each window gets only what it uses.
-const tauri = new URL("../src-tauri/", import.meta.url);
-const text = (path: string) => readFileSync(new URL(path, tauri), "utf8");
-
-const permissions = readdirSync(new URL("permissions/", tauri))
-  .filter((name) => name.endsWith(".toml"))
-  .flatMap((name) =>
-    text(`permissions/${name}`)
-      .split("[[permission]]")
-      .slice(1)
-      .map((block) => ({
-        identifier: /identifier = "([^"]+)"/.exec(block)?.[1] ?? "",
-        commands: JSON.parse(/commands\.allow = (\[[^\]]*\])/.exec(block)?.[1] ?? "[]") as string[],
-      })),
-  );
-
-const capabilities = readdirSync(new URL("capabilities/", tauri))
-  .filter((name) => name.endsWith(".json"))
-  .map(
-    (name) =>
-      JSON.parse(text(`capabilities/${name}`)) as {
-        identifier: string;
-        windows: string[];
-        permissions: string[];
-      },
-  );
-
-const commandsOf = (identifier: string) => {
-  const capability = capabilities.find((item) => item.identifier === identifier);
-  if (!capability) throw new Error(`no capability ${identifier}`);
-  return capability.permissions.flatMap(
-    (name) => permissions.find((item) => item.identifier === name)?.commands ?? [],
-  );
-};
 
 const handlerList = text("src/lib.rs").split("generate_handler![")[1]?.split("])")[0] ?? "";
 const registered = [...handlerList.matchAll(/(\w+)::(\w+),/g)].map((match) => match[2]);
@@ -84,6 +53,7 @@ describe("Tauri permissions", () => {
     );
     const barOnly = [
       "recorder_move_bar",
+      "recorder_bar_place",
       "recorder_bar_heartbeat",
       "recorder_start_again",
       "recorder_undo_start_again",
@@ -102,13 +72,21 @@ describe("Tauri permissions", () => {
       const commands = commandsOf(window);
       expect(commands.length).toBeGreaterThan(0);
       expect(
-        commands.filter((command) =>
-          /^(library_|export_|settings_|brands_|support_|policy_|privacy_|hotkeys_|updates_)/.test(
-            command,
-          ),
+        commands.filter(
+          (command) =>
+            /^(library_|export_|settings_|brands_|support_|policy_|privacy_|hotkeys_|updates_)/.test(
+              command,
+            ) &&
+            // The bar's menu shows the keys set for Show a keyboard shortcut (#101). Reading them
+            // is all it can do with the shortcuts: changing, resetting or switching them off stays
+            // the main window's.
+            !(window === "recorder-bar" && command === "hotkeys_get"),
         ),
       ).toEqual([]);
     }
+    expect(commandsOf("recorder-bar").filter((command) => command.startsWith("hotkeys_"))).toEqual([
+      "hotkeys_get",
+    ]);
     expect(commandsOf("shortcut-popup").sort()).toEqual([
       "recorder_append_step",
       "recorder_close_shortcut_popup",

@@ -236,7 +236,7 @@ function UnlockDialog(props: {
             />
           </div>
           {problem && (
-            <p id="unlock-problem" role="alert" className="mt-2 text-sm text-danger">
+            <p id="unlock-problem" role="alert" className="mt-2 text-sm text-recording">
               {problem}
             </p>
           )}
@@ -293,24 +293,32 @@ function NewPasswordDialog(props: {
             <p>{t("locks.outsideNote")}</p>
             <p>{t(recovery ? "locks.withRecovery" : "locks.noRecovery")}</p>
           </div>
+          {/* Any change clears the message: left up, it said a corrected pair still differed. */}
           <div className="mt-4 flex flex-col gap-3">
             <PasswordField
               label={t("locks.password")}
               value={first}
-              onChange={setFirst}
+              onChange={(value) => {
+                setFirst(value);
+                setProblem(null);
+              }}
               ref={inputRef}
               invalid={problem !== null}
+              {...(problem ? { describedBy: "lock-problem" } : {})}
             />
             <PasswordField
               label={t("locks.passwordAgain")}
               value={second}
-              onChange={setSecond}
+              onChange={(value) => {
+                setSecond(value);
+                setProblem(null);
+              }}
               invalid={problem !== null}
               {...(problem ? { describedBy: "lock-problem" } : {})}
             />
           </div>
           {problem && (
-            <p id="lock-problem" role="alert" className="mt-2 text-sm text-danger">
+            <p id="lock-problem" role="alert" className="mt-2 text-sm text-recording">
               {problem}
             </p>
           )}
@@ -452,7 +460,7 @@ function LockedListDialog(props: {
         </p>
         <p
           role={message?.problem ? "alert" : "status"}
-          className={`mt-2 min-h-5 text-sm ${message?.problem ? "text-danger" : "text-secondary"}`}
+          className={`mt-2 min-h-5 text-sm ${message?.problem ? "text-recording" : "text-secondary"}`}
         >
           {message?.text}
         </p>
@@ -659,7 +667,7 @@ function PropertiesDialog(props: {
           {data ? t("locks.propertiesTitle", { title: data.title }) : t("locks.properties")}
         </h2>
         {problem && (
-          <p role="alert" className="mt-3 text-sm text-danger">
+          <p role="alert" className="mt-3 text-sm text-recording">
             {problem}
           </p>
         )}

@@ -155,7 +155,7 @@ export function LanguageToneDialog(props: {
                   <span className="min-w-0 flex-1">
                     {item.status === "none" ? (
                       <span className="text-secondary">
-                        {item.step.block?.heading || t("editor.languages.nothingToReword")}
+                        {t("editor.languages.nothingToReword")}
                       </span>
                     ) : (
                       <>

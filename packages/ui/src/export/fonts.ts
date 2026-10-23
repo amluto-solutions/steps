@@ -56,6 +56,13 @@ export function pdfFonts(
           },
     // Code blocks: JetBrains Mono (OFL), the same on every PC.
     mono: bytes(monoRegular),
+    // Emoji: Noto Emoji (OFL), monochrome. Over half a megabyte, so it's in a chunk of its own,
+    // loaded only for a PDF that shows an emoji (docs/spec/05-export.md#emoji).
+    emoji: async () =>
+      bytes(
+        (await import("@fontsource/noto-emoji/files/noto-emoji-emoji-400-normal.woff?inline"))
+          .default,
+      ),
   };
 }
 

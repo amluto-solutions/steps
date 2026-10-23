@@ -10,7 +10,7 @@
 
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, AtomicU8, AtomicU32, AtomicU64, AtomicUsize, Ordering};
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::thread::JoinHandle;
 
 use crossbeam_queue::ArrayQueue;
@@ -27,6 +27,16 @@ use crate::connection::Display;
 use crate::display::now_tick;
 use crate::keyboard::{base_keysym, mapping_changed, virtual_key};
 use crate::{Error, Result};
+
+/// What the input thread read as a click went down, as on Windows. Never made on Linux yet
+/// ([`InputShared::take_press`]).
+#[derive(Debug, Clone)]
+pub struct Press {
+    /// The windows showing, front to back.
+    pub stack: Vec<crate::window::ShownWindow>,
+    /// The window clicked, and its title-bar button under the pointer.
+    pub pressed: Option<crate::window::Pressed>,
+}
 
 /// Which mouse button went down.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -132,13 +142,163 @@ pub struct InputShared {
     /// Button-downs are queued only while this is true (Recording).
     pub enabled: AtomicBool,
     source: AtomicU8,
+    /// When a mouse button last went down, any pointer input last arrived, and a key last went
+    /// down (only while keys are read), as on Windows.
+    last_press: Seen,
+    last_mouse: Seen,
+    last_key: Seen,
+    /// Keys typed straight after the latest press (#97).
+    press_typed: PressTyped,
+}
+
+/// The [`now_tick`] something was last seen at, or nothing yet.
+#[derive(Debug, Default)]
+struct Seen(AtomicU64);
+
+impl Seen {
+    /// The time in the low half, with a bit above it so that a time of 0 still counts.
+    fn note(&self, tick_ms: u32) {
+        self.0
+            .store((1 << 32) | u64::from(tick_ms), Ordering::Relaxed);
+    }
+
+    fn get(&self) -> Option<u32> {
+        let value = self.0.load(Ordering::Relaxed);
+        (value != 0).then(|| u32::try_from(value & u64::from(u32::MAX)).unwrap_or(0))
+    }
+}
+
+/// The latest press of the left button and where it was, and whether keys that type text went
+/// down after it with nothing between that could have moved focus by key, as on Windows. A click
+/// moves focus as the button goes down, and keys typed straight after it can be in the field it
+/// focused before the focus news is read: the value read then isn't what the field held before
+/// (#97). Never which keys.
+///
+/// Only text counts as typed, `AltGr`'s (`ISO_Level3_Shift`) characters included. Any other key
+/// that isn't Shift, a lock key or an input method's may move focus or change the field without
+/// typing, and so may a key with Ctrl, Alt or Super held, or a press of another button (a right
+/// click's menu takes the keys typed after it): then the latest press isn't where focus came from
+/// (#97 second review).
+#[derive(Debug, Default)]
+struct PressTyped(Mutex<PressTypedState>);
+
+#[derive(Debug, Default)]
+struct PressTypedState {
+    press: Option<(u32, (i32, i32))>,
+    /// No key that could move focus has gone down since the press.
+    open: bool,
+    typed: bool,
+    /// Ctrl, Alt (or Meta, Hyper), Super and `AltGr` held, a bit each.
+    held: u8,
+}
+
+const HELD_CTRL: u8 = 1;
+const HELD_ALT: u8 = 2;
+const HELD_SUPER: u8 = 4;
+const HELD_ALT_GR: u8 = 8;
+
+/// What a key, by its keysym at the layout's first level, is to [`PressTyped`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum KeyKind {
+    /// Ctrl, Alt, Super or `AltGr`: held with others.
+    Held(u8),
+    /// A key that types text, unless a combination's.
+    Text,
+    /// Types nothing and moves no focus: Shift, the lock keys, an input method's mode keys.
+    Neutral,
+    /// Anything else, and a key with no keysym.
+    Other,
+}
+
+/// What the key with `keysym` (none when the layout gives it none) is to [`PressTyped`].
+fn key_kind(keysym: Option<u32>) -> KeyKind {
+    let Some(keysym) = keysym else {
+        return KeyKind::Other;
+    };
+    match keysym {
+        // Control_L, Control_R; Alt_L, Alt_R, Meta_L, Meta_R; Super_L, Super_R, Hyper_L, Hyper_R.
+        0xffe3 | 0xffe4 => KeyKind::Held(HELD_CTRL),
+        0xffe7..=0xffea => KeyKind::Held(HELD_ALT),
+        0xffeb..=0xffee => KeyKind::Held(HELD_SUPER),
+        // ISO_Level3_Shift, ISO_Level5_Shift, Mode_switch: AltGr on European layouts.
+        0xfe03 | 0xfe11 | 0xff7e => KeyKind::Held(HELD_ALT_GR),
+        // Shift, Caps Lock, Shift Lock, Num Lock, Scroll Lock, the ISO lock and group keys, and
+        // the input methods' mode keys (Kanji, Henkan, Hangul and the like).
+        0xffe1 | 0xffe2 | 0xffe5 | 0xffe6 | 0xff7f | 0xff14 | 0xfe01..=0xfe0f | 0xff21..=0xff3f => {
+            KeyKind::Neutral
+        }
+        // Printable Latin-1, every legacy script's keysyms, and Unicode keysyms; the keypad's
+        // space, signs, digits and equals; dead keys, which type with the next.
+        0x0020..=0x007e
+        | 0x00a0..=0x00ff
+        | 0x0100..=0xfdff
+        | 0x0100_0000..=0x0110_ffff
+        | 0xff80
+        | 0xffaa..=0xffb9
+        | 0xffbd
+        | 0xfe50..=0xfe8f => KeyKind::Text,
+        _ => KeyKind::Other,
+    }
+}
+
+impl PressTyped {
+    fn state(&self) -> std::sync::MutexGuard<'_, PressTypedState> {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// A mouse button went down at `point`: the left one is where focus may come from.
+    fn pressed(&self, tick_ms: u32, point: (i32, i32), left: bool) {
+        let mut state = self.state();
+        state.typed = false;
+        state.open = left;
+        if left {
+            state.press = Some((tick_ms, point));
+        }
+    }
+
+    /// A key read while a recording reads keys, by its keysym at the layout's first level.
+    fn key(&self, keysym: Option<u32>, up: bool) {
+        let mut state = self.state();
+        match key_kind(keysym) {
+            KeyKind::Held(bit) if up => state.held &= !bit,
+            KeyKind::Held(bit) => state.held |= bit,
+            _ if up => {}
+            KeyKind::Neutral => {}
+            KeyKind::Text if state.held == 0 || state.held == HELD_ALT_GR => state.typed = true,
+            KeyKind::Text | KeyKind::Other => state.open = false,
+        }
+    }
+
+    fn get(&self) -> Option<(u32, (i32, i32))> {
+        let state = self.state();
+        (state.open && state.typed).then_some(state.press).flatten()
+    }
+
+    /// A new recording: keys held as the last one ended are let go.
+    fn clear(&self) {
+        let mut state = self.state();
+        state.held = 0;
+        state.open = false;
+    }
+}
+
+/// What became of a left press's button, as on Windows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LeftRelease {
+    /// Still down, as far as is known.
+    Down,
+    /// Released (time, x, y), before any other left press.
+    Up(u32, i32, i32),
+    /// Its release will never be known: another left press came first.
+    Missed,
 }
 
 impl InputShared {
-    /// The left button's latest release: not read on X11 yet, so drags stay clicks there.
+    /// What became of left press `press`'s button: releases aren't read on X11 yet, so it stays
+    /// down and drags stay clicks there.
     #[must_use]
-    pub const fn last_left_up(&self) -> Option<(u32, i32, i32)> {
-        None
+    pub const fn left_release(&self, _press: u64) -> LeftRelease {
+        LeftRelease::Down
     }
 
     fn new(capacity: usize) -> Self {
@@ -154,7 +314,42 @@ impl InputShared {
             last_touch_tick: AtomicU32::new(0),
             enabled: AtomicBool::new(false),
             source: AtomicU8::new(InputSource::RawInput.to_u8()),
+            last_press: Seen::default(),
+            last_mouse: Seen::default(),
+            last_key: Seen::default(),
+            press_typed: PressTyped::default(),
         }
+    }
+
+    /// When a mouse button last went down, whether or not it was recorded.
+    #[must_use]
+    pub fn last_press(&self) -> Option<u32> {
+        self.last_press.get()
+    }
+
+    /// When any pointer input (movement, a button, the wheel) last arrived.
+    #[must_use]
+    pub fn last_mouse(&self) -> Option<u32> {
+        self.last_mouse.get()
+    }
+
+    /// Touch and pen aren't watched separately on X11: a tap arrives as a click.
+    #[must_use]
+    pub const fn last_touch(&self) -> Option<u32> {
+        None
+    }
+
+    /// When a key last went down; only known while a recording reads keys. Never which key.
+    #[must_use]
+    pub fn last_key(&self) -> Option<u32> {
+        self.last_key.get()
+    }
+
+    /// The latest press of the left button, when and where, when keys that type text went down
+    /// after it and none that could move focus by key ([`PressTyped`], #97).
+    #[must_use]
+    pub fn typed_after_press(&self) -> Option<(u32, (i32, i32))> {
+        self.press_typed.get()
     }
 
     /// Next queued button-down, if any.
@@ -163,10 +358,11 @@ impl InputShared {
         self.queue.pop()
     }
 
-    /// The windows showing when a click went down. Not kept on Linux yet: the stack is read when
-    /// the click is handled.
+    /// What was under the pointer when a click went down. Not kept on Linux yet: the window and
+    /// the stack are read when the click is handled, and the window manager draws title bars, so
+    /// there is no title-bar button to tell.
     #[must_use]
-    pub fn take_stack(&self, _id: u64) -> Option<Vec<crate::window::ShownWindow>> {
+    pub const fn take_press(&self, _id: u64) -> Option<Press> {
         None
     }
 
@@ -204,9 +400,13 @@ impl InputShared {
         while self.queue.pop().is_some() {}
         while self.foreground.pop().is_some() {}
         while self.keys.pop().is_some() {}
+        self.press_typed.clear();
     }
 
     fn record_down(&self, tick_ms: u32, x: i32, y: i32, button: MouseButton, injected: bool) {
+        self.last_press.note(tick_ms);
+        self.press_typed
+            .pressed(tick_ms, (x, y), button == MouseButton::Left);
         if !self.enabled.load(Ordering::Relaxed) {
             return;
         }
@@ -223,9 +423,14 @@ impl InputShared {
         }
     }
 
-    fn record_key(&self, event: KeyEvent) {
+    /// A key going down or up, with its keysym at the layout's first level.
+    fn record_key(&self, event: KeyEvent, keysym: Option<u32>) {
         if !self.enabled.load(Ordering::Relaxed) {
             return;
+        }
+        self.press_typed.key(keysym, event.up);
+        if !event.up {
+            self.last_key.note(event.tick_ms);
         }
         if self.keys.push(event).is_err() {
             self.keys_dropped.fetch_add(1, Ordering::Relaxed);
@@ -264,6 +469,33 @@ pub fn set_queue_capacity_before_start(capacity: usize) -> bool {
 
 fn shared() -> &'static Arc<InputShared> {
     SHARED.get_or_init(|| Arc::new(InputShared::new(CAPACITY.load(Ordering::SeqCst))))
+}
+
+/// How many times the mouse has reported moving since input was first registered, whether or not
+/// the pointer moved a pixel: what tells the pointer moving from other input (a key, a button,
+/// the wheel) where only the time of the last input is known. `None` before then.
+#[must_use]
+pub fn mouse_moves() -> Option<u64> {
+    SHARED
+        .get()
+        .map(|shared| shared.moves.load(Ordering::Relaxed))
+}
+
+/// Unicode packets seen, as on Windows (`capture_win32::input::unicode_packets`): X has no such
+/// input, since a program types through `XTEST` with key codes, so there are none.
+#[must_use]
+pub fn unicode_packets() -> (u64, Option<u32>) {
+    (0, None)
+}
+
+/// The time of the latest press of the left button, and where it was, when keys that type text
+/// went down after it (only while a recording reads keys) and none that could move focus by key:
+/// any other key but Shift, a lock key or an input method's, or one with Ctrl, Alt or Super held
+/// (`AltGr`'s characters aside), and no press of another button. Keys typed straight after a click
+/// can be in a field before its focus news is read (#97). Never which button or key.
+#[must_use]
+pub fn typed_after_press() -> Option<(u32, (i32, i32))> {
+    SHARED.get().and_then(|shared| shared.typed_after_press())
 }
 
 /// The input thread's connection and what it selected.
@@ -528,6 +760,7 @@ fn run(
         };
         match event {
             Event::XinputRawButtonPress(press) => {
+                shared.last_mouse.note(now_tick());
                 let button = match press.detail {
                     1 => MouseButton::Left,
                     2 => MouseButton::Middle,
@@ -546,24 +779,19 @@ fn run(
                 };
                 shared.record_down(tick_ms, x, y, button, synthetic.contains(&press.sourceid));
             }
-            Event::XinputRawMotion(_) => shared.record_move(),
+            Event::XinputRawMotion(_) => {
+                shared.last_mouse.note(now_tick());
+                shared.record_move();
+            }
             Event::XinputRawKeyPress(key) => {
-                shared.record_key(key_event(
-                    key.detail,
-                    false,
-                    &synthetic,
-                    key.sourceid,
-                    foreground,
-                ));
+                let (event, keysym) =
+                    key_event(key.detail, false, &synthetic, key.sourceid, foreground);
+                shared.record_key(event, keysym);
             }
             Event::XinputRawKeyRelease(key) => {
-                shared.record_key(key_event(
-                    key.detail,
-                    true,
-                    &synthetic,
-                    key.sourceid,
-                    foreground,
-                ));
+                let (event, keysym) =
+                    key_event(key.detail, true, &synthetic, key.sourceid, foreground);
+                shared.record_key(event, keysym);
             }
             Event::PropertyNotify(change) if change.atom == active_atom => {
                 foreground = active_window(connection);
@@ -578,16 +806,18 @@ fn run(
     }
 }
 
+/// A key event for the X key code `keycode`, and its keysym at the layout's first level.
 fn key_event(
     keycode: u32,
     up: bool,
     synthetic: &HashSet<u16>,
     source: u16,
     foreground: isize,
-) -> KeyEvent {
+) -> (KeyEvent, Option<u32>) {
     let code = u8::try_from(keycode).unwrap_or(0);
-    let (vkey, extended) = base_keysym(code).map_or((0, false), virtual_key);
-    KeyEvent {
+    let keysym = base_keysym(code);
+    let (vkey, extended) = keysym.map_or((0, false), virtual_key);
+    let event = KeyEvent {
         tick_ms: now_tick(),
         vkey,
         scan: u16::from(code),
@@ -595,7 +825,8 @@ fn key_event(
         up,
         injected: synthetic.contains(&source),
         foreground,
-    }
+    };
+    (event, keysym)
 }
 
 /// Which selections are in place.
@@ -605,5 +836,84 @@ pub fn registration() -> Registration {
         mouse: MOUSE_SELECTED.load(Ordering::SeqCst),
         digitizers: false,
         keyboard: KEYBOARD_SELECTED.load(Ordering::SeqCst),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn keys_typed_after_a_press_are_told_until_a_key_could_move_focus() {
+        // As on Windows (#97 second review): only keys that type text count, AltGr's included;
+        // any other key that may move focus or change the field, a key with Ctrl, Alt or Super
+        // held, or a press of another button, ends it.
+        let typed = PressTyped::default();
+        let key = |keysym: u32, up| typed.key(Some(keysym), up);
+        let press = |tick| typed.pressed(tick, (40, 50), true);
+        assert_eq!(typed.get(), None);
+        press(100);
+        key(0xffe1, false);
+        assert_eq!(typed.get(), None, "Shift types nothing");
+        key(u32::from(b'h'), false);
+        key(u32::from(b'h'), true);
+        key(0xffe1, true);
+        assert_eq!(typed.get(), Some((100, (40, 50))));
+        // Tab, Return, Escape, Left, Home, Page Down, BackSpace, Delete, F6, Menu, and a key with
+        // no keysym.
+        for keysym in [
+            0xff09, 0xff0d, 0xff1b, 0xff51, 0xff50, 0xff56, 0xff08, 0xffff, 0xffc3, 0xff67,
+        ] {
+            press(110);
+            key(keysym, false);
+            key(u32::from(b'a'), false);
+            assert_eq!(typed.get(), None, "{keysym:#x}");
+        }
+        press(115);
+        typed.key(None, false);
+        key(u32::from(b'a'), false);
+        assert_eq!(typed.get(), None, "a key with no keysym");
+        // Caps Lock and Num Lock: still open.
+        press(120);
+        key(0xffe5, false);
+        key(0xff7f, false);
+        assert_eq!(typed.get(), None, "a lock key types nothing");
+        key(u32::from(b'1'), false);
+        assert_eq!(typed.get(), Some((120, (40, 50))));
+        // A Cyrillic letter, a Unicode keysym, the keypad's 5 and a dead key type.
+        for keysym in [0x06c1, 0x0100_20ac, 0xffb5, 0xfe51] {
+            press(125);
+            key(keysym, false);
+            assert_eq!(typed.get(), Some((125, (40, 50))), "{keysym:#x}");
+        }
+        // Ctrl+F; then Ctrl let go.
+        press(130);
+        key(0xffe3, false);
+        key(u32::from(b'f'), false);
+        key(0xffe3, true);
+        key(u32::from(b'a'), false);
+        assert_eq!(typed.get(), None, "Ctrl+F");
+        press(140);
+        key(u32::from(b'a'), false);
+        assert_eq!(typed.get(), Some((140, (40, 50))), "Ctrl let go");
+        // AltGr+E types "€" on a European layout; Alt_R with a letter (a US layout's) is a
+        // menu's access key.
+        press(150);
+        key(0xfe03, false);
+        key(u32::from(b'e'), false);
+        assert_eq!(typed.get(), Some((150, (40, 50))), "AltGr+E");
+        key(0xfe03, true);
+        press(160);
+        key(0xffea, false);
+        key(u32::from(b'f'), false);
+        key(0xffea, true);
+        assert_eq!(typed.get(), None, "Alt+F");
+        // A right click's menu takes the keys typed after it.
+        press(170);
+        key(u32::from(b'a'), false);
+        typed.pressed(171, (40, 50), false);
+        assert_eq!(typed.get(), None, "a right click");
+        key(u32::from(b'p'), false);
+        assert_eq!(typed.get(), None, "P, after a right click");
     }
 }

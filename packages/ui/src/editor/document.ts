@@ -106,6 +106,61 @@ export function recordEdit(history: History, edit: Edit): History {
   return { past: [...history.past, edit].slice(-HISTORY_LIMIT), future: [] };
 }
 
+/** An unsaved recording's undo and redo, and the recording as Save sent it (#82). */
+export interface SavedHistory {
+  saved: EditorDoc;
+  history: History;
+}
+
+/**
+ * The undo history of an unsaved recording, carried into the guide its Save made (#82), so saving
+ * (or the save an export makes) doesn't take Undo and Redo away.
+ *
+ * `saved` is the recording as Save sent it, `published` the guide as the library now has it.
+ * Publishing may set some of the guide's fields (the recording it came from, who made it): every
+ * guide in the history gets those too, so an undo never writes them away. And only screenshots a
+ * step used were published: an undo or redo that would bring back a step whose screenshot was
+ * left behind (a step deleted or a picture replaced before saving) can't be done, so the history
+ * stops short of it, with everything after it kept.
+ */
+export function historyAfterPublish(
+  history: History,
+  saved: EditorDoc,
+  published: EditorDoc,
+): History {
+  const savedGuide = saved.guide as unknown as Record<string, unknown>;
+  const publishedGuide = published.guide as unknown as Record<string, unknown>;
+  const set = Object.fromEntries(
+    Object.entries(publishedGuide).filter(
+      ([key, value]) => JSON.stringify(value) !== JSON.stringify(savedGuide[key]),
+    ),
+  );
+  const rebase = (guide: Guide): Guide => ({ ...guide, ...set }) as Guide;
+  const pictures = new Set(published.steps.map((step) => step.media?.id ?? null));
+  const unpublished = (step: GuideStep | null) =>
+    step?.media?.id != null && !pictures.has(step.media.id);
+  const rebased = (edit: Edit): Edit => ({
+    ...edit,
+    changes: edit.changes.map((change) =>
+      change.kind === "guide"
+        ? { ...change, before: rebase(change.before), after: rebase(change.after) }
+        : change,
+    ),
+  });
+  /** The newest edits up to the first (taking them in turn) that writes a step it can't. */
+  const usable = (edits: Edit[], writes: (change: Change) => GuideStep | null) => {
+    const blocked = edits.findLastIndex((edit) =>
+      edit.changes.some((change) => change.kind === "step" && unpublished(writes(change))),
+    );
+    return edits.slice(blocked + 1).map(rebased);
+  };
+  return {
+    // Undo writes each change's `before`, redo its `after`.
+    past: usable(history.past, (change) => (change.kind === "step" ? change.before : null)),
+    future: usable(history.future, (change) => (change.kind === "step" ? change.after : null)),
+  };
+}
+
 export interface Stepped {
   doc: EditorDoc;
   history: History;

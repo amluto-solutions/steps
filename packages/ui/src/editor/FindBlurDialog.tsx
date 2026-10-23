@@ -121,7 +121,13 @@ export function FindBlurDialog(props: FindBlurDialogProps) {
                 <strong className="text-navy">
                   {t("export.stepNumber", { number: props.numbers.get(item.stepId) ?? "?" })}
                 </strong>
-                <span className="text-secondary">{describeFindings(item.findings, t)}</span>
+                <span className="text-secondary">
+                  {/* A word searched for is found as an always-blur term would be, but it's
+                      the person's own search, not their always-blur list (#84). */}
+                  {searched
+                    ? t("findBlur.matches", { count: item.findings.length })
+                    : describeFindings(item.findings, t)}
+                </span>
               </li>
             ))}
           </ul>

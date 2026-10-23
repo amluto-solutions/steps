@@ -407,7 +407,7 @@ fn probe(args: &[String]) -> Result<(), String> {
         path.display()
     );
 
-    let client = capture::uia::UiaClient::start(None)?;
+    let client = capture::uia::UiaClient::start(None).map_err(|e| e.to_string())?;
     let points = [
         (0.5, 0.5),
         (0.08, 0.25),
@@ -482,7 +482,7 @@ fn burst(args: &[String]) -> Result<(), String> {
 fn name_at(args: &[String]) -> Result<(), String> {
     // `--points "x,y|x,y"`: physical points, for windows whose controls a name search can't reach.
     if let Some(points) = arg(args, "--points") {
-        let client = capture::uia::UiaClient::start(None)?;
+        let client = capture::uia::UiaClient::start(None).map_err(|e| e.to_string())?;
         for (id, point) in (1_u64..).zip(points.split('|')) {
             let mut parts = point
                 .split(',')
@@ -516,7 +516,7 @@ fn name_at(args: &[String]) -> Result<(), String> {
     let names = arg(args, "--names").ok_or("name-at needs --names")?;
     let automation = UIAutomation::new().map_err(|e| e.to_string())?;
     let window = find_window(&automation, &title)?;
-    let client = capture::uia::UiaClient::start(None)?;
+    let client = capture::uia::UiaClient::start(None).map_err(|e| e.to_string())?;
     for (id, name) in (1_u64..).zip(names.split('|')) {
         let element = match find_by_name(&automation, &window, name) {
             Ok(element) => element,

@@ -7,7 +7,7 @@ import type { RecordedStep, RecordingFact, RecordingSettings } from "@amluto-ste
 
 import type { ToastMessage } from "../components/Toast";
 import type { MediaDestination } from "../bridge/recording-journal";
-import type { EditorDoc } from "../editor/document";
+import type { EditorDoc, History, SavedHistory } from "../editor/document";
 import { withNewIds, type RecordAt, type StepInserter } from "../editor/record-here";
 import { newId } from "../editor/step-menus";
 import { errorMessage } from "../errors";
@@ -65,9 +65,11 @@ export interface RecordingSessionContext {
   showDraft: (sessionId: string, doc: EditorDoc) => void;
   /** Back to the guides (a recording started, or one was discarded). */
   showGuides: () => void;
-  /** A recording became a guide in the library: show it. */
-  /** Opens a guide just saved, in `libraryId` (else the default library). */
-  openSaved: (guideId: string, libraryId?: string) => Promise<void>;
+  /**
+   * A recording became a guide in the library: opens it, from `libraryId` (else the default
+   * library), keeping the undo and redo it had while unsaved (#82).
+   */
+  openSaved: (guideId: string, libraryId?: string, carried?: SavedHistory) => Promise<void>;
   /** The rest of start-up, once the recorder is set up (libraries, brands). */
   onConnected: () => Promise<void>;
 }
@@ -132,9 +134,9 @@ export function useRecordingSession(context: RecordingSessionContext) {
   const discardRequested = useRef(false);
   const currentSessionId = useRef<string | null>(null);
   const startRef = useRef<() => void>(() => undefined);
-  const openDraftRef = useRef<(sessionId: string, title: string) => Promise<void>>(
-    async () => undefined,
-  );
+  const openDraftRef = useRef<
+    (sessionId: string, title: string, stopped?: { explained: boolean }) => Promise<boolean>
+  >(async () => false);
 
   // ----- Record steps here (docs/spec/04-editor.md#record-steps-here) -----
 
@@ -241,9 +243,31 @@ export function useRecordingSession(context: RecordingSessionContext) {
   };
   const addFactRef = useLatest(addFact);
 
-  /** Opens a stopped recording in the editor as a draft, saving the draft on first open. */
-  const openDraft = async (sessionId: string, title: string) => {
-    if (!recorder) return;
+  /**
+   * A stopped recording leaves the journal once its steps are in a guide, or when it had none:
+   * it was never a guide of its own.
+   */
+  const forgetRecording = async (sessionId: string) => {
+    if (!recorder || currentSessionId.current !== sessionId) return;
+    setSnapshot(await recorder.discard());
+    forgetLive();
+    currentSessionId.current = null;
+    await refreshRecoveries();
+  };
+
+  /**
+   * Opens a stopped recording in the editor as a draft, saving the draft on first open. With
+   * `stopped` (it has just stopped), a recording with no steps isn't opened as an empty guide
+   * whose Discard then warns of steps to delete (#52): it goes, the library stays as it was, and
+   * Steps says "Nothing was recorded" unless `stopped.explained` (another message said why).
+   * Answers whether a draft opened.
+   */
+  const openDraft = async (
+    sessionId: string,
+    title: string,
+    stopped?: { explained: boolean },
+  ): Promise<boolean> => {
+    if (!recorder) return false;
     const saved = await recorder.loadDraft(sessionId);
     let doc: EditorDoc;
     if (saved) {
@@ -262,6 +286,13 @@ export function useRecordingSession(context: RecordingSessionContext) {
         ),
       });
       if (skipped > 0) notify({ text: t("recorder.stepsSkipped", { count: skipped }) });
+      // Steps that couldn't be read aren't nothing: that recording still opens, and says so.
+      if (stopped && steps.length === 0 && skipped === 0) {
+        await writeQueue.current;
+        await forgetRecording(sessionId);
+        if (!stopped.explained) notify({ text: t("recorder.nothingRecorded") });
+        return false;
+      }
       const author = latest.current.settings.author;
       doc = { guide: newGuide(sessionId, title, author, recording.wording), steps };
       await writeQueue.current;
@@ -269,22 +300,11 @@ export function useRecordingSession(context: RecordingSessionContext) {
     }
     currentSessionId.current = sessionId;
     latest.current.showDraft(sessionId, doc);
+    return true;
   };
   useEffect(() => {
     openDraftRef.current = openDraft;
   });
-
-  /**
-   * A stopped recording leaves the journal once its steps are in a guide: it was never a guide
-   * of its own.
-   */
-  const forgetRecording = async (sessionId: string) => {
-    if (!recorder || currentSessionId.current !== sessionId) return;
-    setSnapshot(await recorder.discard());
-    forgetLive();
-    currentSessionId.current = null;
-    await refreshRecoveries();
-  };
 
   /**
    * Record steps here, when the recording stops: its steps, made as a draft's are, go into the
@@ -300,8 +320,9 @@ export function useRecordingSession(context: RecordingSessionContext) {
       return inserter?.canInsert() ? inserter : null;
     };
     const ownDraft = async () => {
-      await openDraft(sessionId, title);
-      notify({ text: t("recorder.intoFallback", { title: into.title }) });
+      // With no steps there's nothing to keep anywhere: "Nothing was recorded" says it all.
+      if (await openDraft(sessionId, title, { explained: false }))
+        notify({ text: t("recorder.intoFallback", { title: into.title }) });
     };
     if (!ready()) return ownDraft();
     setBusy(true);
@@ -403,7 +424,9 @@ export function useRecordingSession(context: RecordingSessionContext) {
               }
               if (finished.snapshot.sessionId) {
                 void openDraftRef
-                  .current(finished.snapshot.sessionId, finished.title)
+                  .current(finished.snapshot.sessionId, finished.title, {
+                    explained: otherScreens > 0,
+                  })
                   .catch(() => notify({ kind: "error", text: t("recorder.saveFailed") }));
               }
             }),
@@ -649,7 +672,8 @@ export function useRecordingSession(context: RecordingSessionContext) {
    */
   /**
    * Save: the recording becomes a guide in the default library, or in `libraryId` when Save as
-   * chose another, `target` (a one-off; the default stays).
+   * chose another, `target` (a one-off; the default stays). `history` is the editor's undo and
+   * redo, which the saved guide's editor keeps (#82).
    */
   const saveDraft = async (
     sessionId: string,
@@ -657,6 +681,7 @@ export function useRecordingSession(context: RecordingSessionContext) {
     doc: EditorDoc,
     quiet = false,
     target?: { id: string; name: string },
+    history?: History,
   ): Promise<boolean> => {
     if (!recorder) return false;
     setBusy(true);
@@ -669,7 +694,11 @@ export function useRecordingSession(context: RecordingSessionContext) {
       forgetLive();
       setSnapshot((current) => ({ ...current, sessionId: null, stepCount: 0, missedCount: 0 }));
       await refreshRecoveries();
-      await latest.current.openSaved(sessionId, target?.id);
+      await latest.current.openSaved(
+        sessionId,
+        target?.id,
+        history ? { saved: { guide, steps: doc.steps }, history } : undefined,
+      );
       if (!quiet)
         notify({
           text: target ? t("editor.savedTo", { name: target.name }) : t("editor.savedToLibrary"),

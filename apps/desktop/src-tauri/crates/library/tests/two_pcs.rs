@@ -357,6 +357,68 @@ fn a_step_deleted_on_one_pc_and_edited_on_the_other_comes_back_flagged() {
 }
 
 #[test]
+fn restoring_a_version_after_a_delete_flags_nothing_on_either_pc() {
+    // #58: a restore is one change by the person restoring, not someone else's edit.
+    let (mut cloud, a, b, id) = setup();
+    let saved = a.library.save_version(&id, "", "Robin").unwrap();
+    a.library.delete_step(&id, "s2").unwrap();
+    a.library
+        .note_delete(&id, "s2", "Robin", &a.holder.session)
+        .unwrap();
+    cloud.sync(&a);
+    cloud.sync(&b);
+    a.library.restore_version(&id, &saved.id, "Robin").unwrap();
+    cloud.sync(&a);
+    cloud.sync(&b);
+
+    for library in [&a.library, &b.library] {
+        assert_eq!(texts(library, &id), ["Open payroll", "Click Run"]);
+        assert_eq!(library.list_conflicts(&id).unwrap(), []);
+    }
+}
+
+#[test]
+fn a_restore_still_flags_a_step_deleted_here_and_edited_on_the_other_pc() {
+    let (mut cloud, a, b, id) = setup();
+    let saved = a.library.save_version(&id, "", "Robin").unwrap();
+    a.library
+        .save_step(&id, &step("s3", "a2", "Click Approve", "Robin"))
+        .unwrap();
+    cloud.sync(&a);
+    cloud.sync(&b);
+
+    // Robin deletes the new step while Sam, not yet synced, changes it; then Robin restores the
+    // version from before the step, which doesn't hold it.
+    a.library.delete_step(&id, "s3").unwrap();
+    a.library
+        .note_delete(&id, "s3", "Robin", &a.holder.session)
+        .unwrap();
+    b.library
+        .save_step(&id, &step("s3", "a2", "Click Approve all", "Sam"))
+        .unwrap();
+    a.library.restore_version(&id, &saved.id, "Robin").unwrap();
+    cloud.sync(&a);
+    cloud.sync(&b);
+    cloud.sync(&a);
+
+    for library in [&a.library, &b.library] {
+        assert_eq!(
+            texts(library, &id),
+            ["Open payroll", "Click Run", "Click Approve all"]
+        );
+        let conflicts = library.list_conflicts(&id).unwrap();
+        assert!(
+            matches!(
+                conflicts.as_slice(),
+                [Conflict::Restored { id, deleted_by, step }]
+                    if id == "s3" && deleted_by == "Robin" && step["updatedBy"] == "Sam"
+            ),
+            "{conflicts:?}"
+        );
+    }
+}
+
+#[test]
 fn both_comment_on_the_same_step_at_once_and_both_comments_survive() {
     let (mut cloud, a, b, id) = setup();
     let thread = a

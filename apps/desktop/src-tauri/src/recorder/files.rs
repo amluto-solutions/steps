@@ -8,7 +8,8 @@ use std::path::Path;
 use serde_json::{Value, json};
 
 use super::recording::RecordingSettings;
-use super::{CommandError, storage_error, unique_id};
+use super::unique_id;
+use crate::error::{CommandError, storage_error};
 
 pub(super) fn write_marker(path: &Path) -> std::io::Result<()> {
     let file = OpenOptions::new().write(true).create_new(true).open(path)?;

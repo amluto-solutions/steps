@@ -52,6 +52,10 @@ const memoryFiles: FileAccess = {
     saved.set(token, bytes);
     return Promise.resolve(token);
   },
+  download: (name, bytes) => {
+    saved.set(`downloads/${name}`, bytes);
+    return Promise.resolve(name);
+  },
   pickFolder: () => Promise.resolve("folder:1"),
   saveInFolder: (folder, name, bytes) => {
     if (folder === "folder:bad") return Promise.reject(new Error("The file didn't arrive whole."));
@@ -372,6 +376,17 @@ describe(".amlsteps files", () => {
     expect(again).toMatchObject({ title: "Pay a supplier invoice", stepCount: 1 });
   });
 
+  it("saves a Steps file to the browser's downloads, as the other exports go (12/10/2026, #88)", async () => {
+    toOpen = sharedFile;
+    const imported = await library.importAmlsteps(LIB, "file:1");
+    const name = "Pay a supplier invoice - 12-10-2026.amlsteps";
+    expect(await library.exportAmlstepsTo(LIB, imported.id, "downloads", name, false)).toBe(name);
+    const entries = unzipSync(saved.get(`downloads/${name}`) as Uint8Array);
+    const written = JSON.parse(strFromU8(entries["guide/steps/step-1.json"] as Uint8Array));
+    // The same file as one saved where the person chose: blur burned in.
+    expect(written.redactions).toEqual([]);
+  });
+
   it("reads a guide file the desktop wrote", async () => {
     toOpen = new Uint8Array(
       readFileSync(
@@ -408,6 +423,15 @@ describe(".amlsteps files", () => {
       message: expect.stringMatching(rule) as unknown,
     });
     expect(await library.listGuides(LIB)).toEqual([]);
+  });
+
+  it("names only the rule a refused file broke, as the app words the rest (P38)", async () => {
+    toOpen = archive({ "../evil.json": strToU8("{}") });
+    // The app shows "That file can't be imported: <rule>"; a lead-in here said it twice.
+    await expect(library.importAmlsteps(LIB, "file:1")).rejects.toMatchObject({
+      code: "importRejected",
+      message: "../evil.json climbs out of its folder (..)",
+    });
   });
 
   it("refuses a file from a newer Steps", async () => {

@@ -20,10 +20,10 @@ use super::files::{
 use super::journal::screenshot_webp;
 use super::recording::RecordingSettings;
 use super::{
-    CommandError, GuideDocument, Inner, RecorderService, RecorderSnapshot, RecoverySession,
-    Session, lock, manual_media_id, safe_segment, session_directory, snapshot_locked,
-    storage_error, unique_id,
+    GuideDocument, Inner, RecorderService, RecorderSnapshot, RecoverySession, Session, lock,
+    manual_media_id, safe_segment, snapshot_locked, unique_id,
 };
+use crate::error::{CommandError, storage_error};
 
 impl RecorderService {
     /// Stores a retaken screenshot in an unsaved recording's own folder, where its other
@@ -36,7 +36,7 @@ impl RecorderService {
     ) -> Result<MediaInfo, CommandError> {
         let directory = {
             let inner = lock(&self.inner);
-            draft_session_directory(&inner, session_id)?
+            self.draft_session_directory(&inner, session_id)?
         };
         let (bytes, width, height) = screenshot_webp(image, quality).map_err(storage_error)?;
         let id = format!("retake-{}", manual_media_id());
@@ -54,7 +54,7 @@ impl RecorderService {
     ) -> Result<Vec<PathBuf>, CommandError> {
         let directory = {
             let inner = lock(&self.inner);
-            session_directory(&inner, session_id)?
+            self.session_directory(&inner, session_id)?
         };
         media_ids
             .iter()
@@ -92,7 +92,7 @@ impl RecorderService {
         let sources = self.media_files(from, &ids)?;
         let target = {
             let inner = lock(&self.inner);
-            draft_session_directory(&inner, to)?.join("media")
+            self.draft_session_directory(&inner, to)?.join("media")
         };
         let mut written = Vec::new();
         let mut copy_all = || -> std::io::Result<()> {
@@ -115,7 +115,7 @@ impl RecorderService {
     /// The "Start again" point of a recording, for rebuilding its steps after a restart.
     pub(super) fn restart_point(&self, session_id: &str) -> Result<Option<u64>, CommandError> {
         let inner = lock(&self.inner);
-        Ok(read_restart(&session_directory(&inner, session_id)?))
+        Ok(read_restart(&self.session_directory(&inner, session_id)?))
     }
 
     /// The settings a recording started with, for building its steps again; None for one made
@@ -125,9 +125,9 @@ impl RecorderService {
         session_id: &str,
     ) -> Result<Option<RecordingSettings>, CommandError> {
         let inner = lock(&self.inner);
-        Ok(read_recording_settings(&session_directory(
-            &inner, session_id,
-        )?))
+        Ok(read_recording_settings(
+            &self.session_directory(&inner, session_id)?,
+        ))
     }
 
     /// Saves the whole draft of a stopped recording (the editor's copy before it is published),
@@ -139,7 +139,7 @@ impl RecorderService {
         steps: &[Value],
     ) -> Result<(), CommandError> {
         let inner = lock(&self.inner);
-        let directory = draft_session_directory(&inner, session_id)?;
+        let directory = self.draft_session_directory(&inner, session_id)?;
         let staging = directory.join(format!(".draft-{}", unique_id()));
         let result = write_whole_draft(&directory, &staging, guide, steps);
         if result.is_err() {
@@ -154,7 +154,9 @@ impl RecorderService {
         guide: &Value,
     ) -> Result<(), CommandError> {
         let inner = lock(&self.inner);
-        let draft = draft_session_directory(&inner, session_id)?.join("draft");
+        let draft = self
+            .draft_session_directory(&inner, session_id)?
+            .join("draft");
         require_draft(&draft)?;
         write_json_atomic(&draft.join("guide.json"), guide)
     }
@@ -165,7 +167,9 @@ impl RecorderService {
         step: &Value,
     ) -> Result<(), CommandError> {
         let inner = lock(&self.inner);
-        let draft = draft_session_directory(&inner, session_id)?.join("draft");
+        let draft = self
+            .draft_session_directory(&inner, session_id)?
+            .join("draft");
         require_draft(&draft)?;
         let id = draft_step_id(step)?;
         write_json_atomic(&draft.join("steps").join(format!("{id}.json")), step)
@@ -183,7 +187,9 @@ impl RecorderService {
             ));
         }
         let inner = lock(&self.inner);
-        let draft = draft_session_directory(&inner, session_id)?.join("draft");
+        let draft = self
+            .draft_session_directory(&inner, session_id)?
+            .join("draft");
         require_draft(&draft)?;
         match fs::remove_file(draft.join("steps").join(format!("{step_id}.json"))) {
             Err(error) if error.kind() != std::io::ErrorKind::NotFound => Err(storage_error(error)),
@@ -197,7 +203,7 @@ impl RecorderService {
         session_id: &str,
     ) -> Result<Option<GuideDocument>, CommandError> {
         let inner = lock(&self.inner);
-        let draft = session_directory(&inner, session_id)?.join("draft");
+        let draft = self.session_directory(&inner, session_id)?.join("draft");
         if !draft.join("guide.json").is_file() {
             return Ok(None);
         }
@@ -210,7 +216,7 @@ impl RecorderService {
 
     pub(super) fn append_step(&self, session_id: &str, step: &Value) -> Result<(), CommandError> {
         let inner = lock(&self.inner);
-        let directory = session_directory(&inner, session_id)?;
+        let directory = self.session_directory(&inner, session_id)?;
         let id = step
             .get("id")
             .and_then(Value::as_str)
@@ -248,7 +254,7 @@ impl RecorderService {
             let library = target.or_else(|| inner.library.clone()).ok_or_else(|| {
                 CommandError::new("notReady", "The library folder is not initialized.")
             })?;
-            (library, recordings_root(&inner)?)
+            (library, self.recordings_root()?)
         };
         let guide_id = guide
             .get("id")
@@ -282,7 +288,7 @@ impl RecorderService {
         }
         let session_directory = {
             let inner = lock(&self.inner);
-            session_directory(&inner, session_id)?
+            self.session_directory(&inner, session_id)?
         };
         // Anything that fails part-way removes the staging folder: otherwise each failed save
         // (a full disk, a file a sync client holds) leaves a partial copy in the library, where
@@ -306,10 +312,7 @@ impl RecorderService {
     /// Removes a published recording's journal and forgets it as the current session. The
     /// folder is removed without the recorder lock held.
     fn forget_published(&self, session_id: &str) -> Result<(), CommandError> {
-        let root = {
-            let inner = lock(&self.inner);
-            recordings_root(&inner)?
-        };
+        let root = self.recordings_root()?;
         remove_session_folder(&root, session_id)?;
         let mut inner = lock(&self.inner);
         if inner
@@ -329,7 +332,7 @@ impl RecorderService {
         let (root, library, active) = {
             let inner = lock(&self.inner);
             (
-                recordings_root(&inner)?,
+                self.recordings_root()?,
                 inner.library.clone(),
                 inner.session.as_ref().map(|session| session.id.clone()),
             )
@@ -437,7 +440,7 @@ impl RecorderService {
                 "Save or discard the current recording before recovering another.",
             ));
         }
-        let directory = session_directory(&inner, session_id)?;
+        let directory = self.session_directory(&inner, session_id)?;
         let metadata: Value = serde_json::from_slice(
             &fs::read(directory.join("session.json")).map_err(storage_error)?,
         )
@@ -473,13 +476,13 @@ impl RecorderService {
 
     pub(super) fn recovery_records(&self, session_id: &str) -> Result<Vec<Value>, CommandError> {
         let inner = lock(&self.inner);
-        let directory = session_directory(&inner, session_id)?;
+        let directory = self.session_directory(&inner, session_id)?;
         read_records(&directory)
     }
 
     pub(super) fn session_steps(&self, session_id: &str) -> Result<Vec<Value>, CommandError> {
         let inner = lock(&self.inner);
-        let directory = session_directory(&inner, session_id)?;
+        let directory = self.session_directory(&inner, session_id)?;
         read_steps(&directory.join("steps"))
     }
 
@@ -561,7 +564,8 @@ impl RecorderService {
             ));
         }
         let inner = lock(&self.inner);
-        let recording_path = session_directory(&inner, session_id)
+        let recording_path = self
+            .session_directory(&inner, session_id)
             .ok()
             .map(|directory| directory.join("media").join(name));
         let guide_path = inner.library.as_ref().map(|library| {
@@ -653,14 +657,6 @@ pub(super) fn stage_and_publish(
 
 /// Serialises publishing (see `RecorderService::finalize`).
 static PUBLISHING: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
-fn recordings_root(inner: &Inner) -> Result<PathBuf, CommandError> {
-    Ok(inner
-        .app_data
-        .as_ref()
-        .ok_or_else(|| CommandError::new("notReady", "The recorder is not initialized."))?
-        .join("recordings"))
-}
 
 /// Removes `<root>/<session_id>`, refusing a folder that resolves anywhere else.
 pub(super) fn remove_session_folder(root: &Path, session_id: &str) -> Result<(), CommandError> {
@@ -782,18 +778,21 @@ pub(super) fn require_draft(draft: &Path) -> Result<(), CommandError> {
     }
 }
 
-/// Drafts are edited only once recording has stopped, so the journal is complete.
-pub(super) fn draft_session_directory(
-    inner: &Inner,
-    session_id: &str,
-) -> Result<PathBuf, CommandError> {
-    if lock(&inner.machine).state() != &RecorderState::Idle {
-        return Err(CommandError::new(
-            "stillRecording",
-            "Wait for recording to finish before editing the guide.",
-        ));
+impl RecorderService {
+    /// Drafts are edited only once recording has stopped, so the journal is complete.
+    fn draft_session_directory(
+        &self,
+        inner: &Inner,
+        session_id: &str,
+    ) -> Result<PathBuf, CommandError> {
+        if lock(&inner.machine).state() != &RecorderState::Idle {
+            return Err(CommandError::new(
+                "stillRecording",
+                "Wait for recording to finish before editing the guide.",
+            ));
+        }
+        self.session_directory(inner, session_id)
     }
-    session_directory(inner, session_id)
 }
 
 pub(super) fn write_whole_draft(

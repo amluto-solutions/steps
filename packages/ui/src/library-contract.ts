@@ -272,6 +272,8 @@ export function libraryContract(name: string, setUp: () => Promise<LibraryUnderT
       await library.deleteStep(libraryId, id, "s1");
       expect(stepIds(await library.restoreVersion(libraryId, id, version.id))).toEqual(["s1"]);
       expect(stepIds(await library.loadGuide(libraryId, id))).toEqual(["s1"]);
+      // #58: the step the restore brought back isn't someone else's edit undoing the delete.
+      expect(await library.listConflicts(libraryId, id)).toEqual([]);
     });
 
     it("has nothing to burn in a guide without blurs", async () => {

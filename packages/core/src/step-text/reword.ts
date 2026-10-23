@@ -1,9 +1,11 @@
 import type { CodeLanguage } from "../code.ts";
 import { clickPhrase, isTarget, namingOfStep, type ClickNaming } from "./click-naming.ts";
 import {
+  asDoubleClick,
   asRightClick,
   phraseFor,
   renderPhrase,
+  typingInDocument,
   type Phrase,
   type Terminal,
   type Tone,
@@ -21,7 +23,8 @@ export interface PhraseFacts {
   actionText: string;
   textParts: { verb: string; target: string; kind: string; value?: string | undefined };
   showValue: boolean;
-  context: { windowTitle: string };
+  /** `app` is the program, for shortcuts only one app names (#71). */
+  context: { windowTitle: string; app?: string | null | undefined };
   target: unknown;
   code?: { language: CodeLanguage } | null | undefined;
   /** What a click is called, as recorded; absent on steps saved before 06/10/2026. */
@@ -44,25 +47,31 @@ export function phraseOfStep(step: PhraseFacts): Phrase | null {
   switch (step.action) {
     case "click": {
       if (parts.verb === "selectRange") return { key: "selectRange", range: parts.target };
+      // A stroke drawn on a canvas (#73).
+      if (parts.verb === "draw") return { key: "drawOnCanvas" };
       // A fill keeps "H8:H250", or "H8" alone when it went down the column (08/10/2026).
       if (parts.verb === "fill") {
         const [from = "", to] = parts.target.split(":");
         return { key: "fill", from, to: to ?? null };
       }
       const phrase = clickPhrase(namingOfStep(step));
-      return parts.verb === "rightClick" ? asRightClick(phrase) : phrase;
+      if (parts.verb === "rightClick") return asRightClick(phrase);
+      return parts.verb === "doubleClick" ? asDoubleClick(phrase) : phrase;
     }
     case "input": {
       const value = step.showValue ? parts.value : undefined;
+      if (parts.kind === "document") return typingInDocument(value);
       const target = isTarget(step.target) ? step.target : null;
       if (target && Object.keys(target).length > 0)
         return phraseFor("input", { ...target, value }) ?? { key: "type" };
       return value ? { key: "typeValue", value } : { key: "type" };
     }
     case "keypress":
-      return parts.target ? { key: "press", keys: parts.target } : null;
+      return parts.target ? { key: "press", keys: parts.target, app: step.context.app } : null;
     case "navigation":
       return parts.target ? { key: "goTo", site: parts.target } : null;
+    case "goToCell":
+      return parts.target ? { key: "goToCell", cell: parts.target } : null;
     case "appswitch":
       return parts.target ? { key: "open", app: parts.target } : null;
     case "command": {

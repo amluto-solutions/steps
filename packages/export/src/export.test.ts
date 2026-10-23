@@ -688,6 +688,40 @@ describe("code steps (docs/spec/05-export.md#code)", () => {
     expect(document).toContain("Output (shortened)");
   }, 30_000);
 
+  it("set code with the pairs JetBrains Mono makes ligatures of, as typed", async () => {
+    // An Excel formula with a web address in it made the whole PDF fail: the bundled font's
+    // ligature lookups for `//`, `<>`, `>=`, `..` point past its Latin subset (10/10/2026).
+    const formula = step("formula", {
+      action: "command",
+      actionText: "Type the formula",
+      code: {
+        text: '=IF(A2<>"",HYPERLINK("https://example.com/"&A2,"Open"),"")\n=IF(B2>=1,B2<=9,C2==D2) && x != y -> z || ... :: ## /* */',
+        language: "excel",
+        output: null,
+        outputShortened: false,
+      },
+    });
+    const require = createRequire(import.meta.url);
+    const file = (path: string) => new Uint8Array(readFileSync(require.resolve(path)));
+    const inter = file("@fontsource/inter/files/inter-latin-400-normal.woff");
+    const bytes = await renderPdf(
+      buildRenderModel(guide, [formula], new Map(), { preparedBy: "", now: new Date(2026, 9, 10) }),
+      {
+        heading: { normal: inter, bold: inter },
+        body: { normal: inter, bold: inter, italics: inter, bolditalics: inter },
+        mono: file("@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff"),
+      },
+      { pageSize: "A4", orientation: "portrait" },
+      false,
+    );
+    const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    const document = await pdfjs.getDocument({ data: new Uint8Array(bytes) }).promise;
+    const page = await (await document.getPage(1)).getTextContent();
+    const text = page.items.map((item) => ("str" in item ? item.str : "")).join("");
+    expect(text).toContain('HYPERLINK("https://example.com/"&A2,"Open")');
+    expect(text).toContain("C2==D2) && x != y -> z || ... :: ## /* */");
+  }, 30_000);
+
   it("copy into the clipboard's text and HTML", () => {
     expect(renderClipboardText(model())).toContain("    -AccessRights FullAccess");
     expect(renderClipboardHtml(model())).toContain("<pre");

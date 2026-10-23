@@ -126,6 +126,12 @@ export interface GuideLocks {
   removeLock(guide: GuideRef): Promise<void>;
   /** A new password; the guide must be unlocked with the old one first. */
   changePassword(guide: GuideRef, password: string): Promise<void>;
+  /**
+   * Calls `listener` whenever a guide is locked, its lock removed or its password changed in this
+   * app, so an open editor shows it at once rather than when the next synced change is noticed
+   * (#81). Answers how to stop listening.
+   */
+  onChange(listener: (guide: GuideRef) => void): () => void;
 }
 
 const keyOf = ({ libraryId, guideId }: GuideRef) => `${libraryId}\u0000${guideId}`;
@@ -207,6 +213,7 @@ export const CHANGES_GUIDE = {
   createFromParts: false,
   importAmlsteps: false,
   exportAmlsteps: false,
+  exportAmlstepsTo: false,
   listTrash: false,
   restoreGuide: false,
   deleteTrashed: false,
@@ -223,9 +230,16 @@ type GuideMethod = (libraryId: string, guideId: string, ...rest: never[]) => Pro
 export function withGuideLocks(inner: LibraryBridge, deps: GuideLockDeps): GuideLocks {
   const now = () => (deps.now ?? (() => new Date()))().toISOString();
   const open = new Set<string>();
-  /** Editing sessions that have changed their guide, to count as one save when they end. */
+  /**
+   * Editing sessions that have changed their guide, to count as one save when they end: when the
+   * editor lets go of the guide, or when Move to or the Bin takes the guide from under it (#111).
+   */
   const editing = new Map<string, boolean>();
   const guesses = new GuessLimit();
+  const listeners = new Set<(guide: GuideRef) => void>();
+  const changedLock = (guide: GuideRef) => {
+    for (const listener of [...listeners]) listener(guide);
+  };
 
   const lockOf = async ({ libraryId, guideId }: GuideRef) =>
     parseGuideLock((await inner.guideMeta(libraryId, guideId)).lock);
@@ -270,15 +284,20 @@ export function withGuideLocks(inner: LibraryBridge, deps: GuideLockDeps): Guide
   const allowed: Partial<Record<LibraryMethod, GuideMethod>> = {
     async trashGuide(libraryId, guideId) {
       const guide = { libraryId, guideId };
+      const key = keyOf(guide);
       const wasLocked = (await lockOf(guide).catch(() => null)) !== null;
+      const changedHere = editing.get(key) === true;
       // Recorded before the move: a guide in the Bin can't be reached to write it after (07/10/2026:
-      // only the old hand-made test library could, so "binned" was never kept). Taken back out if
-      // the Bin refuses the guide.
-      const before = wasLocked ? await history(guide).catch(() => null) : null;
-      if (before) await addEvent(libraryId, guideId, "binned").catch(() => undefined);
+      // only the old hand-made test library could, so "binned" was never kept). So is the save of
+      // the editing session the Bin ends (#111), which then comes back with a Restore. Both are
+      // taken back out if the Bin refuses the guide, and the session goes on to be counted later.
+      const before = wasLocked || changedHere ? await history(guide).catch(() => null) : null;
+      if (before && changedHere) await countSave(libraryId, guideId).catch(() => undefined);
+      if (before && wasLocked) await addEvent(libraryId, guideId, "binned").catch(() => undefined);
       try {
         const entry = await inner.trashGuide(libraryId, guideId);
-        open.delete(keyOf(guide));
+        open.delete(key);
+        editing.delete(key);
         return entry;
       } catch (problem) {
         if (before)
@@ -286,9 +305,17 @@ export function withGuideLocks(inner: LibraryBridge, deps: GuideLockDeps): Guide
         throw problem;
       }
     },
-    // A move takes the lock along; neither it nor Export and remove counts as a save.
-    moveGuide: (fromLibraryId, guideId, ...rest) =>
-      (inner.moveGuide as GuideMethod).call(inner, fromLibraryId, guideId, ...rest),
+    // A move takes the lock and history along, and isn't a save itself. An editing session that
+    // changed the guide ends with it, and its save is counted on the guide where it went, once
+    // (#111): the editor letting go afterwards finds nothing left to count.
+    async moveGuide(fromLibraryId, guideId, toLibraryId: string) {
+      const moved = await inner.moveGuide(fromLibraryId, guideId, toLibraryId);
+      const key = keyOf({ libraryId: fromLibraryId, guideId });
+      if (editing.get(key)) await countSave(toLibraryId, moved.id).catch(() => undefined);
+      editing.delete(key);
+      return moved;
+    },
+    // Nor is Export and remove a save.
     exportAndRemove: (libraryId, guideId, ...rest) =>
       (inner.exportAndRemove as GuideMethod).call(inner, libraryId, guideId, ...rest),
     // A guide's lock is changed only through `lock`, `removeLock` and `changePassword`.
@@ -462,6 +489,7 @@ export function withGuideLocks(inner: LibraryBridge, deps: GuideLockDeps): Guide
       await writeLock(libraryId, guideId, password, await stamp());
       open.delete(keyOf(guide));
       await addEvent(libraryId, guideId, "locked").catch(() => undefined);
+      changedLock(guide);
     },
 
     async removeLock(guide) {
@@ -472,6 +500,7 @@ export function withGuideLocks(inner: LibraryBridge, deps: GuideLockDeps): Guide
       await inner.writeGuideLock(libraryId, guideId, null);
       open.delete(keyOf(guide));
       await addEvent(libraryId, guideId, "lockRemoved").catch(() => undefined);
+      changedLock(guide);
     },
 
     async changePassword(guide, password) {
@@ -483,6 +512,14 @@ export function withGuideLocks(inner: LibraryBridge, deps: GuideLockDeps): Guide
       await writeLock(libraryId, guideId, password, lock.locked);
       open.delete(keyOf(guide));
       await addEvent(libraryId, guideId, "passwordChanged").catch(() => undefined);
+      changedLock(guide);
+    },
+
+    onChange(listener) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
     },
   };
 }

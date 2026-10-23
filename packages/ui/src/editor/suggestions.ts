@@ -76,10 +76,6 @@ export function fullyCovered(rect: Rect, blurs: Rect[]): boolean {
 }
 
 /**
- * Personal data OCR found on a step's screenshot that isn't completely blurred and that is at
- * least partly inside the crop, if there is one. Half-blurred text still counts as open.
- */
-/**
  * The person's own names (their Windows or Linux account, OneDrive accounts, and their name in
  * Settings), found as personal details at Standard and Thorough (F006). Set once the app has them.
  */
@@ -88,6 +84,24 @@ export const setPeopleNames = (names: string[]) => {
   people = names.filter((name) => name.trim().length >= 3);
 };
 
+/**
+ * Where the recorder saw a notification toast on the screenshot (P35, 10/10/2026: a chat
+ * message's preview was in a whole-monitor screenshot, unflagged), as findings: known by the
+ * toast's window, so they need no words read and are suggested however hard the settings look.
+ */
+const notificationsOn = (step: GuideStep): Finding[] =>
+  (step.media?.notifications ?? []).map((rect) => ({
+    kind: "notification",
+    text: "",
+    rect: { ...rect },
+  }));
+
+/**
+ * The suggested blurs open on a step: personal data in its screenshot's words (`lines`; none when
+ * they couldn't be read) and the notification toasts it showed, unless completely blurred
+ * (half-blurred still counts as open), marked not personal, or wholly outside the crop. What's
+ * read inside an open toast is part of it, so isn't suggested twice.
+ */
 export function openFindings(
   step: GuideStep,
   lines: OcrLine[],
@@ -95,7 +109,7 @@ export function openFindings(
   settings: FindingSettings,
 ): Finding[] {
   const options = { strength: settings.strength, people, safe: settings.safe };
-  return findSensitive(lines, terms, options).filter((finding) => {
+  const open = (finding: Finding) => {
     if (finding.rect.w <= 0 || finding.rect.h <= 0) return false;
     const visible = step.crop ? overlap(finding.rect, step.crop) > 0 : true;
     return (
@@ -103,7 +117,14 @@ export function openFindings(
       !fullyCovered(finding.rect, step.redactions) &&
       !markedNotPersonal(finding.rect, step.notPersonal)
     );
-  });
+  };
+  const toasts = notificationsOn(step).filter(open);
+  const inToast = (finding: Finding) =>
+    toasts.some((toast) => fullyCovered(finding.rect, [toast.rect]));
+  const read = findSensitive(lines, terms, options).filter(
+    (finding) => open(finding) && !inToast(finding),
+  );
+  return [...read, ...toasts];
 }
 
 /** Findings as blur areas, marked as suggested so the review can tell them apart. */
@@ -189,10 +210,9 @@ export async function findOpenInGuide(
   for (const [index, step] of withImages.entries()) {
     const lines = await words.wordsOf(step);
     if (lines === "unavailable") unread += 1;
-    else {
-      const findings = openFindings(step, lines, terms, settings);
-      if (findings.length) found.push({ stepId: step.id, findings });
-    }
+    // A toast is known without the words, so it's found even when they couldn't be read.
+    const findings = openFindings(step, lines === "unavailable" ? [] : lines, terms, settings);
+    if (findings.length) found.push({ stepId: step.id, findings });
     onProgress?.(index + 1, withImages.length);
   }
   return { found, unread };

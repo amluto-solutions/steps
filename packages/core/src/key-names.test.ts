@@ -24,4 +24,43 @@ describe("keys named as the keyboard names them", () => {
       "Drücken Sie Strg + C (Kopieren).",
     );
   });
+
+  // The 10/10/2026 test (P16, #71): Ctrl + A and Ctrl + S were labelled, Ctrl + B wasn't.
+  it.each([
+    ["Ctrl + B", "Bold"],
+    ["Ctrl + I", "Italic"],
+    ["Ctrl + U", "Underline"],
+    ["Ctrl + F", "Find"],
+    ["Ctrl + P", "Print"],
+    ["Ctrl + N", "New"],
+    ["Ctrl + W", "Close tab"],
+  ])("says what %s does in any app", (keys, meaning) => {
+    expect(renderPhrase({ key: "press", keys }, "en", "casual")).toBe(
+      `Press "${keys}" (${meaning})`,
+    );
+    expect(renderPhrase({ key: "press", keys, app: "notepad.exe" }, "en", "casual")).toBe(
+      `Press "${keys}" (${meaning})`,
+    );
+  });
+
+  it("says what Ctrl + G and Ctrl + D do in Excel, and only there", () => {
+    const excel = "EXCEL.EXE";
+    expect(renderPhrase({ key: "press", keys: "Ctrl + G", app: excel }, "en", "casual")).toBe(
+      'Press "Ctrl + G" (Go To)',
+    );
+    expect(renderPhrase({ key: "press", keys: "Ctrl + D", app: "excel.exe" }, "en", "plain")).toBe(
+      "Press Ctrl + D (Fill down)",
+    );
+    // Elsewhere they mean other things: Ctrl + D is a bookmark in a browser, Ctrl + G Find next.
+    expect(
+      renderPhrase({ key: "press", keys: "Ctrl + D", app: "msedge.exe" }, "en", "casual"),
+    ).toBe('Press "Ctrl + D"');
+    expect(renderPhrase({ key: "press", keys: "Ctrl + G" }, "en", "casual")).toBe(
+      'Press "Ctrl + G"',
+    );
+    // Everyday shortcuts keep their meaning in Excel too.
+    expect(renderPhrase({ key: "press", keys: "Ctrl + B", app: excel }, "de", "formal")).toBe(
+      "Drücken Sie Strg + B (Fett).",
+    );
+  });
 });

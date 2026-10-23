@@ -1,6 +1,6 @@
 import type { RecordedStep, RecordingFact, RecordingSettings } from "@amluto-steps/core";
 
-import type { MediaInfo } from "../library-bridge";
+import type { RetakenImage } from "../library-bridge";
 import type { RecorderSnapshot } from "./recording";
 
 export interface RecoverySession {
@@ -53,7 +53,7 @@ export interface RecordingJournal {
     delayMs: number,
     excluded: string[],
     quality?: "balanced" | "original",
-  ): Promise<MediaInfo>;
+  ): Promise<RetakenImage>;
   /**
    * Record steps here: copies a stopped recording's screenshots, byte for byte, into the guide it
    * was recorded into, under new ids, before its steps go into the open editor. Refused for a

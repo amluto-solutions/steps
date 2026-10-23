@@ -1,7 +1,5 @@
 {
   "app": {
-    "alreadyOpenTitle": "Steps ya está abierto",
-    "alreadyOpenBody": "Solo se ejecuta un Steps a la vez, así que hemos traído este al primer plano por ti.",
     "name": "Steps",
     "by": "by",
     "logoAlt": "Amluto"
@@ -83,6 +81,9 @@
     "count_one": "{{count}} guía",
     "count_many": "{{count}} guías",
     "count_other": "{{count}} guías",
+    "countOf_one": "{{shown}} de {{count}} guía",
+    "countOf_many": "{{shown}} de {{count}} guías",
+    "countOf_other": "{{shown}} de {{count}} guías",
     "steps_one": "{{count}} paso",
     "steps_many": "{{count}} pasos",
     "steps_other": "{{count}} pasos",
@@ -222,7 +223,7 @@
       "note": "Para otro usuario de Steps",
       "pickTitle": "Guardar la guía como archivo de Steps",
       "filter": "Guía de Steps",
-      "done": "Guía exportada. Las zonas desenfocadas quedan desenfocadas para siempre en el archivo.",
+      "blurredForGood": "Las zonas desenfocadas quedan desenfocadas para siempre en el archivo.",
       "originals": "Incluir las originales sin desenfocar (para traspasos internos)",
       "originalsWarning": "El archivo incluirá todas las capturas sin desenfocar. Quien lo reciba podrá ver lo que estaba desenfocado. Úsalo solo para pasar una guía a un compañero que tenga que editar el desenfoque.",
       "burnedIn": "Las zonas desenfocadas quedan desenfocadas para siempre en el archivo. Se omiten los valores escritos ocultos, los comentarios y las versiones."
@@ -513,6 +514,14 @@
       "error": "No se ha podido guardar; reintentando",
       "saved": "Todos los cambios guardados"
     },
+    "leave": {
+      "title": "¿Salir sin tus últimos cambios?",
+      "body": "Steps no ha podido guardar tus últimos cambios y lo sigue intentando. Si sales ahora, es posible que se pierdan.",
+      "leave": "Salir de todos modos",
+      "close": "Cerrar de todos modos",
+      "quit": "Salir de todos modos",
+      "stay": "Quedarse"
+    },
     "stepsList": "Pasos",
     "stepCount_one": "{{count}} paso",
     "stepCount_many": "{{count}} pasos",
@@ -565,6 +574,7 @@
       "typing": "Revisa este paso: puede que lo escrito no coincida exactamente.",
       "code": "Revisa este paso: no se encontró un secreto en la captura para desenfocarlo, o puede que el texto no coincida exactamente.",
       "fillEnd": "Revisa este paso: la grabación no ha podido identificar en qué celda terminó el relleno. Escribe hasta dónde llegó o elige “Es correcto”.",
+      "appSwitch": "Revisa este paso: ningún clic ni tecla ha traído esta aplicación al primer plano, así que puede que haya pasado al frente por sí sola. Elimina el paso si la guía no pasó por ahí, o elige “Es correcto”.",
       "looksRight": "Es correcto"
     },
     "stepText": "Texto del paso",
@@ -968,6 +978,20 @@
       "inUse": "Ya se usa para {{name}}.",
       "unavailable": "Otra aplicación ya lo usa, así que ahora mismo no funciona.",
       "heldBySteps": "Otra copia de Steps está abierta y lo usa. Ciérrala y luego reinicia esta.",
+      "commonUse": "Otras aplicaciones usan {{keys}} para “{{use}}”. Mientras Steps lo tenga, no hará eso en ellas.",
+      "commonMany": "Muchas aplicaciones usan {{keys}} por su cuenta. Mientras Steps lo tenga, no funcionará en ellas.",
+      "uses": {
+        "reloadNoCache": "Recargar sin caché",
+        "reopenTab": "Reabrir pestaña cerrada",
+        "privateWindow": "Nueva ventana privada",
+        "closeWindow": "Cerrar ventana",
+        "closeTab": "Cerrar pestaña",
+        "devTools": "Herramientas para desarrolladores",
+        "pastePlain": "Pegar como texto sin formato",
+        "redo": "Rehacer",
+        "saveAs": "Guardar como",
+        "bookmarksBar": "Mostrar la barra de marcadores"
+      },
       "failed": "No se ha podido guardar ese método abreviado.",
       "reset": "Restablecer valores predeterminados",
       "resetDone": "Métodos abreviados restablecidos.",
@@ -1080,6 +1104,9 @@
     "excludeApp": "No grabar nunca {{app}}",
     "excludeAppEmpty": "No grabar nunca esta aplicación",
     "appExcluded": "{{app}} no se graba nunca",
+    "excludeAppsLike": "No grabar nunca apps de Windows como {{app}}",
+    "appsLikeExcluded": "Las apps de Windows como {{app}} no se graban nunca",
+    "waitingForKeys": "Esperando las teclas",
     "startAgain": "Empezar de nuevo",
     "startAgainHelp_one": "Borra este paso y sigue grabando",
     "startAgainHelp_many": "Borra estos {{count}} pasos y sigue grabando",
@@ -1107,6 +1134,7 @@
     "into": "Grabando en “{{title}}”",
     "intoFallback": "Los pasos nuevos no han podido entrar en “{{title}}”: la guía se cerró o alguien más la está editando. Están en una grabación aparte.",
     "intoNothing": "No se ha grabado nada, así que “{{title}}” sigue como estaba.",
+    "nothingRecorded": "No se ha grabado nada, así que no se ha creado ninguna guía.",
     "startRecording": "Iniciar grabación",
     "startTitle": "Iniciar una grabación",
     "keysChoice": "Grabar lo que se escribe",
@@ -1163,6 +1191,7 @@
       "mergeClickIntoTyping": "Combinar el clic con lo que se escribe a continuación: {{steps}}",
       "removeDoubleClick": "Quitar un clic repetido: {{steps}}",
       "removeOpenApp": "Quitar un paso “Abre” que el clic siguiente ya muestra: {{steps}}",
+      "removeOpenBeforeOpen": "Quitar un paso “Abre” seguido enseguida de otro “Abre”: {{steps}}",
       "removeRedirect": "Quitar un paso “Ve a” por el que el vínculo solo pasó: {{steps}}"
     },
     "apply_one": "Aplicar {{count}} cambio",
@@ -1393,6 +1422,9 @@
     "found_many": "Se han encontrado {{count}} coincidencias en {{steps}} pasos.",
     "found_other": "Se han encontrado {{count}} coincidencias en {{steps}} pasos.",
     "nothing": "No se ha encontrado nada.",
+    "matches_one": "{{count}} coincidencia",
+    "matches_many": "{{count}} de coincidencias",
+    "matches_other": "{{count}} coincidencias",
     "unread_one": "No se ha podido leer {{count}} captura, así que no se ha buscado en ella. Revísala tú.",
     "unread_many": "No se han podido leer {{count}} capturas, así que no se ha buscado en ellas. Revísalas tú.",
     "unread_other": "No se han podido leer {{count}} capturas, así que no se ha buscado en ellas. Revísalas tú.",
@@ -1426,18 +1458,19 @@
       "term": "palabra que desenfocar siempre",
       "account": "tu nombre de cuenta",
       "file": "nombre de archivo",
-      "path": "ruta de archivo"
+      "path": "ruta de archivo",
+      "notification": "notificación"
     },
     "nextTo": "{{kind}} junto a “{{label}}”"
   },
   "zoom": {
     "menu": "Acercar cada clic",
-    "menuNote": "Recorta las capturas muy anchas alrededor del clic para que se lean bien en una página",
+    "menuNote": "Recorta las capturas más anchas de {{width}} píxeles a la zona alrededor del clic, para que el texto se vea más grande en la página",
     "auto": "Automático",
     "done_one": "Se ha acercado {{count}} captura.",
     "done_many": "Se han acercado {{count}} capturas.",
     "done_other": "Se han acercado {{count}} capturas.",
-    "nothing": "No hay capturas que acercar: ya se leen bien en una página."
+    "nothing": "No hay nada que acercar: solo recorta las capturas más anchas de {{width}} píxeles que tienen un clic y aún no tienen recorte."
   },
   "exportSettings": {
     "folder": "Guardar las exportaciones en",
@@ -1578,7 +1611,7 @@
       "eyebrow": "Recorrido completado",
       "title": "Ya está todo listo",
       "body": "Este es el recorrido. Puedes volver a hacerlo desde Configuración cuando quieras.",
-      "finish": "Finalizar"
+      "gotIt": "Entendido"
     },
     "pill": {
       "label": "Recorrido",

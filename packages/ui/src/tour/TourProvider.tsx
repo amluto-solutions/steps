@@ -557,8 +557,9 @@ function TourCardBody({
         <p className="text-secondary">{t("tour.done.body")}</p>
         <Footer>
           <span className="flex-1" />
+          {/* The last step's Finish ended the tour; this only closes, so there's one Finish (#87). */}
           <button type="button" onClick={onClose} className={primary} data-tour-primary>
-            {t("tour.done.finish")}
+            {t("tour.done.gotIt")}
           </button>
         </Footer>
       </>

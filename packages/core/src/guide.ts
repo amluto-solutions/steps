@@ -262,6 +262,13 @@ export const guideStepSchema = z
         height: z.number().nullable(),
         scale: z.number().nullable(),
         captureRect: z.tuple([z.number(), z.number(), z.number(), z.number()]).nullable(),
+        /**
+         * Where a notification toast showed on the screenshot as it was taken (12/10/2026): the
+         * desktop recorder knows toasts by their window, and they're suggested for blurring.
+         * Absent on most screenshots; it goes with the picture: a replaced one has none, a
+         * retaken one its own (#96).
+         */
+        notifications: z.array(rect).max(50).optional(),
       })
       .strip()
       .nullable(),

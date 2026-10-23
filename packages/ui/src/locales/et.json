@@ -1,7 +1,5 @@
 {
   "app": {
-    "alreadyOpenTitle": "Steps on juba avatud",
-    "alreadyOpenBody": "Korraga saab töötada ainult üks Steps, seega tõime juba avatud akna esiplaanile.",
     "name": "Steps",
     "by": "by",
     "logoAlt": "Amluto"
@@ -75,6 +73,8 @@
     "heading": "Teie juhendid",
     "count_one": "{{count}} juhend",
     "count_other": "{{count}} juhendit",
+    "countOf_one": "{{shown}} / {{count}} juhend",
+    "countOf_other": "{{shown}} / {{count}} juhendit",
     "steps_one": "{{count}} samm",
     "steps_other": "{{count}} sammu",
     "search": "Otsi juhendeid",
@@ -204,7 +204,7 @@
       "note": "Teisele Stepsi kasutajale",
       "pickTitle": "Salvesta juhend Stepsi failina",
       "filter": "Stepsi juhend",
-      "done": "Juhend eksporditi. Hägustatud alad on failis jäädavalt hägustatud.",
+      "blurredForGood": "Hägustatud alad on failis jäädavalt hägustatud.",
       "originals": "Lisa hägustamata originaalid (sisemiseks üleandmiseks)",
       "originalsWarning": "Fail sisaldab kõiki kuvatõmmiseid ilma hägustuseta. Igaüks, kes selle saab, näeb, mis oli hägustatud. Kasutage seda ainult siis, kui annate juhendi üle kolleegile, kes peab hägustust muutma.",
       "burnedIn": "Hägustatud alad on failis jäädavalt hägustatud. Peidetud trükitud väärtused, kommentaarid ja versioonid jäetakse välja."
@@ -472,6 +472,14 @@
       "error": "Salvestamine nurjus, proovitakse uuesti",
       "saved": "Kõik muudatused on salvestatud"
     },
+    "leave": {
+      "title": "Kas lahkuda ilma viimaste muudatusteta?",
+      "body": "Steps ei saanud teie viimaseid muudatusi salvestada ja proovib endiselt. Kui lahkute praegu, võivad need kaduma minna.",
+      "leave": "Lahku siiski",
+      "close": "Sule siiski",
+      "quit": "Välju siiski",
+      "stay": "Jää"
+    },
     "stepsList": "Sammud",
     "stepCount_one": "{{count}} samm",
     "stepCount_other": "{{count}} sammu",
@@ -519,6 +527,7 @@
       "typing": "Kontrollige seda sammu: trükitud tekst ei pruugi täpselt kattuda.",
       "code": "Kontrollige seda sammu: selles olevat saladust ei leitud kuvatõmmiselt hägustamiseks või tekst ei pruugi täpselt kattuda.",
       "fillEnd": "Kontrollige seda sammu: lindistus ei suutnud kindlaks teha, millises lahtris täitmine lõppes. Kirjutage, kuhu see jõudis, või valige „Tundub õige“.",
+      "appSwitch": "Kontrollige seda sammu: ükski klõps ega klahvivajutus ei toonud seda rakendust esiplaanile, nii et see võis ise esile tulla. Kustutage samm, kui juhend sellesse rakendusse ei liikunud, või valige „Tundub õige“.",
       "looksRight": "Tundub õige"
     },
     "stepText": "Sammu tekst",
@@ -917,6 +926,20 @@
       "inUse": "Juba kasutusel: {{name}}.",
       "unavailable": "Mõni teine rakendus juba kasutab seda, seega see praegu ei toimi.",
       "heldBySteps": "Steps'i teine koopia on avatud ja kasutab seda. Sulge see ja taaskäivita siis see koopia.",
+      "commonUse": "Teised rakendused kasutavad kiirklahvi {{keys}} käsuks „{{use}}“. Kuni Steps seda kasutab, seal see käsk ei tööta.",
+      "commonMany": "Paljud rakendused kasutavad kiirklahvi {{keys}} ise. Kuni Steps seda kasutab, ei tööta see neis.",
+      "uses": {
+        "reloadNoCache": "Laadi uuesti ilma vahemäluta",
+        "reopenTab": "Ava suletud vaheleht uuesti",
+        "privateWindow": "Uus inkognito aken",
+        "closeWindow": "Sulge aken",
+        "closeTab": "Sulge vaheleht",
+        "devTools": "Arendustööriistad",
+        "pastePlain": "Kleebi lihttekstina",
+        "redo": "Tee uuesti",
+        "saveAs": "Salvesta nimega",
+        "bookmarksBar": "Kuva järjehoidjariba"
+      },
       "failed": "Seda kiirklahvi ei saanud salvestada.",
       "reset": "Lähtesta vaikesätted",
       "resetDone": "Kiirklahvid lähtestati.",
@@ -1029,6 +1052,9 @@
     "excludeApp": "Ära kunagi lindista rakendust {{app}}",
     "excludeAppEmpty": "Ära kunagi lindista seda rakendust",
     "appExcluded": "Rakendust {{app}} ei lindistata kunagi",
+    "excludeAppsLike": "Ära kunagi lindista Windowsi rakendusi nagu {{app}}",
+    "appsLikeExcluded": "Windowsi rakendusi nagu {{app}} ei lindistata kunagi",
+    "waitingForKeys": "Klahvide ootamine",
     "startAgain": "Alusta uuesti",
     "startAgainHelp_one": "Tühjendab need {{count}} sammu ja jätkab lindistamist",
     "startAgainHelp_other": "Tühjendab need {{count}} sammu ja jätkab lindistamist",
@@ -1052,6 +1078,7 @@
     "into": "Lindistamine juhendisse „{{title}}“",
     "intoFallback": "Uusi samme ei saanud juhendisse „{{title}}“ panna: see suleti või keegi teine muudab seda. Need on selle asemel eraldi lindistuses.",
     "intoNothing": "Midagi ei lindistatud, seega juhend „{{title}}“ jäi samaks.",
+    "nothingRecorded": "Midagi ei lindistatud, seega juhendit ei loodud.",
     "startRecording": "Alusta lindistamist",
     "startTitle": "Alusta lindistamist",
     "keysChoice": "Lindista trükitav",
@@ -1107,6 +1134,7 @@
       "mergeClickIntoTyping": "Ühenda klõps sellele järgneva trükkimisega: {{steps}}",
       "removeDoubleClick": "Eemalda korduv klõps: {{steps}}",
       "removeOpenApp": "Eemalda samm „Ava“, mille järgmine klõps juba näitab: {{steps}}",
+      "removeOpenBeforeOpen": "Eemalda samm „Ava“, millele järgneb kohe teine samm „Ava“: {{steps}}",
       "removeRedirect": "Eemalda samm „Mine aadressile“, millest link vaid läbi läks: {{steps}}"
     },
     "apply_one": "Rakenda {{count}} muudatus",
@@ -1327,6 +1355,8 @@
     "found_one": "Leiti {{count}} vaste {{steps}} sammus.",
     "found_other": "Leiti {{count}} vastet {{steps}} sammus.",
     "nothing": "Midagi ei leitud.",
+    "matches_one": "{{count}} vaste",
+    "matches_other": "{{count}} vastet",
     "unread_one": "{{count}} kuvatõmmist ei õnnestunud lugeda, seega seda ei otsitud. Kontrollige seda ise.",
     "unread_other": "{{count}} kuvatõmmist ei õnnestunud lugeda, seega neid ei otsitud. Kontrollige neid ise.",
     "notGuaranteed": "Soovitused võivad midagi märkamata jätta. Kontrollige iga kuvatõmmis üle, enne kui juhendi jagate.",
@@ -1355,17 +1385,18 @@
       "term": "alati hägustatav sõna",
       "account": "teie konto nimi",
       "file": "failinimi",
-      "path": "failitee"
+      "path": "failitee",
+      "notification": "teatis"
     },
     "nextTo": "{{kind}} sildi „{{label}}“ kõrval"
   },
   "zoom": {
     "menu": "Suumi iga klõpsu juures",
-    "menuNote": "Kärbib väga laiad kuvatõmmised klõpsu ümber, et need oleksid lehel hästi loetavad",
+    "menuNote": "Kärbib kuvatõmmised, mis on laiemad kui {{width}} pikslit, klõpsu ümbritsevaks alaks, et tekst oleks lehel suurem",
     "auto": "Automaatne",
     "done_one": "Suumiti {{count}} kuvatõmmist.",
     "done_other": "Suumiti {{count}} kuvatõmmist.",
-    "nothing": "Ühtegi kuvatõmmist pole vaja suumida: need on lehel juba hästi loetavad."
+    "nothing": "Suumida pole midagi: kärbitakse vaid kuvatõmmiseid, mis on laiemad kui {{width}} pikslit, millel on klõps ja mida pole veel kärbitud."
   },
   "exportSettings": {
     "folder": "Salvesta eksportimisel kausta",
@@ -1506,7 +1537,7 @@
       "eyebrow": "Tutvustus on läbitud",
       "title": "Kõik on valmis",
       "body": "See oli tutvustus. Saate seda sätetes igal ajal uuesti vaadata.",
-      "finish": "Valmis"
+      "gotIt": "Selge"
     },
     "pill": {
       "label": "Tutvustus",

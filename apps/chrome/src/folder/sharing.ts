@@ -6,7 +6,7 @@ import type {
   LibraryGuideSummary,
 } from "@amluto-steps/ui";
 
-import { errors, newId, nowIso } from "../library/ids";
+import { errors, isSafeId, newId, nowIso } from "../library/ids";
 
 import {
   byName,
@@ -164,6 +164,26 @@ export async function forgetOwnDelete(
   const folder = await (await library.guideDir(guideId)).folder("deleted");
   if (folder && parseNote(await tryJson(folder, name))?.session === session)
     await folder.remove(name);
+}
+
+/**
+ * Forgets the delete notes of these steps, whoever left them, as the desktop's
+ * `forget_deletes_of`: restoring a version puts its steps back on purpose, as one change by the
+ * person restoring, so none of them is someone else's edit bringing a deleted step back (#58).
+ * Notes for steps the version doesn't hold stay, so an edit made elsewhere to one of those still
+ * comes back flagged. A note that can't be removed yet is passed over: it only shows the banner.
+ */
+export async function forgetDeletesOf(
+  library: FolderLibrary,
+  guideId: string,
+  steps: unknown[],
+): Promise<void> {
+  const folder = await (await library.guideDir(guideId)).folder("deleted");
+  if (!folder) return;
+  for (const step of steps) {
+    const id = obj(step).id;
+    if (isSafeId(id)) await folder.remove(`${id}.json`).catch(() => undefined);
+  }
 }
 
 /** `abc-PC.json` without `.json`: Rust's `trim_end_matches(".json")`. */

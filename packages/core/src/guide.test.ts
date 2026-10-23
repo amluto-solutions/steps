@@ -58,6 +58,21 @@ describe("step files", () => {
     expect(newer.actionText).toBe('Click "Save"');
   });
 
+  it("keep where a notification toast showed on the screenshot, up to 50 areas", () => {
+    const notifications = [{ x: 80.2, y: 75, w: 18.9, h: 19.4 }];
+    const media = { ...recordedStep.media, notifications };
+    expect(parseStep({ ...recordedStep, media }).media).toEqual(media);
+    expect(() =>
+      parseStep({
+        ...recordedStep,
+        media: {
+          ...recordedStep.media,
+          notifications: Array.from({ length: 51 }, () => ({ x: 1, y: 1, w: 1, h: 1 })),
+        },
+      }),
+    ).toThrow();
+  });
+
   it("keep annotations, blur and crop in percentages", () => {
     const step = guideStepSchema.parse({
       ...recordedStep,

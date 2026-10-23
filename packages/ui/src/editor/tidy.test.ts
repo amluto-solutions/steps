@@ -94,6 +94,22 @@ describe("Tidy guide", () => {
     expect(suggestions.map((item) => item.stepIds)).toEqual([["b"]]);
   });
 
+  it("keeps strokes drawn one after another on a canvas: each is its own (#73)", () => {
+    const stroke = (id: string, at: string) =>
+      step(id, id, {
+        action: "click",
+        actionText: "Draw on the canvas",
+        textParts: { verb: "draw", target: "Using Pencil tool on Canvas", kind: "canvas" },
+        capturedAt: at,
+        context: { app: "mspaint.exe", windowTitle: "Untitled - Paint" },
+      });
+    const doc: EditorDoc = {
+      guide,
+      steps: [stroke("a", "2026-09-25T10:00:00.000Z"), stroke("b", "2026-09-25T10:00:00.700Z")],
+    };
+    expect(tidySuggestions(doc, stamp)).toEqual([]);
+  });
+
   it("drops an Open app step straight before a click in that app", () => {
     const doc: EditorDoc = {
       guide,
@@ -107,6 +123,56 @@ describe("Tidy guide", () => {
       ],
     };
     expect(tidySuggestions(doc, stamp).map((item) => item.kind)).toEqual(["removeOpenApp"]);
+  });
+
+  it("removes an Open step followed straight away by another Open", () => {
+    const open = (id: string, key: string, app: string, exe: string) =>
+      step(id, key, {
+        action: "appswitch",
+        actionText: `Open "${app}"`,
+        context: { app: exe, windowTitle: "" },
+      });
+    const doc: EditorDoc = {
+      guide,
+      steps: [
+        click("c", "a", "D2", undefined, "excel.exe"),
+        // The 10/10/2026 Excel guide: RustDesk came forward by itself, then Excel again.
+        open("r", "b", "RustDesk Remote Desktop", "rustdesk.exe"),
+        open("e", "c", "Microsoft Excel", "EXCEL.EXE"),
+        click("d", "d", "Save", undefined, "notepad.exe"),
+      ],
+    };
+    expect(tidySuggestions(doc, stamp).map((item) => [item.kind, item.stepIds])).toEqual([
+      ["removeOpenBeforeOpen", ["r"]],
+    ]);
+    // With a click in the second app after it, that "Open" goes too: the click shows it.
+    const clickedIn: EditorDoc = {
+      guide,
+      steps: [...doc.steps.slice(0, 3), click("d", "d", "Save", undefined, "excel.exe")],
+    };
+    expect(tidySuggestions(clickedIn, stamp).map((item) => [item.kind, item.stepIds])).toEqual([
+      ["removeOpenBeforeOpen", ["r"]],
+      ["removeOpenApp", ["e"]],
+    ]);
+  });
+
+  it("leaves an Open step alone when something was done before the next Open", () => {
+    const open = (id: string, key: string, exe: string) =>
+      step(id, key, {
+        action: "appswitch",
+        actionText: `Open "${exe}"`,
+        context: { app: exe, windowTitle: "" },
+      });
+    const doc: EditorDoc = {
+      guide,
+      steps: [
+        open("w", "a", "winword.exe"),
+        click("c", "b", "Save", undefined, "notepad.exe"),
+        open("e", "c", "excel.exe"),
+        click("d", "d", "Copy", undefined, "notepad.exe"),
+      ],
+    };
+    expect(tidySuggestions(doc, stamp)).toEqual([]);
   });
 
   it("keeps only where a link ended up, not the sites it passed through", () => {

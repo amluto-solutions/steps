@@ -114,15 +114,17 @@ export function exportPreparation(input: PreparationInput): ExportPreparation {
 
   /**
    * A step's personal-data check from its words: its findings, or "not checked" when its words
-   * couldn't be read, so it's never reported as clear.
+   * couldn't be read, so it's never reported as clear. A notification toast the screenshot showed
+   * is a finding either way: it's known without the words (P35).
    */
   const check = async (step: GuideStep) => {
     const lines = await words.wordsOf(step);
     const unread = lines === "unavailable";
+    const found = openFindings(shown(step), unread ? [] : lines, input.blurTerms, input.findings);
     update((current) => {
       const findings = new Map(current.findings);
-      if (unread) findings.delete(step.id);
-      else findings.set(step.id, openFindings(shown(step), lines, input.blurTerms, input.findings));
+      if (unread && found.length === 0) findings.delete(step.id);
+      else findings.set(step.id, found);
       return {
         findings,
         unchecked: unread

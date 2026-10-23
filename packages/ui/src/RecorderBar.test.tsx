@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { RecordingFact } from "@amluto-steps/core";
+import type { RecordingFact, WindowFacts } from "@amluto-steps/core";
 
 import { fakeAppWindows } from "./bridge/app-windows-fake";
 import { fakeHotkeys } from "./bridge/hotkeys-fake";
@@ -45,8 +45,8 @@ function createRecorder(pause: Recording["pause"] = vi.fn()) {
   return recorder;
 }
 
-/** A screenshot taken in `exe`, as the recorder reports one. */
-const shotIn = (exe: string): RecordingFact => ({
+/** A screenshot taken in `exe`, as the recorder reports one, with its window's other facts. */
+const shotIn = (exe: string, window: Partial<WindowFacts> = {}): RecordingFact => ({
   sessionId: "session-1",
   recordedAt: 1_790_246_400_000,
   sequence: 4,
@@ -63,6 +63,7 @@ const shotIn = (exe: string): RecordingFact => ({
       frame: { left: 0, top: 0, right: 100, bottom: 100 },
       elevation: "notElevated",
       remoteSession: false,
+      ...window,
     },
     capture: {
       mode: "window",
@@ -201,11 +202,87 @@ describe("RecorderBar", () => {
     const onFact = vi.spyOn(recorder, "onFact");
     render(<RecorderBar recorder={recorder} />);
     await waitFor(() => expect(onFact).toHaveBeenCalled());
-    act(() => recorder.fire.fact(shotIn("msedge.exe")));
+    act(() => recorder.fire.fact(shotIn("msedge.exe", { appName: "Microsoft Edge" })));
     fireEvent.click(await screen.findByRole("button", { name: "More actions" }));
 
-    const exclude = await screen.findByRole("menuitem", { name: "Never record msedge.exe" });
-    expect(exclude.textContent).toBe("Never record msedge.exe");
+    const exclude = await screen.findByRole("menuitem", { name: "Never record Microsoft Edge" });
+    expect(exclude.textContent).toBe("Never record Microsoft Edge");
+  });
+
+  it("names the app to leave out as the Open steps do, not by its program file", async () => {
+    const recorder = createRecorder();
+    const excludeApp = vi.spyOn(recorder, "excludeApp");
+    const onFact = vi.spyOn(recorder, "onFact");
+    render(<RecorderBar recorder={recorder} />);
+    await waitFor(() => expect(onFact).toHaveBeenCalled());
+    // Word without its own description: named by its window's title.
+    act(() => recorder.fire.fact(shotIn("WINWORD.EXE", { title: "Document1 - Word" })));
+    fireEvent.click(await screen.findByRole("button", { name: "More actions" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Never record Word" }));
+    // What's left out is still the program.
+    await waitFor(() => expect(excludeApp).toHaveBeenCalledWith("WINWORD.EXE"));
+    fireEvent.click(await screen.findByRole("button", { name: "More actions" }));
+    expect(await screen.findByRole("menuitem", { name: "Word is never recorded" })).toBeTruthy();
+  });
+
+  it("says a store app's frame leaves out every app it draws, not just the one in it", async () => {
+    const recorder = createRecorder();
+    const onFact = vi.spyOn(recorder, "onFact");
+    render(<RecorderBar recorder={recorder} />);
+    await waitFor(() => expect(onFact).toHaveBeenCalled());
+    act(() =>
+      recorder.fire.fact(
+        shotIn("ApplicationFrameHost.exe", { title: "Calculator", hostedApp: "Calculator" }),
+      ),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "More actions" }));
+    expect(
+      await screen.findByRole("menuitem", { name: "Never record Windows apps like Calculator" }),
+    ).toBeTruthy();
+  });
+
+  it("marks the place the bar is at in its menu", async () => {
+    const recorder = createRecorder();
+    render(<RecorderBar recorder={recorder} />);
+    fireEvent.click(await screen.findByRole("button", { name: "More actions" }));
+    expect(screen.queryAllByRole("menuitemradio", { checked: true })).toHaveLength(0);
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Move the bar to the top right" }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "More actions" }));
+    expect(
+      await screen.findByRole("menuitemradio", {
+        name: "Move the bar to the top right",
+        checked: true,
+      }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("menuitemradio", { name: "Move the bar to the top left", checked: false }),
+    ).toBeTruthy();
+  });
+
+  it("says it's waiting for the keys after Show a keyboard shortcut, until they come", async () => {
+    const recorder = createRecorder();
+    render(<RecorderBar recorder={recorder} />);
+    fireEvent.click(await screen.findByRole("button", { name: "More actions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Show a keyboard shortcut/ }));
+    expect(await screen.findByText("Waiting for the keys")).toBeTruthy();
+    expect(screen.getByText(/^3 steps/)).toBeTruthy();
+
+    // The popup saves the keys as a step.
+    await act(() => recorder.closeShortcutPopup(true));
+    await waitFor(() => expect(screen.queryByText("Waiting for the keys")).toBeNull());
+    expect(screen.getByText(/^4 steps/)).toBeTruthy();
+  });
+
+  it("stops waiting without a step when the shortcut is cancelled", async () => {
+    const recorder = createRecorder();
+    render(<RecorderBar recorder={recorder} />);
+    fireEvent.click(await screen.findByRole("button", { name: "More actions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Show a keyboard shortcut/ }));
+    expect(await screen.findByText("Waiting for the keys")).toBeTruthy();
+    await act(() => recorder.closeShortcutPopup(false));
+    await waitFor(() => expect(screen.queryByText("Waiting for the keys")).toBeNull());
+    expect(screen.getByText(/^3 steps/)).toBeTruthy();
   });
 
   it("starts again and offers an undo until the next step is recorded", async () => {

@@ -107,15 +107,16 @@ export function StartRecordingDialog(props: {
             </div>
           </div>
         </div>
-        {keys && (
-          <p
-            role="note"
-            className="flex items-center gap-2.5 rounded-lg bg-warning-soft px-3 py-2.5 text-[13px] text-warning"
-          >
-            <Icon name="keyboard" className="size-4 shrink-0" />
-            {t("recorder.keysOnlyNow")}
-          </p>
-        )}
+        {/* Always laid out, and only hidden while unticked, so ticking the box never moves
+            Start recording out from under the pointer (#87, P10). Hidden, it isn't announced. */}
+        <p
+          role="note"
+          aria-hidden={!keys}
+          className={`flex items-center gap-2.5 rounded-lg bg-warning-soft px-3 py-2.5 text-[13px] text-warning ${keys ? "" : "invisible"}`}
+        >
+          <Icon name="keyboard" className="size-4 shrink-0" />
+          {t("recorder.keysOnlyNow")}
+        </p>
         <div className="flex justify-end gap-2">
           <button type="button" className="btn" onClick={props.onCancel}>
             {t("common.cancel")}
@@ -201,36 +202,6 @@ export function DiscardDialog(props: { onKeep: () => void; onDiscard: () => void
           </button>
           <button type="button" className="btn btn-dark" onClick={props.onDiscard}>
             {t("recorder.discardConfirm")}
-          </button>
-        </div>
-      </ModalDialog>
-    </Backdrop>
-  );
-}
-
-/** Something to know, with one OK: in the app's own style, never the browser's alert. */
-export function NoticeDialog(props: { title: string; body: string; onClose: () => void }) {
-  const { t } = useTranslation();
-  const okRef = useRef<HTMLButtonElement>(null);
-  return (
-    <Backdrop>
-      <ModalDialog
-        role="alertdialog"
-        labelledBy="notice-title"
-        describedBy="notice-body"
-        initialFocus={okRef}
-        onEscape={props.onClose}
-        className="card w-full max-w-lg p-6"
-      >
-        <h2 id="notice-title" className="font-heading text-xl text-navy">
-          {props.title}
-        </h2>
-        <p id="notice-body" className="mt-3 text-secondary">
-          {props.body}
-        </p>
-        <div className="mt-6 flex justify-end">
-          <button ref={okRef} type="button" className="btn btn-dark" onClick={props.onClose}>
-            {t("common.ok")}
           </button>
         </div>
       </ModalDialog>

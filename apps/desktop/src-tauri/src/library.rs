@@ -20,9 +20,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::{AppHandle, State};
 
+use crate::error::CommandError;
 use crate::locks::LockService;
 use crate::policy::Policy;
-use crate::recorder::{CommandError, RecorderService};
+use crate::recorder::{DefaultLibraryFolder, RecorderService};
+use crate::user::User;
 
 /// A library as the UI lists it.
 #[derive(Debug, Clone, Serialize)]
@@ -40,9 +42,14 @@ pub struct LibraryInfo {
 }
 
 /// The registry of libraries, loaded on first use (after the recorder has found its folders).
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct LibraryService {
     registry: Arc<Mutex<Option<Registry>>>,
+    /// The app-data folder, where the registry is kept.
+    user: User,
+    /// The recorder's default library folder: a first registry starts around it, and the
+    /// default library on the list is kept the same as it.
+    default_folder: DefaultLibraryFolder,
 }
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -60,7 +67,8 @@ fn command_error(error: LibraryError) -> CommandError {
         LibraryError::ImportRejected(_) => log::warn!("Import refused: {error}"),
         _ => {}
     }
-    CommandError::new(error.code(), error.to_string())
+    // The UI words the error from its code; the message is only its `{{detail}}`.
+    CommandError::new(error.code(), error.detail())
 }
 
 fn same_path(a: &Path, b: &Path) -> bool {
@@ -97,7 +105,7 @@ fn refuse_managed(registry: &Registry, id: &str) -> Result<(), CommandError> {
 /// Adds the libraries IT policy names, and makes its default library the default. A policy
 /// library is only added once its folder exists (a synced team library appears when the sync
 /// client has downloaded it), so the app never creates a folder inside a sync client by itself.
-fn apply_policy(registry: &mut Registry, recorder: &RecorderService, policy: &Policy) {
+fn apply_policy(registry: &mut Registry, default_folder: &DefaultLibraryFolder, policy: &Policy) {
     for (index, library) in policy.libraries.iter().enumerate() {
         let path = Path::new(&library.path);
         if registry
@@ -133,34 +141,47 @@ fn apply_policy(registry: &mut Registry, recorder: &RecorderService, policy: &Po
     if entry.id == registry.default_id() {
         return;
     }
-    let previous = recorder.library_folder();
-    if recorder.set_library_folder(entry.path.clone()).is_err() {
+    let previous = default_folder.get();
+    if default_folder.set(entry.path.clone()).is_err() {
         return;
     }
     if let Err(error) = registry.set_default(&entry.id) {
         log::warn!("policy: default library not set: {error}");
         if let Some(previous) = previous {
-            let _ = recorder.set_library_folder(previous);
+            let _ = default_folder.set(previous);
         }
     }
 }
 
 impl LibraryService {
+    /// The library list kept in `user`'s app-data folder, and the recorder's default library
+    /// folder it keeps the same as its default.
+    pub fn new(user: User, default_folder: DefaultLibraryFolder) -> Self {
+        Self {
+            registry: Arc::default(),
+            user,
+            default_folder,
+        }
+    }
+
     /// Runs `action` on the registry, loading it (or creating it around the recorder's current
     /// folder) the first time.
     fn with_registry<T>(
         &self,
-        recorder: &RecorderService,
         action: impl FnOnce(&mut Registry) -> Result<T, CommandError>,
     ) -> Result<T, CommandError> {
         let mut guard = lock(&self.registry);
         if guard.is_none() {
             let not_ready =
                 || CommandError::new("notReady", "The library folder is not initialized.");
-            let app_data = recorder.app_data().ok_or_else(not_ready)?;
-            let first = recorder.library_folder().ok_or_else(not_ready)?;
+            let app_data = self.user.app_data().ok_or_else(not_ready)?;
+            let first = self.default_folder.get().ok_or_else(not_ready)?;
             let mut registry = Registry::open_or_seed(&app_data, &first).map_err(command_error)?;
-            apply_policy(&mut registry, recorder, crate::policy::current());
+            apply_policy(
+                &mut registry,
+                &self.default_folder,
+                crate::policy::current(),
+            );
             *guard = Some(registry);
         }
         match guard.as_mut() {
@@ -174,12 +195,8 @@ impl LibraryService {
 
     /// The folder of a registered library. The registry lock is released before any guide work,
     /// so a slow thumbnail never holds up other commands.
-    pub(crate) fn library(
-        &self,
-        recorder: &RecorderService,
-        id: &str,
-    ) -> Result<Library, CommandError> {
-        self.with_registry(recorder, |registry| {
+    pub(crate) fn library(&self, id: &str) -> Result<Library, CommandError> {
+        self.with_registry(|registry| {
             registry
                 .get(id)
                 .map(|entry| Library::new(entry.path.clone()))
@@ -199,8 +216,8 @@ impl LibraryService {
         }
     }
 
-    fn list(&self, recorder: &RecorderService) -> Result<Vec<LibraryInfo>, CommandError> {
-        let (entries, default_id) = self.with_registry(recorder, |registry| {
+    fn list(&self) -> Result<Vec<LibraryInfo>, CommandError> {
+        let (entries, default_id) = self.with_registry(|registry| {
             Ok((
                 registry.libraries().to_vec(),
                 registry.default_id().to_string(),
@@ -212,28 +229,18 @@ impl LibraryService {
             .collect())
     }
 
-    fn add(
-        &self,
-        recorder: &RecorderService,
-        name: &str,
-        path: &Path,
-    ) -> Result<LibraryInfo, CommandError> {
+    fn add(&self, name: &str, path: &Path) -> Result<LibraryInfo, CommandError> {
         // Counting the guides reads every guide.json, so it happens after the registry lock is
         // released; other library commands don't wait on a slow or synced folder.
-        let (entry, default_id) = self.with_registry(recorder, |registry| {
+        let (entry, default_id) = self.with_registry(|registry| {
             let entry = registry.add(name, path).map_err(command_error)?;
             Ok((entry, registry.default_id().to_string()))
         })?;
         Ok(Self::info(&entry, &default_id))
     }
 
-    fn rename(
-        &self,
-        recorder: &RecorderService,
-        id: &str,
-        name: &str,
-    ) -> Result<LibraryInfo, CommandError> {
-        let (entry, default_id) = self.with_registry(recorder, |registry| {
+    fn rename(&self, id: &str, name: &str) -> Result<LibraryInfo, CommandError> {
+        let (entry, default_id) = self.with_registry(|registry| {
             refuse_managed(registry, id)?;
             let entry = registry.rename(id, name).map_err(command_error)?;
             Ok((entry, registry.default_id().to_string()))
@@ -241,8 +248,8 @@ impl LibraryService {
         Ok(Self::info(&entry, &default_id))
     }
 
-    fn remove(&self, recorder: &RecorderService, id: &str) -> Result<(), CommandError> {
-        self.with_registry(recorder, |registry| {
+    fn remove(&self, id: &str) -> Result<(), CommandError> {
+        self.with_registry(|registry| {
             refuse_managed(registry, id)?;
             registry.remove(id).map_err(command_error)
         })
@@ -251,23 +258,19 @@ impl LibraryService {
     /// Makes a library the default and points the recorder at it. The recorder goes first
     /// because it refuses during a recording; if saving the registry then fails, the recorder
     /// is put back so the two never disagree.
-    fn set_default(
-        &self,
-        recorder: &RecorderService,
-        id: &str,
-    ) -> Result<LibraryInfo, CommandError> {
+    fn set_default(&self, id: &str) -> Result<LibraryInfo, CommandError> {
         if crate::policy::current().default_library.is_some() {
             return Err(set_by_policy());
         }
-        let (entry, default_id) = self.with_registry(recorder, |registry| {
+        let (entry, default_id) = self.with_registry(|registry| {
             let entry = registry.get(id).map_err(command_error)?.clone();
-            let previous = recorder.library_folder();
-            recorder.set_library_folder(entry.path.clone())?;
+            let previous = self.default_folder.get();
+            self.default_folder.set(entry.path.clone())?;
             match registry.set_default(id) {
                 Ok(entry) => Ok((entry, registry.default_id().to_string())),
                 Err(error) => {
                     if let Some(previous) = previous {
-                        let _ = recorder.set_library_folder(previous);
+                        let _ = self.default_folder.set(previous);
                     }
                     Err(command_error(error))
                 }
@@ -280,11 +283,10 @@ impl LibraryService {
 /// Runs `action` on a registered library.
 fn in_library<T>(
     service: &LibraryService,
-    recorder: &RecorderService,
     library_id: &str,
     action: impl FnOnce(&Library) -> library::Result<T>,
 ) -> Result<T, CommandError> {
-    let library = service.library(recorder, library_id)?;
+    let library = service.library(library_id)?;
     action(&library).map_err(command_error)
 }
 
@@ -293,13 +295,12 @@ fn in_library<T>(
 /// its unsaved edits are kept as a draft instead (docs/spec/03-data-and-sharing.md).
 fn in_guide_writing<T>(
     service: &LibraryService,
-    recorder: &RecorderService,
     locks: &LockService,
     library_id: &str,
     guide_id: &str,
     action: impl FnOnce(&Library) -> library::Result<T>,
 ) -> Result<T, CommandError> {
-    let library = service.library(recorder, library_id)?;
+    let library = service.library(library_id)?;
     if !library
         .may_write(guide_id, locks.session())
         .map_err(command_error)?
@@ -334,51 +335,46 @@ pub enum Editing {
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_list_libraries(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
 ) -> Result<Vec<LibraryInfo>, CommandError> {
-    service.list(&recorder)
+    service.list()
 }
 
 /// Registers a folder as a library, creating its folder structure.
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_add_library(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     name: String,
     path: String,
 ) -> Result<LibraryInfo, CommandError> {
-    service.add(&recorder, &name, Path::new(&path))
+    service.add(&name, Path::new(&path))
 }
 
 /// Renames a library in this PC's list.
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_rename_library(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     library_id: String,
     name: String,
 ) -> Result<LibraryInfo, CommandError> {
-    service.rename(&recorder, &library_id, &name)
+    service.rename(&library_id, &name)
 }
 
 /// Takes a library off the list. No files are deleted.
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_remove_library(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     library_id: String,
 ) -> Result<(), CommandError> {
-    service.remove(&recorder, &library_id)
+    service.remove(&library_id)
 }
 
 /// Makes a library the default, where new recordings are saved.
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_set_default_library(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     library_id: String,
 ) -> Result<LibraryInfo, CommandError> {
-    service.set_default(&recorder, &library_id)
+    service.set_default(&library_id)
 }
 
 /// Opens a library's folder in Explorer (Settings > Libraries). Takes the library's id, not a
@@ -386,10 +382,9 @@ pub fn library_set_default_library(
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_open_folder(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     library_id: String,
 ) -> Result<(), CommandError> {
-    let library = service.library(&recorder, &library_id)?;
+    let library = service.library(&library_id)?;
     crate::open::open_path(library.root())
 }
 
@@ -398,11 +393,10 @@ pub fn library_open_folder(
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_guide_meta(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     library_id: String,
     guide_id: String,
 ) -> Result<library::GuideMeta, CommandError> {
-    in_library(&service, &recorder, &library_id, |library| {
+    in_library(&service, &library_id, |library| {
         library.guide_meta(&guide_id)
     })
 }
@@ -411,12 +405,11 @@ pub fn library_guide_meta(
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_write_guide_lock(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     library_id: String,
     guide_id: String,
     lock: Option<serde_json::Value>,
 ) -> Result<(), CommandError> {
-    in_library(&service, &recorder, &library_id, |library| {
+    in_library(&service, &library_id, |library| {
         library.write_guide_lock(&guide_id, lock.as_ref())
     })
 }
@@ -425,12 +418,11 @@ pub fn library_write_guide_lock(
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_write_guide_history(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     library_id: String,
     guide_id: String,
     history: serde_json::Value,
 ) -> Result<(), CommandError> {
-    in_library(&service, &recorder, &library_id, |library| {
+    in_library(&service, &library_id, |library| {
         library.write_guide_history(&guide_id, &history)
     })
 }
@@ -439,11 +431,10 @@ pub fn library_write_guide_history(
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_guide_stats(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     library_id: String,
     guide_id: String,
 ) -> Result<library::GuideStats, CommandError> {
-    in_library(&service, &recorder, &library_id, |library| {
+    in_library(&service, &library_id, |library| {
         library.guide_stats(&guide_id)
     })
 }
@@ -452,10 +443,9 @@ pub fn library_guide_stats(
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_list_guides(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     library_id: String,
 ) -> Result<Vec<GuideSummary>, CommandError> {
-    in_library(&service, &recorder, &library_id, Library::list_guides)
+    in_library(&service, &library_id, Library::list_guides)
 }
 
 /// The guides whose wording contains every word of `query`: steps, notes and blocks as well as
@@ -463,7 +453,6 @@ pub fn library_list_guides(
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_search_guides(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     library_id: String,
     query: String,
 ) -> Result<Vec<SearchHit>, CommandError> {
@@ -471,7 +460,7 @@ pub fn library_search_guides(
     // reading the library as soon as a newer one begins (the page ignores its answer anyway).
     static LATEST: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let mine = LATEST.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
-    in_library(&service, &recorder, &library_id, |library| {
+    in_library(&service, &library_id, |library| {
         library.search_while(&query, || {
             LATEST.load(std::sync::atomic::Ordering::SeqCst) == mine
         })
@@ -482,11 +471,10 @@ pub fn library_search_guides(
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_load_guide(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     library_id: String,
     guide_id: String,
 ) -> Result<GuideDocument, CommandError> {
-    in_library(&service, &recorder, &library_id, |library| {
+    in_library(&service, &library_id, |library| {
         library.load_guide(&guide_id)
     })
 }
@@ -495,12 +483,12 @@ pub fn library_load_guide(
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_create_guide(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
+    user: State<'_, User>,
     library_id: String,
     title: String,
 ) -> Result<GuideDocument, CommandError> {
-    let author = recorder.display_name();
-    in_library(&service, &recorder, &library_id, |library| {
+    let author = user.display_name();
+    in_library(&service, &library_id, |library| {
         library.create_guide(&title, &author)
     })
 }
@@ -512,14 +500,14 @@ pub fn library_create_guide(
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_open_for_editing(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
+    user: State<'_, User>,
     locks: State<'_, LockService>,
     library_id: String,
     guide_id: String,
     take_over: bool,
 ) -> Result<Editing, CommandError> {
-    let library = service.library(&recorder, &library_id)?;
-    let holder = locks.holder(&recorder.display_name());
+    let library = service.library(&library_id)?;
+    let holder = locks.holder(&user.display_name());
     let mut outcome = library
         .open_for_editing(&guide_id, &holder, take_over)
         .map_err(command_error)?;
@@ -556,13 +544,12 @@ pub fn library_open_for_editing(
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_release_lock(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     locks: State<'_, LockService>,
     library_id: String,
     guide_id: String,
 ) -> Result<(), CommandError> {
     locks.let_go(&library_id, &guide_id);
-    in_library(&service, &recorder, &library_id, |library| {
+    in_library(&service, &library_id, |library| {
         library.release_lock(&guide_id, locks.session())
     })
 }
@@ -572,21 +559,19 @@ pub fn library_release_lock(
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_fingerprint(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     library_id: String,
 ) -> Result<String, CommandError> {
-    in_library(&service, &recorder, &library_id, Library::fingerprint)
+    in_library(&service, &library_id, Library::fingerprint)
 }
 
 /// A fingerprint of one guide, for a read-only guide following someone else's changes.
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_guide_fingerprint(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     library_id: String,
     guide_id: String,
 ) -> Result<String, CommandError> {
-    in_library(&service, &recorder, &library_id, |library| {
+    in_library(&service, &library_id, |library| {
         library.guide_fingerprint(&guide_id)
     })
 }
@@ -595,11 +580,10 @@ pub fn library_guide_fingerprint(
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_list_conflicts(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     library_id: String,
     guide_id: String,
 ) -> Result<Vec<Conflict>, CommandError> {
-    in_library(&service, &recorder, &library_id, |library| {
+    in_library(&service, &library_id, |library| {
         library.list_conflicts(&guide_id)
     })
 }
@@ -608,21 +592,15 @@ pub fn library_list_conflicts(
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_resolve_conflict(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     locks: State<'_, LockService>,
     library_id: String,
     guide_id: String,
     conflict: String,
     choice: Resolution,
 ) -> Result<(), CommandError> {
-    in_guide_writing(
-        &service,
-        &recorder,
-        &locks,
-        &library_id,
-        &guide_id,
-        |library| library.resolve_conflict(&guide_id, &conflict, choice),
-    )
+    in_guide_writing(&service, &locks, &library_id, &guide_id, |library| {
+        library.resolve_conflict(&guide_id, &conflict, choice)
+    })
 }
 
 /// Keeps a displaced editor's unsaved guide as a draft on it. Not lock-checked: this is what an
@@ -630,21 +608,21 @@ pub fn library_resolve_conflict(
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_save_draft(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
+    user: State<'_, User>,
     locks: State<'_, LockService>,
     library_id: String,
     guide_id: String,
     draft: Value,
 ) -> Result<(), CommandError> {
-    let by = locks.holder(&recorder.display_name()).name;
-    in_library(&service, &recorder, &library_id, |library| {
+    let by = locks.holder(&user.display_name()).name;
+    in_library(&service, &library_id, |library| {
         library.save_draft(&guide_id, locks.session(), &by, &draft)
     })
 }
 
 /// Who is commenting: the name in Settings and this PC.
-fn commenter(recorder: &RecorderService, locks: &LockService) -> Commenter {
-    let holder = locks.holder(&recorder.display_name());
+fn commenter(user: &User, locks: &LockService) -> Commenter {
+    let holder = locks.holder(&user.display_name());
     Commenter {
         name: holder.name,
         pc: holder.pc,
@@ -655,13 +633,13 @@ fn commenter(recorder: &RecorderService, locks: &LockService) -> Commenter {
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_list_comments(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
+    user: State<'_, User>,
     locks: State<'_, LockService>,
     library_id: String,
     guide_id: String,
 ) -> Result<Vec<CommentThread>, CommandError> {
-    let who = commenter(&recorder, &locks);
-    in_library(&service, &recorder, &library_id, |library| {
+    let who = commenter(&user, &locks);
+    in_library(&service, &library_id, |library| {
         library.list_comments(&guide_id, &who)
     })
 }
@@ -672,7 +650,7 @@ pub fn library_list_comments(
 #[allow(clippy::too_many_arguments)]
 pub fn library_add_comment(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
+    user: State<'_, User>,
     locks: State<'_, LockService>,
     library_id: String,
     guide_id: String,
@@ -680,8 +658,8 @@ pub fn library_add_comment(
     reply_to: Option<String>,
     text: String,
 ) -> Result<String, CommandError> {
-    let who = commenter(&recorder, &locks);
-    in_library(&service, &recorder, &library_id, |library| {
+    let who = commenter(&user, &locks);
+    in_library(&service, &library_id, |library| {
         library.add_comment(
             &guide_id,
             step_id.as_deref(),
@@ -696,15 +674,15 @@ pub fn library_add_comment(
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_resolve_comment(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
+    user: State<'_, User>,
     locks: State<'_, LockService>,
     library_id: String,
     guide_id: String,
     thread: String,
     resolved: bool,
 ) -> Result<(), CommandError> {
-    let who = commenter(&recorder, &locks);
-    in_library(&service, &recorder, &library_id, |library| {
+    let who = commenter(&user, &locks);
+    in_library(&service, &library_id, |library| {
         library.set_comment_resolved(&guide_id, &thread, resolved, &who)
     })
 }
@@ -713,14 +691,14 @@ pub fn library_resolve_comment(
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_delete_comment(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
+    user: State<'_, User>,
     locks: State<'_, LockService>,
     library_id: String,
     guide_id: String,
     comment: String,
 ) -> Result<(), CommandError> {
-    let who = commenter(&recorder, &locks);
-    in_library(&service, &recorder, &library_id, |library| {
+    let who = commenter(&user, &locks);
+    in_library(&service, &library_id, |library| {
         library.delete_comment(&guide_id, &comment, &who)
     })
 }
@@ -729,11 +707,10 @@ pub fn library_delete_comment(
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_list_drafts(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     library_id: String,
     guide_id: String,
 ) -> Result<Vec<DraftInfo>, CommandError> {
-    in_library(&service, &recorder, &library_id, |library| {
+    in_library(&service, &library_id, |library| {
         library.list_drafts(&guide_id)
     })
 }
@@ -742,12 +719,11 @@ pub fn library_list_drafts(
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_discard_draft(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     library_id: String,
     guide_id: String,
     draft_id: String,
 ) -> Result<(), CommandError> {
-    in_library(&service, &recorder, &library_id, |library| {
+    in_library(&service, &library_id, |library| {
         library.discard_draft(&guide_id, &draft_id)
     })
 }
@@ -756,13 +732,12 @@ pub fn library_discard_draft(
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_draft_to_copy(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     library_id: String,
     guide_id: String,
     draft_id: String,
     title: String,
 ) -> Result<GuideSummary, CommandError> {
-    in_library(&service, &recorder, &library_id, |library| {
+    in_library(&service, &library_id, |library| {
         library.draft_to_copy(&guide_id, &draft_id, &title)
     })
 }
@@ -771,72 +746,51 @@ pub fn library_draft_to_copy(
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_save_guide(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     locks: State<'_, LockService>,
     library_id: String,
     guide_id: String,
     guide: Value,
 ) -> Result<(), CommandError> {
-    in_guide_writing(
-        &service,
-        &recorder,
-        &locks,
-        &library_id,
-        &guide_id,
-        |library| library.save_guide(&guide_id, &guide),
-    )
+    in_guide_writing(&service, &locks, &library_id, &guide_id, |library| {
+        library.save_guide(&guide_id, &guide)
+    })
 }
 
 /// Replaces or creates one step file.
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_save_step(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     locks: State<'_, LockService>,
     library_id: String,
     guide_id: String,
     step: Value,
 ) -> Result<(), CommandError> {
-    in_guide_writing(
-        &service,
-        &recorder,
-        &locks,
-        &library_id,
-        &guide_id,
-        |library| {
-            library.save_step(&guide_id, &step)?;
-            // Saving a step this session deleted (Undo) isn't someone bringing it back.
-            if let Some(step_id) = step.get("id").and_then(Value::as_str) {
-                library.forget_own_delete(&guide_id, step_id, locks.session())?;
-            }
-            Ok(())
-        },
-    )
+    in_guide_writing(&service, &locks, &library_id, &guide_id, |library| {
+        library.save_step(&guide_id, &step)?;
+        // Saving a step this session deleted (Undo) isn't someone bringing it back.
+        if let Some(step_id) = step.get("id").and_then(Value::as_str) {
+            library.forget_own_delete(&guide_id, step_id, locks.session())?;
+        }
+        Ok(())
+    })
 }
 
 /// Deletes one step file (its screenshot stays).
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_delete_step(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
+    user: State<'_, User>,
     locks: State<'_, LockService>,
     library_id: String,
     guide_id: String,
     step_id: String,
 ) -> Result<(), CommandError> {
-    let by = locks.holder(&recorder.display_name()).name;
-    in_guide_writing(
-        &service,
-        &recorder,
-        &locks,
-        &library_id,
-        &guide_id,
-        |library| {
-            library.delete_step(&guide_id, &step_id)?;
-            // So an edit someone else made meanwhile comes back flagged, not silently.
-            library.note_delete(&guide_id, &step_id, &by, locks.session())
-        },
-    )
+    let by = locks.holder(&user.display_name()).name;
+    in_guide_writing(&service, &locks, &library_id, &guide_id, |library| {
+        library.delete_step(&guide_id, &step_id)?;
+        // So an edit someone else made meanwhile comes back flagged, not silently.
+        library.note_delete(&guide_id, &step_id, &by, locks.session())
+    })
 }
 
 /// Stores a pasted, dropped or chosen image (PNG, JPEG or WebP) in a guide. The image is the
@@ -845,7 +799,6 @@ pub fn library_delete_step(
 #[tauri::command(async)]
 pub fn library_import_image(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     request: tauri::ipc::Request<'_>,
 ) -> Result<MediaInfo, CommandError> {
     let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
@@ -863,14 +816,14 @@ pub fn library_import_image(
             .ok_or_else(|| CommandError::new("invalidRequest", "The image has no guide."))
     };
     let (library_id, guide_id) = (id("x-library")?, id("x-guide")?);
-    in_library(&service, &recorder, &library_id, |library| {
+    in_library(&service, &library_id, |library| {
         library.import_image(&guide_id, bytes)
     })
 }
 
 /// Retake for a saved guide: a new screenshot of the window in front after the countdown, stored
 /// in the guide like any other image (docs/spec/04-editor.md#editing-steps), in the quality
-/// Settings chose.
+/// Settings chose, with where a toast showed on it.
 #[allow(
     clippy::too_many_arguments,
     reason = "Tauri passes each argument by name."
@@ -885,13 +838,17 @@ pub async fn library_retake_image(
     delay_ms: u64,
     excluded: Vec<String>,
     quality: Option<library::ScreenshotQuality>,
-) -> Result<MediaInfo, CommandError> {
+) -> Result<crate::recorder::RetakenMedia, CommandError> {
     let (service, recorder) = (service.inner().clone(), recorder.inner().clone());
     let quality = crate::policy::screenshot_quality(quality.unwrap_or_default());
     tauri::async_runtime::spawn_blocking(move || {
-        let image = recorder.retake(&app, delay_ms, &excluded)?;
-        in_library(&service, &recorder, &library_id, |library| {
-            library.store_screenshot(&guide_id, image, quality)
+        let retaken = recorder.retake(&app, delay_ms, &excluded)?;
+        let media = in_library(&service, &library_id, |library| {
+            library.store_screenshot(&guide_id, retaken.image, quality)
+        })?;
+        Ok(crate::recorder::RetakenMedia {
+            media,
+            notifications: retaken.notifications,
         })
     })
     .await
@@ -902,13 +859,12 @@ pub async fn library_retake_image(
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_load_image(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     library_id: String,
     guide_id: String,
     media_id: String,
     thumbnail: bool,
 ) -> Result<String, CommandError> {
-    let bytes = in_library(&service, &recorder, &library_id, |library| {
+    let bytes = in_library(&service, &library_id, |library| {
         library.load_image(&guide_id, &media_id, thumbnail)
     })?;
     Ok(format!(
@@ -922,47 +878,37 @@ pub fn library_load_image(
 pub fn library_trash_guide(
     app: tauri::AppHandle,
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     locks: State<'_, LockService>,
     library_id: String,
     guide_id: String,
 ) -> Result<TrashEntry, CommandError> {
     // Not while someone else is editing it.
-    in_guide_writing(
-        &service,
-        &recorder,
-        &locks,
-        &library_id,
-        &guide_id,
-        |library| {
-            // Text read from its screenshots goes with it (docs/spec/03-data-and-sharing.md#ocr-cache).
-            if let Ok(files) = library.media_files(&guide_id) {
-                crate::ocr_cache::forget_images(&app, &files);
-            }
-            library.trash_guide(&guide_id)
-        },
-    )
+    in_guide_writing(&service, &locks, &library_id, &guide_id, |library| {
+        // Text read from its screenshots goes with it (docs/spec/03-data-and-sharing.md#ocr-cache).
+        if let Ok(files) = library.media_files(&guide_id) {
+            crate::ocr_cache::forget_images(&app, &files);
+        }
+        library.trash_guide(&guide_id)
+    })
 }
 
 /// Lists the bin, emptying entries older than 30 days.
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_list_trash(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     library_id: String,
 ) -> Result<Vec<TrashEntry>, CommandError> {
-    in_library(&service, &recorder, &library_id, Library::list_trash)
+    in_library(&service, &library_id, Library::list_trash)
 }
 
 /// Restores a guide from the bin.
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_restore_guide(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     library_id: String,
     trash_id: String,
 ) -> Result<GuideSummary, CommandError> {
-    in_library(&service, &recorder, &library_id, |library| {
+    in_library(&service, &library_id, |library| {
         library.restore_guide(&trash_id)
     })
 }
@@ -971,11 +917,10 @@ pub fn library_restore_guide(
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_delete_trashed(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     library_id: String,
     trash_id: String,
 ) -> Result<(), CommandError> {
-    in_library(&service, &recorder, &library_id, |library| {
+    in_library(&service, &library_id, |library| {
         library.delete_trashed(&trash_id)
     })
 }
@@ -984,10 +929,9 @@ pub fn library_delete_trashed(
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_empty_trash(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     library_id: String,
 ) -> Result<usize, CommandError> {
-    in_library(&service, &recorder, &library_id, Library::empty_trash)
+    in_library(&service, &library_id, Library::empty_trash)
 }
 
 /// A screenshot for a guide built from parts, and where it comes from.
@@ -1009,7 +953,6 @@ pub struct MediaFrom {
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_create_from_parts(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     library_id: String,
     guide: Value,
     steps: Vec<Value>,
@@ -1019,7 +962,7 @@ pub fn library_create_from_parts(
     let mut copies = Vec::with_capacity(media.len());
     for item in media {
         if !sources.contains_key(&item.library) {
-            let source = service.library(&recorder, &item.library)?;
+            let source = service.library(&item.library)?;
             sources.insert(item.library.clone(), source);
         }
         let source = sources
@@ -1033,7 +976,7 @@ pub fn library_create_from_parts(
             ..copy
         });
     }
-    in_library(&service, &recorder, &library_id, |library| {
+    in_library(&service, &library_id, |library| {
         library.create_from_parts(&guide, &steps, &copies)
     })
 }
@@ -1043,13 +986,12 @@ pub fn library_create_from_parts(
 /// edit lock, or nobody does, as every other change to it.
 pub(crate) fn add_recording_media(
     service: &LibraryService,
-    recorder: &RecorderService,
     locks: &LockService,
     library_id: &str,
     guide_id: &str,
     copies: &[library::MediaCopy],
 ) -> Result<(), CommandError> {
-    in_guide_writing(service, recorder, locks, library_id, guide_id, |library| {
+    in_guide_writing(service, locks, library_id, guide_id, |library| {
         library.add_media(guide_id, copies)
     })
 }
@@ -1058,12 +1000,11 @@ pub(crate) fn add_recording_media(
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_duplicate_guide(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     library_id: String,
     guide_id: String,
     title: String,
 ) -> Result<GuideSummary, CommandError> {
-    in_library(&service, &recorder, &library_id, |library| {
+    in_library(&service, &library_id, |library| {
         library.duplicate_guide(&guide_id, &title)
     })
 }
@@ -1072,13 +1013,12 @@ pub fn library_duplicate_guide(
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_copy_guide(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     from_library_id: String,
     guide_id: String,
     to_library_id: String,
 ) -> Result<GuideSummary, CommandError> {
-    let target = service.library(&recorder, &to_library_id)?;
-    in_library(&service, &recorder, &from_library_id, |library| {
+    let target = service.library(&to_library_id)?;
+    in_library(&service, &from_library_id, |library| {
         library.copy_guide_to(&guide_id, &target)
     })
 }
@@ -1088,21 +1028,15 @@ pub fn library_copy_guide(
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_move_guide(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     locks: State<'_, LockService>,
     from_library_id: String,
     guide_id: String,
     to_library_id: String,
 ) -> Result<GuideSummary, CommandError> {
-    let target = service.library(&recorder, &to_library_id)?;
-    in_guide_writing(
-        &service,
-        &recorder,
-        &locks,
-        &from_library_id,
-        &guide_id,
-        |library| library.move_guide_to(&guide_id, &target),
-    )
+    let target = service.library(&to_library_id)?;
+    in_guide_writing(&service, &locks, &from_library_id, &guide_id, |library| {
+        library.move_guide_to(&guide_id, &target)
+    })
 }
 
 /// "Apply blur permanently": burns every blur into its screenshot, in the guide and its saved
@@ -1110,32 +1044,26 @@ pub fn library_move_guide(
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_apply_redactions(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     locks: State<'_, LockService>,
     library_id: String,
     guide_id: String,
 ) -> Result<usize, CommandError> {
-    in_guide_writing(
-        &service,
-        &recorder,
-        &locks,
-        &library_id,
-        &guide_id,
-        |library| library.apply_redactions(&guide_id),
-    )
+    in_guide_writing(&service, &locks, &library_id, &guide_id, |library| {
+        library.apply_redactions(&guide_id)
+    })
 }
 
 /// Saves the guide as it is now as a named version.
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_save_version(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
+    user: State<'_, User>,
     library_id: String,
     guide_id: String,
     note: String,
 ) -> Result<VersionInfo, CommandError> {
-    let author = recorder.display_name();
-    in_library(&service, &recorder, &library_id, |library| {
+    let author = user.display_name();
+    in_library(&service, &library_id, |library| {
         library.save_version(&guide_id, &note, &author)
     })
 }
@@ -1144,11 +1072,10 @@ pub fn library_save_version(
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_list_versions(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     library_id: String,
     guide_id: String,
 ) -> Result<Vec<VersionInfo>, CommandError> {
-    in_library(&service, &recorder, &library_id, |library| {
+    in_library(&service, &library_id, |library| {
         library.list_versions(&guide_id)
     })
 }
@@ -1157,12 +1084,11 @@ pub fn library_list_versions(
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_load_version(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     library_id: String,
     guide_id: String,
     version_id: String,
 ) -> Result<GuideDocument, CommandError> {
-    in_library(&service, &recorder, &library_id, |library| {
+    in_library(&service, &library_id, |library| {
         library.load_version(&guide_id, &version_id)
     })
 }
@@ -1171,21 +1097,16 @@ pub fn library_load_version(
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_restore_version(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
+    user: State<'_, User>,
     locks: State<'_, LockService>,
     library_id: String,
     guide_id: String,
     version_id: String,
 ) -> Result<GuideDocument, CommandError> {
-    let author = recorder.display_name();
-    in_guide_writing(
-        &service,
-        &recorder,
-        &locks,
-        &library_id,
-        &guide_id,
-        |library| library.restore_version(&guide_id, &version_id, &author),
-    )
+    let author = user.display_name();
+    in_guide_writing(&service, &locks, &library_id, &guide_id, |library| {
+        library.restore_version(&guide_id, &version_id, &author)
+    })
 }
 
 /// Saves a guide as an `.amlsteps` file. Redactions are burned in and originals left out unless
@@ -1193,7 +1114,6 @@ pub fn library_restore_version(
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_export_amlsteps(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     library_id: String,
     guide_id: String,
     destination: String,
@@ -1204,7 +1124,7 @@ pub fn library_export_amlsteps(
     if include_originals && crate::policy::current().is_locked("IncludeOriginals") {
         return Err(set_by_policy());
     }
-    in_library(&service, &recorder, &library_id, |library| {
+    in_library(&service, &library_id, |library| {
         library.export_amlsteps(
             &guide_id,
             Path::new(&destination),
@@ -1214,16 +1134,38 @@ pub fn library_export_amlsteps(
     })
 }
 
+/// Saves a guide as an `.amlsteps` file in the export folder, as the other exports are saved
+/// (12/10/2026, #88): the folder must be on this PC's drives, and the file gets a name no file
+/// there has (" (2)" and so on), never replacing one. Returns where it went.
+#[tauri::command(async, rename_all = "camelCase")]
+pub fn library_export_amlsteps_to(
+    service: State<'_, LibraryService>,
+    library_id: String,
+    guide_id: String,
+    folder: String,
+    name: String,
+    include_originals: bool,
+) -> Result<String, CommandError> {
+    let destination = crate::export_files::in_export_folder(&folder, &name)?;
+    library_export_amlsteps(
+        service,
+        library_id,
+        guide_id,
+        destination.to_string_lossy().into_owned(),
+        include_originals,
+    )?;
+    Ok(destination.to_string_lossy().into_owned())
+}
+
 /// Imports an `.amlsteps` file as a new guide, applying every hostile-file rule. On any
 /// failure nothing is imported and the error names the rule.
 #[tauri::command(async, rename_all = "camelCase")]
 pub fn library_import_amlsteps(
     service: State<'_, LibraryService>,
-    recorder: State<'_, RecorderService>,
     library_id: String,
     source: String,
 ) -> Result<GuideSummary, CommandError> {
-    in_library(&service, &recorder, &library_id, |library| {
+    in_library(&service, &library_id, |library| {
         library.import_amlsteps(Path::new(&source))
     })
 }

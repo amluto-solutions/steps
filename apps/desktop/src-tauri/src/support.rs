@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 use zip::write::SimpleFileOptions;
 
-use crate::recorder::CommandError;
+use crate::error::CommandError;
 
 /// Settings from the window, as JSON. Anything bigger isn't settings.
 const MAX_SETTINGS_BYTES: usize = 64 * 1024;

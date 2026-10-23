@@ -141,21 +141,30 @@ export interface ExportRequest {
   now: Date;
 }
 
+/**
+ * Where a `.amlsteps` file goes: the place chosen in the save dialog, or a name in the export
+ * folder, where a new one is picked rather than replacing a file (as for the other exports).
+ */
+export type AmlstepsTarget = { path: string } | { folder: string; name: string };
+
 /** What a job writes through and asks with. */
 export interface ExportJobInput {
   files: ExportFiles;
   /**
    * Asks where to save a file, offering `defaultName` (the save dialog): null when cancelled.
-   * `.amlsteps` files are always asked about; others only when the choices say to, or there's no
-   * folder to save in.
+   * Only when the choices say to, or there's no folder to save in; `.amlsteps` files too.
    */
   askWhere: (defaultName: string) => Promise<string | null>;
   /** An installed font family's faces, for a PDF (fails or has none when it isn't installed). */
   findFont: (family: string) => Promise<FaceSet | null>;
   /** The guide's saved versions, for the document-control page (a guide in a library). */
   listVersions?: (() => Promise<VersionInfo[]>) | undefined;
-  /** .amlsteps only: writes the file from the saved guide; absent, there's nothing to write. */
-  saveAmlsteps?: ((path: string, includeOriginals: boolean) => Promise<void>) | undefined;
+  /**
+   * .amlsteps only: writes the file from the saved guide and answers where it went (a file name
+   * only in Steps for Chrome); absent, there's nothing to write.
+   */
+  saveAmlsteps?:
+    ((where: AmlstepsTarget, includeOriginals: boolean) => Promise<string>) | undefined;
   /** Copy: puts the guide on the clipboard as rich text and plain text. */
   copy?: ((html: string, text: string) => Promise<void>) | undefined;
 }
@@ -165,7 +174,6 @@ export type ExportOutcome =
   /** Nothing was saved: a save dialog was cancelled (or there was nothing to write with). */
   | { kind: "cancelled" }
   | { kind: "copied" }
-  | { kind: "amlsteps" }
   /**
    * `count` files saved, the last at `path` (a file name only in Steps for Chrome). `fontsMissing`:
    * no font on the PC had every character a PDF shows, so some may print as boxes.
@@ -331,20 +339,27 @@ export function exportJob(input: ExportJobInput): ExportJob {
       }
 
       const extension = format.extension ?? "";
+      const folder = request.choices.askEveryTime
+        ? null
+        : (request.choices.folder ?? (await input.files.defaultExportFolder()));
+
+      // A Steps file goes where the others go (12/10/2026, #88), written from the saved guide.
       if (output.kind === "amlsteps") {
-        const path = await input.askWhere(`${safeFileName(model.title)}.${extension}`);
-        if (!path || !input.saveAmlsteps) return { kind: "cancelled" };
-        await input.saveAmlsteps(path, request.includeOriginals);
-        return { kind: "amlsteps" };
+        if (!input.saveAmlsteps) return { kind: "cancelled" };
+        const name = exportFileName(model.title, extension, request.now);
+        const chosen = folder ? null : await input.askWhere(name);
+        if (!folder && !chosen) return { kind: "cancelled" };
+        const path = await input.saveAmlsteps(
+          folder ? { folder, name } : { path: chosen ?? "" },
+          request.includeOriginals,
+        );
+        return { kind: "saved", count: 1, path, fontsMissing: false };
       }
 
       // One file, or with more languages chosen for a PDF or Word file, one each.
       const languages = format.walkthrough
         ? [mainLanguage(request.doc.guide)]
         : [request.language, ...request.alsoIn.filter((code) => code !== request.language)];
-      const folder = request.choices.askEveryTime
-        ? null
-        : (request.choices.folder ?? (await input.files.defaultExportFolder()));
       let lastPath: string | null = null;
       let saved = 0;
       let fontsMissing = false;

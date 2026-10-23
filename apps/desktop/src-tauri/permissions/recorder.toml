@@ -140,7 +140,7 @@ commands.allow = ["recorder_bar_heartbeat"]
 
 [[permission]]
 identifier = "allow-hotkeys-get"
-description = "Allows Settings to read the keyboard shortcuts."
+description = "Allows Settings, and the recording bar's menu, to read the keyboard shortcuts."
 commands.allow = ["hotkeys_get"]
 
 [[permission]]
@@ -244,6 +244,11 @@ description = "Allows opening a walkthrough preview from app data in the default
 commands.allow = ["export_preview"]
 
 [[permission]]
+identifier = "allow-export-log-failure"
+description = "Allows noting in the app's log why an export failed (the error's words only)."
+commands.allow = ["export_log_failure"]
+
+[[permission]]
 identifier = "allow-brands-list"
 description = "Allows reading the brand profiles."
 commands.allow = ["brands_list"]
@@ -342,3 +347,8 @@ commands.allow = ["brands_save_managed"]
 identifier = "allow-recorder-move-bar"
 description = "Allows the recording bar to move itself along the top of its screen."
 commands.allow = ["recorder_move_bar"]
+
+[[permission]]
+identifier = "allow-recorder-bar-place"
+description = "Allows the recording bar to ask which place along the top of its screen it is at."
+commands.allow = ["recorder_bar_place"]

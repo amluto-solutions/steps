@@ -1,9 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { appNameOf, type AppWindow } from "@amluto-steps/core";
 
 import { Icon } from "../components/icons";
 import { errorMessage } from "../errors";
-import type { AppWindows } from "../bridge/app-windows";
+import type { AppWindows, BarPlace } from "../bridge/app-windows";
 import type { Hotkeys } from "../bridge/hotkeys";
 import type { RecorderSnapshot, Recording } from "../bridge/recording";
 import type { Capabilities } from "../capabilities";
@@ -22,6 +23,24 @@ export const EMPTY_SNAPSHOT: RecorderSnapshot = {
 
 // Windows: the app and its WebView2; Linux: the app (its WebKitGTK views are in the same process).
 const OWN_PROCESSES = /^(amluto-steps(\.exe)?|msedgewebview2\.exe|WebKitWebProcess)$/i;
+
+/**
+ * The app "Never record" offers to leave out: its program file, which the exclusion goes by, and
+ * the name people know it by, as the "Open" steps call it (#85). A store app's frame
+ * (`ApplicationFrameHost.exe`) draws Calculator, Settings and the like: leaving it out leaves
+ * them all out, and the menu says so.
+ */
+interface OfferedApp {
+  exe: string;
+  name: string;
+  frameHost: boolean;
+}
+
+const offeredApp = (window: AppWindow & { exe: string }): OfferedApp => ({
+  exe: window.exe,
+  name: appNameOf(window) ?? window.exe,
+  frameHost: window.exe.toLowerCase() === "applicationframehost.exe",
+});
 
 /** Why recording paused by itself, in plain words (the Rust reason is `Uac`, `LockScreen`…). */
 const pauseNote = (
@@ -52,12 +71,15 @@ export function RecorderBar({ recorder }: { recorder: BarRecorder }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [elevatedWindow, setElevatedWindow] = useState<string | null>(null);
-  const [lastApp, setLastApp] = useState("");
+  const [lastApp, setLastApp] = useState<OfferedApp | null>(null);
   const [excludedApps, setExcludedApps] = useState<string[]>(readExcludedApps);
   const [menuOpen, setMenuOpen] = useState(false);
   // The keys set for "Show a keyboard shortcut", read when the menu opens (they can change in
   // Settings while recording).
   const [shortcutKeys, setShortcutKeys] = useState<string | null>(null);
+  // Where the bar is, for Move the bar to mark: asked when the menu opens, as it may have been
+  // dragged since.
+  const [place, setPlace] = useState<BarPlace | null>(null);
   useEffect(() => {
     if (!menuOpen) return;
     void recorder
@@ -66,6 +88,10 @@ export function RecorderBar({ recorder }: { recorder: BarRecorder }) {
         setShortcutKeys(bindings.find((binding) => binding.action === "addShortcut")?.keys ?? null),
       )
       .catch(() => setShortcutKeys(null));
+    void recorder
+      .barPlace()
+      .then(setPlace)
+      .catch(() => setPlace(null));
   }, [menuOpen, recorder]);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   /** Record steps here: the guide this recording's steps go into, which the main window said. */
@@ -129,9 +155,10 @@ export function RecorderBar({ recorder }: { recorder: BarRecorder }) {
           fact.record.kind === "manual" ||
           fact.record.kind === "appSwitch"
         ) {
-          const exe = fact.record.window.exe;
+          const { window } = fact.record;
+          const exe = window.exe;
           // Steps' own windows (and their WebView) are never offered for "Never record".
-          if (exe && !OWN_PROCESSES.test(exe)) setLastApp(exe);
+          if (exe && !OWN_PROCESSES.test(exe)) setLastApp(offeredApp({ ...window, exe }));
         }
       }),
     ]).then((stops) => {
@@ -189,15 +216,18 @@ export function RecorderBar({ recorder }: { recorder: BarRecorder }) {
     moreButton.current?.focus();
   };
 
-  const alreadyExcluded = excludedApps.some((app) => app.toLowerCase() === lastApp.toLowerCase());
+  const alreadyExcluded =
+    lastApp !== null && excludedApps.some((app) => app.toLowerCase() === lastApp.exe.toLowerCase());
   const excludeLastApp = async () => {
-    setSnapshot(await recorder.excludeApp(lastApp));
+    if (!lastApp) return;
+    const { exe } = lastApp;
+    setSnapshot(await recorder.excludeApp(exe));
     if (!alreadyExcluded) {
       // Added to the list as stored now, in case Settings changed it since this bar opened.
       const stored = readExcludedApps();
-      const next = stored.some((app) => app.toLowerCase() === lastApp.toLowerCase())
+      const next = stored.some((app) => app.toLowerCase() === exe.toLowerCase())
         ? stored
-        : [...stored, lastApp];
+        : [...stored, exe];
       setExcludedApps(next);
       try {
         window.localStorage.setItem(EXCLUDED_APPS_KEY, JSON.stringify(next));
@@ -209,6 +239,7 @@ export function RecorderBar({ recorder }: { recorder: BarRecorder }) {
 
   const paused = snapshot.state === "paused";
   const stopping = snapshot.state === "stopping";
+  const waitingForKeys = snapshot.waitingForKeys === true;
   const note = paused ? pauseNote(snapshot.reason) : null;
   // The undo for "Start again" lasts until the next step is recorded.
   const showRestarted = restarted !== null && snapshot.stepCount === 0 && snapshot.state !== "idle";
@@ -249,6 +280,14 @@ export function RecorderBar({ recorder }: { recorder: BarRecorder }) {
               ? ` · ${t("recorder.missedShort", { count: snapshot.missedCount })}`
               : ""}
           </span>
+          {waitingForKeys && (
+            // In the live region, so it's read out: Show a keyboard shortcut's popup has the keys
+            // to come (P40, 10/10/2026: nothing on the bar showed it was waiting).
+            <span className="pointer-events-none inline-flex h-6 items-center gap-1 rounded-full bg-cyan/20 px-2 text-[12px] font-semibold text-cyan">
+              <Icon name="keyboard" size={14} />
+              {t("recorder.waitingForKeys")}
+            </span>
+          )}
         </div>
         {snapshot.keysRecorded && (
           // What's typed is being read: said on the bar the whole time (docs/spec/02-capture.md#keys).
@@ -375,15 +414,20 @@ export function RecorderBar({ recorder }: { recorder: BarRecorder }) {
               setMenuOpen(false);
               void run(excludeLastApp);
             }}
-            className="flex h-10 items-center gap-2.5 rounded-lg px-2.5 text-left text-sm hover:bg-subtle disabled:opacity-50"
+            // Two lines when the app's name is long, or for "Windows apps like Calculator".
+            className="flex min-h-10 items-center py-1.5 gap-2.5 rounded-lg px-2.5 text-left text-sm hover:bg-subtle disabled:opacity-50"
           >
             <Icon name="ban" />
             <span className="flex-1">
               {!lastApp
                 ? t("recorder.excludeAppEmpty")
-                : alreadyExcluded
-                  ? t("recorder.appExcluded", { app: lastApp })
-                  : t("recorder.excludeApp", { app: lastApp })}
+                : lastApp.frameHost
+                  ? alreadyExcluded
+                    ? t("recorder.appsLikeExcluded", { app: lastApp.name })
+                    : t("recorder.excludeAppsLike", { app: lastApp.name })
+                  : alreadyExcluded
+                    ? t("recorder.appExcluded", { app: lastApp.name })
+                    : t("recorder.excludeApp", { app: lastApp.name })}
             </span>
           </button>
           <div role="separator" className="mx-1.5 my-1 h-px bg-panel" />
@@ -398,25 +442,31 @@ export function RecorderBar({ recorder }: { recorder: BarRecorder }) {
               {t("recorder.moveBar")}
             </span>
             <div className="flex gap-1">
-              {(["left", "centre", "right"] as const).map((place) => (
-                <button
-                  key={place}
-                  type="button"
-                  role="menuitem"
-                  aria-label={t(`recorder.moveToLabel.${place}`)}
-                  onClick={() => {
-                    setMenuOpen(false);
-                    void recorder
-                      .moveBar(place)
-                      .catch((problem: unknown) =>
-                        setError(errorMessage(problem, t("errors.barMove"))),
-                      );
-                  }}
-                  className="h-8 flex-1 rounded-lg border border-control-line px-2 text-[13px] hover:bg-subtle"
-                >
-                  {t(`recorder.moveTo.${place}`)}
-                </button>
-              ))}
+              {(["left", "centre", "right"] as const).map((option) => {
+                // The place it's at is marked (P40, 10/10/2026), until it's dragged from there.
+                const current = option === place;
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={current}
+                    aria-label={t(`recorder.moveToLabel.${option}`)}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      void recorder
+                        .moveBar(option)
+                        .catch((problem: unknown) =>
+                          setError(errorMessage(problem, t("errors.barMove"))),
+                        );
+                    }}
+                    className={`inline-flex min-h-8 flex-1 items-center justify-center gap-1 rounded-lg border px-1.5 py-1 text-[13px] ${current ? "border-blue bg-blue/10" : "border-control-line hover:bg-subtle"}`}
+                  >
+                    {current && <Icon name="check" size={14} />}
+                    {t(`recorder.moveTo.${option}`)}
+                  </button>
+                );
+              })}
             </div>
           </div>
           <div role="separator" className="mx-1.5 my-1 h-px bg-panel" />

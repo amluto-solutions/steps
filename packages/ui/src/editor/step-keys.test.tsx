@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { initI18n } from "../i18n";
@@ -49,10 +49,12 @@ const store: GuideStore = {
   loadImage: vi.fn().mockRejectedValue(new Error("no images here")),
 };
 
-function show() {
+function show(readOnly = false, onRefused = vi.fn()) {
   render(
     <GuideEditor
       initial={doc}
+      readOnly={readOnly}
+      onRefused={onRefused}
       store={store}
       author="Robin"
       mode="saved"
@@ -79,8 +81,8 @@ const order = () =>
 const press = (key: string, more: Partial<KeyboardEventInit> = {}) =>
   fireEvent.keyDown(document.body, { key, ...more });
 
-function showFirst() {
-  show();
+function showFirst(readOnly = false, onRefused = vi.fn()) {
+  show(readOnly, onRefused);
   fireEvent.click(document.querySelector("[data-step-button='s1']") as HTMLElement);
   (document.activeElement as HTMLElement | null)?.blur();
 }
@@ -117,6 +119,15 @@ describe("keys for the selected step, from anywhere in the editor", () => {
     expect(current()).toBe("s2");
     press("Delete");
     expect(order()).toEqual(["Run it"]);
+  });
+
+  it("leave a read-only guide on the same step when Delete is refused (#81)", () => {
+    const onRefused = vi.fn();
+    showFirst(true, onRefused);
+    press("Delete");
+    expect(onRefused).toHaveBeenCalled();
+    expect(order()).toEqual(["Open payroll", "Choose the month", "Run it"]);
+    expect(current()).toBe("s1");
   });
 
   it("open an empty note only on the step it was added to", () => {
@@ -190,6 +201,32 @@ describe("several steps picked at once, as in File Explorer", () => {
     expect(order()).toHaveLength(6);
     press("ArrowDown");
     expect(bar()).toBeNull();
+  });
+
+  it("names each of the bar's buttons in a tooltip, on hover or keyboard focus (#84)", async () => {
+    showFirst();
+    fireEvent.click(row("s2"), { shiftKey: true });
+    const moveUp = within(bar() as HTMLElement).getByRole("button", { name: "Move up" });
+    const clear = within(bar() as HTMLElement).getByRole("button", {
+      name: "Clear the selection",
+    });
+    // The whole count shows, not only its accessible name.
+    expect(within(bar() as HTMLElement).getByText("2 steps selected")).toBeTruthy();
+
+    fireEvent.pointerOver(moveUp);
+    const tip = await screen.findByRole("tooltip", { hidden: true });
+    expect(tip.textContent).toBe("Move up (Alt + ↑)");
+    // A tooltip says again what the button is already called; it's not its name.
+    expect(tip.getAttribute("aria-hidden")).toBe("true");
+    fireEvent.pointerOut(moveUp);
+    expect(screen.queryByRole("tooltip", { hidden: true })).toBeNull();
+
+    act(() => clear.focus());
+    expect(screen.getByRole("tooltip", { hidden: true }).textContent).toBe(
+      "Clear the selection (Esc)",
+    );
+    act(() => clear.blur());
+    expect(screen.queryByRole("tooltip", { hidden: true })).toBeNull();
   });
 
   it("deletes the picked steps together, from the keyboard or the bar", () => {

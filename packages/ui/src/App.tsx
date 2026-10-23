@@ -5,7 +5,12 @@ import { AnnouncerProvider, useAnnounce } from "./components/Announcer";
 import { Icon } from "./components/icons";
 import type { MenuEntry } from "./components/Menu";
 import { Toast, type ToastMessage } from "./components/Toast";
-import type { EditorDoc } from "./editor/document";
+import {
+  historyAfterPublish,
+  type EditorDoc,
+  type History,
+  type SavedHistory,
+} from "./editor/document";
 import { toDoc, type GuideRef } from "./app/documents";
 import { guidesInView, needsReview, readRecent, rememberRecent, tagCounts } from "./library/views";
 import { RenameGuideDialog } from "./library/RenameGuideDialog";
@@ -26,17 +31,18 @@ import { useLibraries } from "./app/useLibraries";
 import { useSettings } from "./app/useSettings";
 import { useSettingsTransfer } from "./app/useSettingsTransfer";
 import { useRecordingSession } from "./app/useRecordingSession";
-import { DiscardDialog, NoticeDialog, StartRecordingDialog, VersionsDialog } from "./app/dialogs";
+import { DiscardDialog, StartRecordingDialog, VersionsDialog } from "./app/dialogs";
 import { draftStore, libraryStore } from "./app/stores";
 import { useBulkActions } from "./app/useBulkActions";
-import { useLibraryLocks, useLockAndBin } from "./app/useLockAndBin";
+import { useLibraryLocks, useLockAndBin, type EditorSide } from "./app/useLockAndBin";
+import { useLeaveGuard } from "./app/useLeaveGuard";
 import { useExports } from "./app/useExports";
 import { useShortcutWarning } from "./app/useShortcutWarning";
 import { useLink } from "./app/useLink";
 import { useUpdates } from "./app/useUpdates";
 import { AskHost, askConfirm, askText } from "./app/ask";
-import { moveGuide } from "./app/move";
 import { underEditLock } from "./app/edit-lock";
+import { hasBlur } from "./app/has-blur";
 import { setPeopleNames } from "./editor/suggestions";
 import type { RecorderBridge } from "./recorder-bridge";
 import { SettingsView, type SettingsSection } from "./settings/SettingsView";
@@ -55,7 +61,14 @@ export { RecorderBar } from "./recorder/RecorderBar";
 export { ShortcutPopup, shortcutKeyName } from "./recorder/ShortcutPopup";
 
 type EditorTarget =
-  | { kind: "guide"; libraryId: string; doc: EditorDoc; key: string }
+  | {
+      kind: "guide";
+      libraryId: string;
+      doc: EditorDoc;
+      key: string;
+      /** The undo and redo of the unsaved recording it was just saved from (#82). */
+      history?: History;
+    }
   | { kind: "draft"; sessionId: string; doc: EditorDoc; key: string };
 
 /** Where an open guide keeps its screenshots, which a recording made into it copies its to. */
@@ -106,13 +119,6 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
     [],
   );
   const closeToast = useCallback(() => setToast(null), []);
-  // Started again while open (F001): this copy came forward, and says why.
-  const [alreadyOpen, setAlreadyOpen] = useState(false);
-  useEffect(() => {
-    const stop = recorder?.onAlreadyOpen(() => setAlreadyOpen(true));
-    return () => void stop?.then((unlisten) => unlisten());
-  }, [recorder]);
-
   const settings = useSettings(recorder, notify);
   const {
     preferences,
@@ -159,21 +165,34 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
     chooseAppColours,
   } = brandState;
 
-  const openLibraryGuide = async ({ libraryId: id, guideId }: GuideRef) => {
+  // While a save is failing, leaving the editor asks first (docs/spec/04-editor.md#leaving-the-editor).
+  const { leaveEditor, askLeave, onSaveState } = useLeaveGuard(recorder);
+
+  const openLibraryGuide = async ({ libraryId: id, guideId }: GuideRef, carried?: SavedHistory) => {
     if (!library) return;
     const doc = toDoc(await library.loadGuide(id, guideId));
     setRecent((current) => rememberRecent(current, id, guideId));
     setRoute({
       screen: "editor",
-      target: { kind: "guide", libraryId: id, doc, key: `${id}/${guideId}:${Date.now()}` },
+      target: {
+        kind: "guide",
+        libraryId: id,
+        doc,
+        key: `${id}/${guideId}:${Date.now()}`,
+        ...(carried ? { history: historyAfterPublish(carried.history, carried.saved, doc) } : {}),
+      },
     });
   };
+  /** Opens a guide from a toast or a recording, leaving any open editor as Back does. */
+  const openGuide = (ref: GuideRef, carried?: SavedHistory) =>
+    leaveEditor(() => openLibraryGuide(ref, carried));
 
   // ----- The recording session -----
 
   /**
    * The open editor, offered to a recording made into its guide (Record steps here), under the
-   * guide it shows; whichever editor is open on that guide when the recording stops takes it.
+   * guide it shows; whichever editor is open on that guide when the recording stops takes it. A
+   * move's Undo finds the editor open on the guide through it too (#94).
    */
   const editorInserter = useRef<{ key: string; inserter: StepInserter } | null>(null);
   const session = useRecordingSession({
@@ -185,15 +204,20 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
     notify,
     settings,
     setBusy,
+    // A recording's draft, or the guides while one records, take the editor's place: asked first
+    // while its save is failing. Staying leaves the recording with the unsaved ones.
     showDraft: (sessionId, doc) =>
-      setRoute({
-        screen: "editor",
-        target: { kind: "draft", sessionId, doc, key: `draft:${sessionId}:${Date.now()}` },
-      }),
-    showGuides: () => setRoute({ screen: "library", view: { kind: "all" } }),
-    openSaved: async (guideId, savedTo) => {
+      void leaveEditor(() =>
+        setRoute({
+          screen: "editor",
+          target: { kind: "draft", sessionId, doc, key: `draft:${sessionId}:${Date.now()}` },
+        }),
+      ),
+    showGuides: () =>
+      void leaveEditor(() => setRoute({ screen: "library", view: { kind: "all" } })),
+    openSaved: async (guideId, savedTo, carried) => {
       const target = (await refreshLibraries(savedTo ?? defaultLibraryId)) ?? libraryId;
-      if (target) await openLibraryGuide({ libraryId: target, guideId });
+      if (target) await openGuide({ libraryId: target, guideId }, carried);
     },
     // Everything else start-up needs from the recorder, once it answers.
     // The libraries and brands, once the recorder is set up.
@@ -224,6 +248,44 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
   } = session;
   const recordHint = recording ? t("nav.recordingNow") : null;
 
+  /** Back to the library from the editor, whose closing lets go of the guide's edit lock. */
+  const closeEditor = () => {
+    setRoute({ screen: "library", view: { kind: "all" } });
+    void refreshGuides(libraryId);
+    void refreshRecoveries();
+  };
+
+  /** Opens a guide in the editor with its own library showing behind it, where Back returns. */
+  const openWithItsLibrary = async (ref: GuideRef) => {
+    await openLibraryGuide(ref);
+    showLibrary(ref.libraryId);
+  };
+
+  /**
+   * The editor whose guide is going to the Bin or another library (by `destinationKey`): it takes
+   * no edits meanwhile, as they would be written to where the guide has left (#94).
+   */
+  const [held, setHeld] = useState<string | null>(null);
+
+  /**
+   * The editor open on a guide (its `destinationKey`) as the guide's actions reach it, with its
+   * waiting edits written by `flush`.
+   */
+  const editorSide = (key: string, flush: () => Promise<void>): EditorSide => ({
+    flush,
+    askLeave,
+    hold: (on) => setHeld(on ? key : null),
+    close: closeEditor,
+    reopen: (ref) => leaveEditor(() => openWithItsLibrary(ref)),
+    replace: (ref) =>
+      openWithItsLibrary(ref).catch((problem: unknown) => {
+        // Never left in the editor on the place the guide has gone from.
+        setRoute({ screen: "library", view: { kind: "all" } });
+        showLibrary(ref.libraryId);
+        throw problem;
+      }),
+  });
+
   // ----- Guide actions -----
 
   const run = async (action: () => Promise<unknown>, done?: string) => {
@@ -238,7 +300,7 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
     }
   };
 
-  const { withPassword, guideEntries, bulkLocks, bin } = useLockAndBin({
+  const { withPassword, guideEntries, moveTo, bulkLocks, bin } = useLockAndBin({
     locks,
     libraryId,
     guides,
@@ -247,6 +309,11 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
     notify,
     run,
     author,
+    openEditor: (ref) => {
+      const open = editorInserter.current;
+      const key = destinationKey({ kind: "guide", ...ref });
+      return open?.key === key ? editorSide(key, () => open.inserter.flush()) : undefined;
+    },
   });
 
   const bulk = useBulkActions({
@@ -257,7 +324,7 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
     notify,
     setBusy,
     author,
-    openGuide: (id, guideId) => void run(() => openLibraryGuide({ libraryId: id, guideId })),
+    openGuide: (id, guideId) => void run(() => openGuide({ libraryId: id, guideId })),
     locks,
   });
   /** Merge guides: the guides chosen so far, while its dialog is open. */
@@ -279,7 +346,8 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
     author,
     brands,
     blurTerms: allBlurTerms,
-    saveDraft: (sessionId, flush, doc) => saveDraft(sessionId, flush, doc, true),
+    saveDraft: (sessionId, flush, doc, history) =>
+      saveDraft(sessionId, flush, doc, true, undefined, history),
   });
 
   /** Someone else is editing a guide a change from the list needs: take over from them? */
@@ -293,8 +361,9 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
   /**
    * "Apply blur permanently": burns the blur into the screenshots, in the guide and its saved
    * versions, and deletes the originals (docs/spec/03-data-and-sharing.md). It can't be undone, so
-   * it asks first. From the editor, pending edits are saved first and the guide is reopened after,
-   * since the open copy still points at the originals.
+   * it asks first, unless nothing is blurred anywhere: then it just says so (#52). From the editor,
+   * pending edits are saved first and the guide is reopened after, since the open copy still points
+   * at the originals.
    */
   const applyBlurPermanently = async (
     ref: GuideRef,
@@ -302,6 +371,15 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
     flush?: () => Promise<void>,
   ) => {
     if (!library) return;
+    // Saved first, so a blur just drawn in the editor counts. Unsure (a save or read failed), it
+    // asks as usual, and the apply itself says what's wrong.
+    const blurToApply = await (flush ? flush() : Promise.resolve())
+      .then(() => hasBlur(library, ref))
+      .catch(() => true);
+    if (!blurToApply) {
+      notify({ text: t("library.noBlurToApply") });
+      return;
+    }
     const sure = await askConfirm(
       t("library.applyBlurTitle"),
       t("library.applyBlurConfirm", { title }),
@@ -395,7 +473,8 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
     );
   };
 
-  const guideMenu = (ref: GuideRef, title: string, flush?: () => Promise<void>): MenuEntry[] => {
+  /** A guide's menu, on its card or, with `editor`, in the editor open on it. */
+  const guideMenu = (ref: GuideRef, title: string, editor?: EditorSide): MenuEntry[] => {
     if (!library) return [];
     const { libraryId: id, guideId } = ref;
     const others = libraries.filter((item) => item.id !== id);
@@ -406,7 +485,7 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
         onSelect: () => void run(() => openLibraryGuide(ref)),
       },
       // In the editor the title is changed in place (and the editor holds the guide's lock).
-      ...(flush
+      ...(editor
         ? []
         : [
             {
@@ -439,44 +518,7 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
           label: t("library.moveTo", { name: other.name }),
           icon: "folder" as const,
           onSelect: () =>
-            void withPassword(ref, title, t("locks.move"), () =>
-              run(async () => {
-                // From the list it's done under the guide's edit lock (the editor holds it), and
-                // never taken from someone editing it.
-                const move = () => moveGuide(library, id, guideId, other.id);
-                const done = flush
-                  ? { done: true as const, value: await move() }
-                  : await underEditLock(library, ref, null, move);
-                if (!done.done) {
-                  notify({
-                    kind: "error",
-                    text: t("library.moveEditing", { name: done.lock.name }),
-                  });
-                  return;
-                }
-                const moved = done.value;
-                await refreshGuides(id);
-                // As a move of several guides can be undone, so can a move of one (F053).
-                notify({
-                  text: t("library.moved", { name: other.name }),
-                  action: {
-                    label: t("common.undo"),
-                    run: () =>
-                      void run(async () => {
-                        await withPassword(
-                          { libraryId: other.id, guideId: moved.id },
-                          title,
-                          t("locks.move"),
-                          async () => {
-                            await moveGuide(library, other.id, moved.id, id);
-                          },
-                        );
-                        await refreshGuides(id);
-                      }),
-                  },
-                });
-              }),
-            ),
+            void withPassword(ref, title, t("locks.move"), () => moveTo(ref, title, other, editor)),
         },
       ]),
       {
@@ -504,10 +546,10 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
         icon: "blur",
         onSelect: () =>
           void withPassword(ref, title, t("library.applyBlur"), () =>
-            applyBlurPermanently(ref, title, flush),
+            applyBlurPermanently(ref, title, editor?.flush),
           ),
       },
-      ...guideEntries(ref, title, Boolean(flush)),
+      ...guideEntries(ref, title, editor),
     ];
   };
 
@@ -537,7 +579,7 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
         text: t("library.imported", { title }),
         action: {
           label: t("library.open"),
-          run: () => void openLibraryGuide({ libraryId, guideId: summary.id }),
+          run: () => void run(() => openGuide({ libraryId, guideId: summary.id })),
         },
       });
     });
@@ -832,13 +874,16 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
             {editorTarget && editorStore && (
               <AnyGuideEditor
                 key={editorTarget.key}
+                readOnly={held === destinationKey(destinationOf(editorTarget))}
                 library={editorTarget.kind === "guide" ? library : undefined}
                 libraryId={editorTarget.kind === "guide" ? editorTarget.libraryId : undefined}
                 onOpenGuide={(summary) =>
                   editorTarget.kind === "guide" &&
                   void openLibraryGuide({ libraryId: editorTarget.libraryId, guideId: summary.id })
                 }
+                leaveEditor={leaveEditor}
                 initial={editorTarget.doc}
+                initialHistory={editorTarget.kind === "guide" ? editorTarget.history : undefined}
                 store={editorStore}
                 author={author}
                 mode={editorTarget.kind === "draft" ? "draft" : "saved"}
@@ -864,14 +909,19 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
                 blurTerms={allBlurTerms}
                 busy={busy}
                 notify={notify}
-                onBack={() => {
-                  setRoute({ screen: "library", view: { kind: "all" } });
-                  void refreshGuides(libraryId);
-                  void refreshRecoveries();
-                }}
+                onBack={() => void leaveEditor(closeEditor)}
+                onSaveState={onSaveState}
                 onSave={
                   editorTarget.kind === "draft"
-                    ? (flush, doc) => void saveDraft(editorTarget.sessionId, flush, doc)
+                    ? (flush, doc, history) =>
+                        void saveDraft(
+                          editorTarget.sessionId,
+                          flush,
+                          doc,
+                          false,
+                          undefined,
+                          history,
+                        )
                     : undefined
                 }
                 saveTargets={editorTarget.kind === "draft" ? libraries : undefined}
@@ -888,7 +938,7 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
                 }
                 onSaveTo={
                   editorTarget.kind === "draft"
-                    ? (flush, doc, id) => {
+                    ? (flush, doc, id, history) => {
                         const chosen = libraries.find((item) => item.id === id);
                         void saveDraft(
                           editorTarget.sessionId,
@@ -896,6 +946,7 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
                           doc,
                           false,
                           chosen && !chosen.isDefault ? { id, name: chosen.name } : undefined,
+                          history,
                         );
                       }
                     : undefined
@@ -968,7 +1019,7 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
                         ...guideMenu(
                           { libraryId: editorTarget.libraryId, guideId: doc.guide.id },
                           doc.guide.title,
-                          flush,
+                          editorSide(destinationKey(destinationOf(editorTarget)), flush),
                         ).filter(
                           (entry) =>
                             typeof entry !== "object" ||
@@ -1075,14 +1126,6 @@ function AppContent({ recorder, library: unlocked }: AppProps) {
 
           <AskHost />
           <LockHost locks={locks} library={library} libraries={libraries} />
-
-          {alreadyOpen && (
-            <NoticeDialog
-              title={t("app.alreadyOpenTitle")}
-              body={t("app.alreadyOpenBody")}
-              onClose={() => setAlreadyOpen(false)}
-            />
-          )}
 
           {renaming && (
             <RenameGuideDialog

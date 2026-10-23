@@ -3,10 +3,13 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectNoSeriousAxeViolations } from "../../test/axe";
+import { blankStep } from "../editor/edits";
 import type { GuideStore } from "../editor/useGuideEditor";
 import { initI18n } from "../i18n";
 import type { EditLock, LibraryBridge } from "../library-bridge";
 import { fakeLibrary } from "../library-fake";
+import { withGuideLocks } from "../library/guide-locks";
+import { GuideLocksContext } from "../library/LockDialogs";
 import { toDoc } from "./documents";
 import { LibraryGuideEditor } from "./LibraryGuideEditor";
 
@@ -264,5 +267,104 @@ describe("a guide in a shared library", () => {
     fireEvent.keyDown(box, { key: "Escape" });
     expect(screen.queryByRole("complementary", { name: "Review comments" })).toBeNull();
     expect(document.activeElement).toBe(button);
+  });
+});
+
+describe("a guide locked with a password while it's open (#81)", () => {
+  const stepFile = {
+    ...blankStep("s1", { at: Date.parse("2026-09-25T10:00:00.000Z"), by: "Robin" }),
+    sortKey: "0000000001",
+    actionText: "Click Run payroll",
+    media: { id: "shot-1", width: 800, height: 600, scale: 1, captureRect: null },
+  };
+  const lockedRaw = {
+    guide: guideFile,
+    steps: [
+      stepFile,
+      { ...stepFile, id: "s2", sortKey: "0000000002", actionText: "Click Approve" },
+    ],
+  };
+
+  function showLockable(notify = vi.fn()) {
+    const fake = fakeLibrary({ libraries: [{ id: "lib", name: "Payroll", guides: [lockedRaw] }] });
+    const locks = withGuideLocks(fake, {
+      who: () => Promise.resolve({ by: "Robin", login: "", pc: "" }),
+      recoveryPassword: () => null,
+      iterations: 1_000,
+      prompts: { password: () => Promise.resolve(false), list: () => Promise.resolve() },
+    });
+    vi.spyOn(fake, "openForEditing");
+    const view = render(
+      <GuideLocksContext.Provider value={locks}>
+        <LibraryGuideEditor
+          library={locks.library}
+          libraryId="lib"
+          initial={toDoc(lockedRaw)}
+          store={store}
+          author="Robin"
+          mode="saved"
+          busy={false}
+          onBack={vi.fn()}
+          exportMenu={() => []}
+          notify={notify}
+          blurTerms={[]}
+          onOpenGuide={vi.fn()}
+        />
+      </GuideLocksContext.Provider>,
+    );
+    return { locks, fake, ...view };
+  }
+
+  it("shows who locked it as soon as the lock is set, not on the next action", async () => {
+    const { locks, fake } = showLockable();
+    await waitFor(() => expect(fake.openForEditing).toHaveBeenCalled());
+    // The guide menu's Lock… sets the lock through the same guide locks.
+    await locks.lock({ libraryId: "lib", guideId: "g1" }, "qa-lock-1010");
+    expect(await screen.findByText(/Locked by Robin/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Unlock to edit" })).toBeTruthy();
+  });
+
+  it("disables its editing controls once locked, and a refused Delete leaves the view on the step", async () => {
+    const notify = vi.fn();
+    const { locks, fake, container } = showLockable(notify);
+    fireEvent.click(document.querySelector("[data-step-button='s1']") as HTMLElement);
+    const deleteStep = screen.getByRole("button", { name: "Delete step" });
+    const crop = screen.getByRole("button", { name: "Crop" });
+    const text = screen.getByRole("textbox", { name: "Step text" });
+    expect(deleteStep.hasAttribute("disabled")).toBe(false);
+    expect(crop.hasAttribute("disabled")).toBe(false);
+    expect(text.hasAttribute("readonly")).toBe(false);
+    await waitFor(() => expect(fake.openForEditing).toHaveBeenCalled());
+
+    await locks.lock({ libraryId: "lib", guideId: "g1" }, "qa-lock-1010");
+    await screen.findByText(/Locked by Robin/);
+    // The editor is drawn again from the guide on disk once locked.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Delete step" }).hasAttribute("disabled")).toBe(
+        true,
+      ),
+    );
+    for (const tool of ["Move", "Arrow", "Box", "Text", "Blur", "Crop", "Replace"])
+      expect(screen.getByRole("button", { name: tool }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("textbox", { name: "Step text" }).hasAttribute("readonly")).toBe(true);
+    // Moving between steps isn't editing.
+    expect(screen.getByRole("button", { name: "Next step" }).hasAttribute("disabled")).toBe(false);
+    await expectNoSeriousAxeViolations(container);
+
+    // Delete from the keyboard is refused, says why, and the view stays on the step.
+    fireEvent.click(document.querySelector("[data-step-button='s1']") as HTMLElement);
+    (document.activeElement as HTMLElement | null)?.blur();
+    fireEvent.keyDown(document.body, { key: "Delete" });
+    await waitFor(() =>
+      expect(notify).toHaveBeenCalledWith({
+        text: "Robin locked this guide. Unlock it to make changes.",
+      }),
+    );
+    expect(
+      document
+        .querySelector("[data-step-button][aria-current='step']")
+        ?.getAttribute("data-step-button"),
+    ).toBe("s1");
+    expect(document.querySelector("[data-step-button='s2']")).toBeTruthy();
   });
 });

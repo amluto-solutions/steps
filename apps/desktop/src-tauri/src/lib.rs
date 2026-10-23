@@ -9,25 +9,29 @@ use tauri_plugin_global_shortcut::ShortcutState;
 mod app_folder;
 mod brands;
 pub mod browser_link;
+mod error;
 mod export_files;
 mod hotkeys;
 mod identity;
 mod library;
 mod locks;
 mod logs;
+mod main_window;
 mod ocr_cache;
 mod open;
 mod policy;
 mod recorder;
+mod second_launch;
 mod settings_file;
 mod startup;
 mod support;
 mod sync_folders;
 mod updates;
+mod user;
 
 use hotkeys::HotkeyAction;
 
-fn show_main_window(app: &AppHandle) {
+pub(crate) fn show_main_window(app: &AppHandle) {
     if let Some(main) = app.get_webview_window("main") {
         let _ = main.unminimize();
         let _ = main.show();
@@ -37,7 +41,7 @@ fn show_main_window(app: &AppHandle) {
 
 /// Stops any recording first, so its journal is marked stopped and its input released, then
 /// exits. Waits at most 5 seconds for the recording to finish.
-fn quit(app: &AppHandle) {
+pub(crate) fn quit(app: &AppHandle) {
     let handle = app.clone();
     let spawned = std::thread::Builder::new()
         .name("amluto-quit".into())
@@ -63,34 +67,50 @@ fn quit(app: &AppHandle) {
 pub fn run() {
     // A portable program that has just replaced itself waits for its old copy to close.
     updates::after_replacement();
+    // Who is using Steps and where it keeps their files (user.rs), read by the recorder and the
+    // library. The library's list reaches the recorder only for the default library's folder.
+    let user = user::User::default();
+    let recorder = recorder::RecorderService::new(user.clone());
+    let libraries = library::LibraryService::new(user.clone(), recorder.default_library_folder());
     let result = tauri::Builder::default()
         // One Steps per person (F001, 01/10/2026): a second start, whether from the setup's copy,
-        // the Store's or a portable one, brings this one forward and says so, instead of running
-        // twice and taking each other's keyboard shortcuts. Registered first, as the plugin asks.
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            show_main_window(app);
-            let _ = app.emit_to("main", "steps://already-open", ());
+        // the Store's or a portable one, brings this one forward (second_launch.rs), instead of
+        // running twice and taking each other's keyboard shortcuts. Registered first, as the
+        // plugin asks.
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            if second_launch::brings_window_forward(&args) {
+                show_main_window(app);
+            }
         }))
         .device_event_filter(tauri::DeviceEventFilter::Always)
-        .manage(recorder::RecorderService::default())
+        .manage(user)
+        .manage(recorder)
         .manage(hotkeys::HotkeyService::default())
-        .manage(library::LibraryService::default())
+        .manage(libraries)
         .manage(locks::LockService::default())
         .manage(updates::UpdateService::default())
         .manage(browser_link::BrowserLink::default())
+        .manage(main_window::CloseGuard::default())
         .plugin(logs::plugin())
         .plugin(tauri_plugin_dialog::init())
         // Its own commands are allowed in no window; updates.rs is the only way in.
         .plugin(tauri_plugin_updater::Builder::new().build())
         // Closing the main window hides it to the tray instead of destroying it: the hidden
         // recorder windows keep the app running, and a destroyed main window could never be
-        // reopened. Quit is in the tray menu.
+        // reopened. Quit is in the tray menu. While a save is failing in the editor, the page
+        // asks first, for closing and for Quit (main_window.rs).
         .on_window_event(|window, event| {
-            if window.label() == "main"
-                && let tauri::WindowEvent::CloseRequested { api, .. } = event
-            {
-                api.prevent_close();
-                let _ = window.hide();
+            if window.label() != "main" {
+                return;
+            }
+            match event {
+                tauri::WindowEvent::CloseRequested { api, .. } => {
+                    api.prevent_close();
+                    main_window::close_requested(window);
+                }
+                // Maximising and restoring resize it: remembered for the next start (#84).
+                tauri::WindowEvent::Resized(_) => main_window::resized(window),
+                _ => {}
             }
         })
         .plugin(
@@ -114,6 +134,8 @@ pub fn run() {
             support::support_show_bundle,
             support::support_open_email,
             open::open_web_page,
+            main_window::main_window_ask_before_close,
+            main_window::main_window_quit,
             support::support_open_logs,
             recorder::commands::recorder_start,
             recorder::commands::recorder_get_preferences,
@@ -129,6 +151,7 @@ pub fn run() {
             recorder::commands::recorder_set_capture_mode,
             recorder::commands::recorder_set_bar_hidden,
             recorder::commands::recorder_move_bar,
+            recorder::commands::recorder_bar_place,
             recorder::commands::recorder_get_monitors,
             recorder::commands::recorder_set_target_monitor,
             recorder::commands::recorder_append_step,
@@ -168,6 +191,7 @@ pub fn run() {
             export_files::export_default_folder,
             export_files::export_show,
             export_files::export_preview,
+            export_files::export_log_failure,
             settings_file::settings_read_file,
             settings_file::backup_read_file,
             settings_file::backup_write_file,
@@ -227,16 +251,28 @@ pub fn run() {
             library::library_load_version,
             library::library_restore_version,
             library::library_export_amlsteps,
+            library::library_export_amlsteps_to,
             library::library_import_amlsteps,
         ])
         .setup(|app| {
             // The windows are made here, not from the config at start (`create: false`), so the
             // portable program can keep its web view's data beside itself; an installed copy's
             // get Tauri's usual folder, exactly as before.
+            // The main window opens maximised if it was when Steps last closed (#84).
+            let memory = main_window::WindowMemory::read(
+                app_folder::local_folder(app.handle())
+                    .ok()
+                    .map(|folder| folder.join("window.json")),
+            );
+            let maximised = memory.maximised();
+            app.manage(memory);
             for config in app.config().app.windows.clone() {
                 let mut window = tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?;
                 if let Some(folder) = app_folder::webview_folder() {
                     window = window.data_directory(folder);
+                }
+                if config.label == "main" && maximised {
+                    window = window.maximized(true);
                 }
                 window.build()?;
             }
@@ -269,7 +305,7 @@ pub fn run() {
                     .show_menu_on_left_click(false)
                     .on_menu_event(|app, event| match event.id().as_ref() {
                         "open" => show_main_window(app),
-                        "quit" => quit(app),
+                        "quit" => main_window::quit_requested(app),
                         _ => {}
                     })
                     .on_tray_icon_event(|tray, event| {

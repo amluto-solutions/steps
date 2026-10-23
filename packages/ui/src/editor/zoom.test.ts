@@ -23,6 +23,13 @@ describe("smart zoom", () => {
     expect(crop?.y).toBe(0);
   });
 
+  it("crops only screenshots wider than 2000 pixels, as its menu note says (#87)", () => {
+    const at = (width: number) => ({ ...wide, media: { ...wide.media, width, height: 1080 } });
+    expect(smartZoomCrop(at(1920))).toBeNull();
+    expect(smartZoomCrop(at(2000))).toBeNull();
+    expect(smartZoomCrop(at(2001))).not.toBeNull();
+  });
+
   it("leaves ordinary window captures and cropped steps alone, as one undo step", () => {
     const normal = { ...wide, id: "normal", media: { ...wide.media, width: 1600, height: 900 } };
     const cropped = {

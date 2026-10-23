@@ -61,13 +61,23 @@ type EditorLibrary = GuideFiles & SharedEditing & Comments & GuideCopies;
 
 export interface LibraryGuideEditorProps extends Omit<
   GuideEditorProps,
-  "initial" | "readOnly" | "banner" | "onRefused" | "onLockLost" | "headerActions" | "sidePanel"
+  "initial" | "banner" | "onRefused" | "onLockLost" | "headerActions" | "sidePanel"
 > {
+  /**
+   * Read-only for the app's own reasons too, whoever has the edit lock: while the guide goes to
+   * the Bin or another library (#94).
+   */
+  readOnly?: boolean | undefined;
   library: EditorLibrary;
   libraryId: string;
   initial: EditorDoc;
   /** Opens another guide (a draft opened as a copy). */
   onOpenGuide: (summary: LibraryGuideSummary) => void;
+  /**
+   * Leaves this editor for another guide through the app, which asks first while a save is
+   * failing (docs/spec/04-editor.md#leaving-the-editor); without it, `leave` just runs.
+   */
+  leaveEditor?: ((leave: () => Promise<void>) => Promise<void>) | undefined;
 }
 
 /**
@@ -81,6 +91,7 @@ export function LibraryGuideEditor(props: LibraryGuideEditorProps) {
   const { t } = useTranslation();
   const { library, libraryId, notify } = props;
   const guideId = props.initial.guide.id;
+  const leaveEditor = props.leaveEditor ?? ((leave: () => Promise<void>) => leave());
   const locks = useGuideLocks();
   const lockedBy = useLockedBy();
   const [doc, setDoc] = useState(props.initial);
@@ -185,6 +196,25 @@ export function LibraryGuideEditor(props: LibraryGuideEditorProps) {
     return () => window.clearInterval(timer);
   }, [lock.kind, open, reload]);
 
+  /**
+   * Locked meanwhile, here or elsewhere: read-only from now on, and the edit lock let go. Its lock
+   * gone (or opened here): editable again, as any guide.
+   */
+  const lockRef = useLatest(lock);
+  const followPasswordLock = () =>
+    passwordLock().then((locked) => {
+      const kind = lockRef.current.kind;
+      if (!locked) {
+        if (kind === "locked") void open(false).catch(() => undefined);
+        return;
+      }
+      if (kind === "locked") return;
+      if (holding.current) void library.releaseLock(libraryId, guideId).catch(() => undefined);
+      holding.current = false;
+      setLock({ kind: "locked", locked });
+      void reload().catch(() => undefined);
+    });
+
   // Any synced change: conflicts, drafts and comments are looked for again, and a read-only guide
   // shows it.
   useFingerprintWatch(
@@ -195,20 +225,19 @@ export function LibraryGuideEditor(props: LibraryGuideEditorProps) {
       void refreshDrafts();
       void refreshComments();
       if (lock.kind === "readOnly" || lock.kind === "locked") void reload().catch(() => undefined);
-      // Locked meanwhile, here or elsewhere: read-only from now on, and the edit lock let go.
-      void passwordLock().then((locked) => {
-        if (!locked) {
-          if (lock.kind === "locked") void open(false).catch(() => undefined);
-          return;
-        }
-        if (lock.kind === "locked") return;
-        if (holding.current) void library.releaseLock(libraryId, guideId).catch(() => undefined);
-        holding.current = false;
-        setLock({ kind: "locked", locked });
-        void reload().catch(() => undefined);
-      });
+      void followPasswordLock();
     },
   );
+
+  // Locked, unlocked or given a new password in this app (the guide menu here, or the library):
+  // shown at once, not when the next synced change is noticed (#81).
+  const followRef = useLatest(followPasswordLock);
+  useEffect(() => {
+    if (!locks) return undefined;
+    return locks.onChange((changed) => {
+      if (changed.libraryId === libraryId && changed.guideId === guideId) void followRef.current();
+    });
+  }, [locks, libraryId, guideId, followRef]);
 
   /** Unlock to edit: the password, then the edit lock as usual. */
   const unlockToEdit = async () => {
@@ -227,18 +256,19 @@ export function LibraryGuideEditor(props: LibraryGuideEditorProps) {
   };
 
   /** Duplicate to edit: an unlocked copy, opened in its place. */
-  const duplicateToEdit = async () => {
-    try {
-      const copy = await library.duplicateGuide(
-        libraryId,
-        guideId,
-        t("library.copyTitle", { title: doc.guide.title }),
-      );
-      props.onOpenGuide(copy);
-    } catch (problem) {
-      notify({ kind: "error", text: errorMessage(problem, t("library.actionFailed")) });
-    }
-  };
+  const duplicateToEdit = () =>
+    leaveEditor(async () => {
+      try {
+        const copy = await library.duplicateGuide(
+          libraryId,
+          guideId,
+          t("library.copyTitle", { title: doc.guide.title }),
+        );
+        props.onOpenGuide(copy);
+      } catch (problem) {
+        notify({ kind: "error", text: errorMessage(problem, t("library.actionFailed")) });
+      }
+    });
 
   // Someone took over while this app was editing.
   useEffect(() => {
@@ -296,20 +326,22 @@ export function LibraryGuideEditor(props: LibraryGuideEditorProps) {
     }
   };
 
-  const openDraft = async (draft: DraftInfo) => {
-    try {
-      const copy = await library.draftToCopy(
-        libraryId,
-        guideId,
-        draft.id,
-        t("editor.drafts.copyTitle", { title: doc.guide.title, name: draft.by }),
-      );
-      await refreshDrafts();
-      props.onOpenGuide(copy);
-    } catch (problem) {
-      notify({ kind: "error", text: errorMessage(problem, t("editor.drafts.failed")) });
-    }
-  };
+  // Asked first: the copy is only made once the person has chosen to leave this guide for it.
+  const openDraft = (draft: DraftInfo) =>
+    leaveEditor(async () => {
+      try {
+        const copy = await library.draftToCopy(
+          libraryId,
+          guideId,
+          draft.id,
+          t("editor.drafts.copyTitle", { title: doc.guide.title, name: draft.by }),
+        );
+        await refreshDrafts();
+        props.onOpenGuide(copy);
+      } catch (problem) {
+        notify({ kind: "error", text: errorMessage(problem, t("editor.drafts.failed")) });
+      }
+    });
 
   const discardDraft = async (draft: DraftInfo) => {
     await library.discardDraft(libraryId, guideId, draft.id).catch(() => undefined);
@@ -432,7 +464,7 @@ export function LibraryGuideEditor(props: LibraryGuideEditorProps) {
     </button>
   );
 
-  const readOnly = lock.kind === "readOnly" || lock.kind === "locked";
+  const readOnly = lock.kind === "readOnly" || lock.kind === "locked" || props.readOnly === true;
   const banner = (
     <>
       {lock.kind === "locked" && (
@@ -498,6 +530,8 @@ export function LibraryGuideEditor(props: LibraryGuideEditorProps) {
         {...props}
         key={generation}
         initial={doc}
+        // A fresh copy from disk starts a fresh history: the old one was for other files.
+        initialHistory={generation === 0 ? props.initialHistory : undefined}
         readOnly={readOnly}
         banner={banner}
         headerActions={commentsButton}
@@ -550,11 +584,13 @@ export function AnyGuideEditor({
   library,
   libraryId,
   onOpenGuide,
+  leaveEditor,
   ...props
 }: GuideEditorProps & {
   library: EditorLibrary | undefined;
   libraryId: string | undefined;
   onOpenGuide: (summary: LibraryGuideSummary) => void;
+  leaveEditor?: LibraryGuideEditorProps["leaveEditor"];
 }) {
   return library && libraryId ? (
     <LibraryGuideEditor
@@ -562,6 +598,7 @@ export function AnyGuideEditor({
       library={library}
       libraryId={libraryId}
       onOpenGuide={onOpenGuide}
+      leaveEditor={leaveEditor}
     />
   ) : (
     <GuideEditor {...props} />

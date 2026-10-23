@@ -1,7 +1,5 @@
 {
   "app": {
-    "alreadyOpenTitle": "O Steps já está aberto",
-    "alreadyOpenBody": "Só um Steps pode ser executado por vez, então trouxemos este para a frente para você.",
     "name": "Steps",
     "by": "by",
     "logoAlt": "Amluto"
@@ -83,6 +81,9 @@
     "count_one": "{{count}} guia",
     "count_many": "{{count}} guias",
     "count_other": "{{count}} guias",
+    "countOf_one": "{{shown}} de {{count}} guia",
+    "countOf_many": "{{shown}} de {{count}} guias",
+    "countOf_other": "{{shown}} de {{count}} guias",
     "steps_one": "{{count}} passo",
     "steps_many": "{{count}} passos",
     "steps_other": "{{count}} passos",
@@ -222,7 +223,7 @@
       "note": "Para outro usuário do Steps",
       "pickTitle": "Salvar o guia como arquivo do Steps",
       "filter": "Guia do Steps",
-      "done": "Guia exportado. As áreas desfocadas ficam desfocadas para sempre no arquivo.",
+      "blurredForGood": "As áreas desfocadas ficam desfocadas para sempre no arquivo.",
       "originals": "Incluir os originais sem desfoque (para repasse interno)",
       "originalsWarning": "O arquivo terá todas as capturas de tela sem desfoque. Quem o receber poderá ver o que foi desfocado. Use isso só para passar um guia a um colega que precise editar o desfoque.",
       "burnedIn": "As áreas desfocadas ficam desfocadas para sempre no arquivo. Valores digitados ocultos, comentários e versões ficam de fora."
@@ -513,6 +514,14 @@
       "error": "Não foi possível salvar, tentando de novo",
       "saved": "Todas as alterações salvas"
     },
+    "leave": {
+      "title": "Sair sem suas últimas alterações?",
+      "body": "O Steps não conseguiu salvar suas últimas alterações e ainda está tentando. Se você sair agora, elas podem ser perdidas.",
+      "leave": "Sair mesmo assim",
+      "close": "Fechar mesmo assim",
+      "quit": "Sair mesmo assim",
+      "stay": "Ficar"
+    },
     "stepsList": "Passos",
     "stepCount_one": "{{count}} passo",
     "stepCount_many": "{{count}} passos",
@@ -565,6 +574,7 @@
       "typing": "Verifique este passo: a digitação pode não corresponder exatamente.",
       "code": "Verifique este passo: não foi possível encontrar um segredo na captura de tela para desfocá-lo, ou o texto pode não corresponder exatamente.",
       "fillEnd": "Verifique este passo: a gravação não conseguiu identificar em que célula o preenchimento terminou. Escreva até onde foi ou escolha “Está certo”.",
+      "appSwitch": "Verifique este passo: nenhum clique ou tecla trouxe este aplicativo para a frente, então ele pode ter vindo para a frente sozinho. Exclua o passo se o guia não foi para lá ou escolha “Está certo”.",
       "looksRight": "Está certo"
     },
     "stepText": "Texto do passo",
@@ -968,6 +978,20 @@
       "inUse": "Já usado para {{name}}.",
       "unavailable": "Outro aplicativo já usa este atalho, então ele não funciona agora.",
       "heldBySteps": "Outra cópia do Steps está aberta e usa este atalho. Feche-a e reinicie esta.",
+      "commonUse": "Outros aplicativos usam {{keys}} para “{{use}}”. Enquanto o Steps estiver usando esse atalho, ele não funcionará lá.",
+      "commonMany": "Muitos aplicativos usam {{keys}} por conta própria. Enquanto o Steps estiver usando esse atalho, ele não funcionará neles.",
+      "uses": {
+        "reloadNoCache": "Recarregar sem cache",
+        "reopenTab": "Reabrir guia fechada",
+        "privateWindow": "Nova janela anônima",
+        "closeWindow": "Fechar janela",
+        "closeTab": "Fechar guia",
+        "devTools": "Ferramentas do desenvolvedor",
+        "pastePlain": "Colar como texto simples",
+        "redo": "Refazer",
+        "saveAs": "Salvar como",
+        "bookmarksBar": "Mostrar barra de favoritos"
+      },
       "failed": "Não foi possível salvar esse atalho.",
       "reset": "Restaurar os padrões",
       "resetDone": "Atalhos restaurados.",
@@ -1080,6 +1104,9 @@
     "excludeApp": "Nunca gravar {{app}}",
     "excludeAppEmpty": "Nunca gravar este aplicativo",
     "appExcluded": "{{app}} nunca é gravado",
+    "excludeAppsLike": "Nunca gravar apps do Windows como {{app}}",
+    "appsLikeExcluded": "Apps do Windows como {{app}} nunca são gravados",
+    "waitingForKeys": "Aguardando as teclas",
     "startAgain": "Recomeçar",
     "startAgainHelp_one": "Apaga este {{count}} passo e continua gravando",
     "startAgainHelp_many": "Apaga estes {{count}} passos e continua gravando",
@@ -1107,6 +1134,7 @@
     "into": "Gravando em “{{title}}”",
     "intoFallback": "Os novos passos não puderam entrar em “{{title}}”: o guia foi fechado ou outra pessoa está editando. Eles ficaram em uma gravação separada.",
     "intoNothing": "Nada foi gravado, então “{{title}}” continua como estava.",
+    "nothingRecorded": "Nada foi gravado, então nenhum guia foi criado.",
     "startRecording": "Iniciar gravação",
     "startTitle": "Iniciar uma gravação",
     "keysChoice": "Gravar o que é digitado",
@@ -1163,6 +1191,7 @@
       "mergeClickIntoTyping": "Juntar o clique à digitação que vem depois dele: {{steps}}",
       "removeDoubleClick": "Remover um clique repetido: {{steps}}",
       "removeOpenApp": "Remover um passo “Abrir” que o próximo clique já mostra: {{steps}}",
+      "removeOpenBeforeOpen": "Remover um passo “Abrir” seguido logo de outro passo “Abrir”: {{steps}}",
       "removeRedirect": "Remover um passo “Ir para” pelo qual o link só passou: {{steps}}"
     },
     "apply_one": "Aplicar {{count}} alteração",
@@ -1393,6 +1422,9 @@
     "found_many": "{{count}} ocorrências encontradas em {{steps}} passos.",
     "found_other": "{{count}} ocorrências encontradas em {{steps}} passos.",
     "nothing": "Nada encontrado.",
+    "matches_one": "{{count}} correspondência",
+    "matches_many": "{{count}} de correspondências",
+    "matches_other": "{{count}} correspondências",
     "unread_one": "{{count}} captura de tela não pôde ser lida, então não foi pesquisada. Confira-a você mesmo.",
     "unread_many": "{{count}} capturas de tela não puderam ser lidas, então não foram pesquisadas. Confira-as você mesmo.",
     "unread_other": "{{count}} capturas de tela não puderam ser lidas, então não foram pesquisadas. Confira-as você mesmo.",
@@ -1426,18 +1458,19 @@
       "term": "palavra a desfocar sempre",
       "account": "o nome da sua conta",
       "file": "nome de arquivo",
-      "path": "caminho de arquivo"
+      "path": "caminho de arquivo",
+      "notification": "notificação"
     },
     "nextTo": "{{kind}} ao lado de “{{label}}”"
   },
   "zoom": {
     "menu": "Ampliar cada clique",
-    "menuNote": "Corta as capturas de tela muito largas ao redor do clique para que fiquem legíveis na página",
+    "menuNote": "Corta as capturas de tela mais largas que {{width}} pixels na área ao redor do clique, para o texto ficar maior na página",
     "auto": "Automático",
     "done_one": "{{count}} captura de tela ampliada.",
     "done_many": "{{count}} capturas de tela ampliadas.",
     "done_other": "{{count}} capturas de tela ampliadas.",
-    "nothing": "Nenhuma captura de tela precisa de zoom: todas já ficam legíveis na página."
+    "nothing": "Nada para ampliar: só corta capturas de tela mais largas que {{width}} pixels que tenham um clique e ainda não tenham corte."
   },
   "exportSettings": {
     "folder": "Salvar exportações em",
@@ -1578,7 +1611,7 @@
       "eyebrow": "Tour concluído",
       "title": "Tudo pronto",
       "body": "Esse foi o tour. Você pode fazê-lo de novo nas Configurações quando quiser.",
-      "finish": "Concluir"
+      "gotIt": "Entendi"
     },
     "pill": {
       "label": "Tour",

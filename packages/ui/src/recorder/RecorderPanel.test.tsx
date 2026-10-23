@@ -103,6 +103,70 @@ describe("the side panel's steps while recording", () => {
   });
 });
 
+describe("the side panel's Stop (#52)", () => {
+  afterEach(() => writeRecordingInto(null));
+
+  it("says nothing was recorded and keeps no recording when there were no steps", async () => {
+    const { recorder, getRecordingSettings } = panelRecorder();
+    const discard = vi.spyOn(recorder, "discard");
+    render(<RecorderPanel recorder={recorder} onOpenSteps={() => undefined} />);
+    await waitFor(() => expect(getRecordingSettings).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    expect(await screen.findByText("Nothing was recorded, so no guide was made.")).toBeTruthy();
+    expect(discard).toHaveBeenCalledOnce();
+    expect(await recorder.getRecoveries()).toEqual([]);
+    expect(screen.queryByRole("button", { name: "Review it in Steps" })).toBeNull();
+  });
+
+  it("never discards a recording started after the empty one stopped", async () => {
+    const { recorder, getRecordingSettings } = panelRecorder();
+    const discard = vi.spyOn(recorder, "discard");
+    // The Steps tab lets the empty recording go and a new one starts, while the panel works out
+    // that the stopped one had no steps.
+    vi.spyOn(recorder, "getSessionSteps").mockImplementation(async () => {
+      await recorder.discard();
+      await recorder.start("Next", {
+        keys: false,
+        output: false,
+        settleMs: 0,
+        settings: { showUnnamedTyping: false, wording: { language: "en", tone: "casual" } },
+      });
+      return [];
+    });
+    render(<RecorderPanel recorder={recorder} onOpenSteps={() => undefined} />);
+    await waitFor(() => expect(getRecordingSettings).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Stop" })).toBeTruthy());
+    await act(async () => undefined);
+    expect(discard).toHaveBeenCalledOnce();
+    expect((await recorder.getState()).state).toBe("recording");
+  });
+
+  it("names the guide a recording into it with no steps left as it was", async () => {
+    writeRecordingInto({ token: "t1", title: "Payroll", sessionId: "s1" });
+    const { recorder, getRecordingSettings } = panelRecorder();
+    render(<RecorderPanel recorder={recorder} onOpenSteps={() => undefined} />);
+    await waitFor(() => expect(getRecordingSettings).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    expect(
+      await screen.findByText("Nothing was recorded, so “Payroll” is as it was."),
+    ).toBeTruthy();
+  });
+
+  it("keeps a recording with steps for review in Steps", async () => {
+    const { recorder, getRecordingSettings, send } = panelRecorder();
+    const discard = vi.spyOn(recorder, "discard");
+    render(<RecorderPanel recorder={recorder} onOpenSteps={() => undefined} />);
+    await waitFor(() => expect(getRecordingSettings).toHaveBeenCalled());
+    send(click(1, 100, { tagName: "BUTTON", innerText: "Save" }));
+    await waitFor(() => expect(screen.getAllByRole("listitem")).toHaveLength(1));
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    expect(await screen.findByRole("button", { name: "Review it in Steps" })).toBeTruthy();
+    expect(discard).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Nothing was recorded/)).toBeNull();
+  });
+});
+
 describe("the side panel recording into a guide (docs/spec/04-editor.md#record-steps-here)", () => {
   afterEach(() => writeRecordingInto(null));
 

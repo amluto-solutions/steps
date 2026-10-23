@@ -1,7 +1,5 @@
 {
   "app": {
-    "alreadyOpenTitle": "Steps är redan öppet",
-    "alreadyOpenBody": "Bara ett Steps kan köras åt gången, så vi har hämtat fram det här åt dig.",
     "name": "Steps",
     "by": "by",
     "logoAlt": "Amluto"
@@ -75,6 +73,8 @@
     "heading": "Dina guider",
     "count_one": "{{count}} guide",
     "count_other": "{{count}} guider",
+    "countOf_one": "{{shown}} av {{count}} guide",
+    "countOf_other": "{{shown}} av {{count}} guider",
     "steps_one": "{{count}} steg",
     "steps_other": "{{count}} steg",
     "search": "Sök i guider",
@@ -204,7 +204,7 @@
       "note": "Till en annan Steps-användare",
       "pickTitle": "Spara guiden som en Steps-fil",
       "filter": "Steps-guide",
-      "done": "Guiden har exporterats. Suddiga områden är suddiga för gott i filen.",
+      "blurredForGood": "Suddiga områden är suddiga för gott i filen.",
       "originals": "Ta med original utan oskärpa (för intern överlämning)",
       "originalsWarning": "Filen kommer att innehålla varje skärmbild utan oskärpa. Den som får filen kan se det som gjorts suddigt. Använd bara det här för att lämna över en guide till en kollega som behöver redigera oskärpan.",
       "burnedIn": "Suddiga områden är suddiga för gott i filen. Dolda inskrivna värden, kommentarer och versioner tas inte med."
@@ -472,6 +472,14 @@
       "error": "Det gick inte att spara, försöker igen",
       "saved": "Alla ändringar har sparats"
     },
+    "leave": {
+      "title": "Vill du lämna utan dina senaste ändringar?",
+      "body": "Steps kunde inte spara dina senaste ändringar och försöker fortfarande. Om du lämnar nu kan de gå förlorade.",
+      "leave": "Lämna ändå",
+      "close": "Stäng ändå",
+      "quit": "Avsluta ändå",
+      "stay": "Stanna"
+    },
     "stepsList": "Steg",
     "stepCount_one": "{{count}} steg",
     "stepCount_other": "{{count}} steg",
@@ -519,6 +527,7 @@
       "typing": "Kontrollera det här steget: den inskrivna texten kanske inte stämmer exakt.",
       "code": "Kontrollera det här steget: en hemlighet i det hittades inte i skärmbilden för att göras oskarp, eller så kanske texten inte stämmer exakt.",
       "fillEnd": "Kontrollera det här steget: inspelningen kunde inte avgöra i vilken cell fyllningen slutade. Skriv var den hamnade eller välj ”Ser rätt ut”.",
+      "appSwitch": "Kontrollera det här steget: inget klick eller tangenttryck gjorde att den här appen hamnade i förgrunden, så den kan ha kommit fram av sig själv. Ta bort steget om guiden inte gick till den appen, eller välj ”Ser rätt ut”.",
       "looksRight": "Ser rätt ut"
     },
     "stepText": "Stegets text",
@@ -917,6 +926,20 @@
       "inUse": "Används redan för {{name}}.",
       "unavailable": "En annan app använder redan det här, så det fungerar inte just nu.",
       "heldBySteps": "En annan kopia av Steps är öppen och använder det här. Stäng den och starta sedan om den här.",
+      "commonUse": "Andra appar använder {{keys}} för ”{{use}}”. Så länge Steps har kortkommandot fungerar det inte där.",
+      "commonMany": "Många appar använder {{keys}} själva. Så länge Steps har kortkommandot fungerar det inte i dem.",
+      "uses": {
+        "reloadNoCache": "Ladda om utan cache",
+        "reopenTab": "Öppna stängd flik igen",
+        "privateWindow": "Nytt privat fönster",
+        "closeWindow": "Stäng fönster",
+        "closeTab": "Stäng flik",
+        "devTools": "Utvecklarverktyg",
+        "pastePlain": "Klistra in som oformaterad text",
+        "redo": "Gör om",
+        "saveAs": "Spara som",
+        "bookmarksBar": "Visa bokmärkesfältet"
+      },
       "failed": "Det gick inte att spara kortkommandot.",
       "reset": "Återställ standardvärden",
       "resetDone": "Kortkommandona har återställts.",
@@ -1029,6 +1052,9 @@
     "excludeApp": "Spela aldrig in {{app}}",
     "excludeAppEmpty": "Spela aldrig in den här appen",
     "appExcluded": "{{app}} spelas aldrig in",
+    "excludeAppsLike": "Spela aldrig in Windows-appar som {{app}}",
+    "appsLikeExcluded": "Windows-appar som {{app}} spelas aldrig in",
+    "waitingForKeys": "Väntar på tangenterna",
     "startAgain": "Börja om",
     "startAgainHelp_one": "Rensar det här steget och fortsätter spela in",
     "startAgainHelp_other": "Rensar de här {{count}} stegen och fortsätter spela in",
@@ -1052,6 +1078,7 @@
     "into": "Spelar in i ”{{title}}”",
     "intoFallback": "De nya stegen kunde inte läggas till i ”{{title}}”: guiden stängdes, eller så redigeras den av någon annan. De ligger i en egen inspelning i stället.",
     "intoNothing": "Inget spelades in, så ”{{title}}” är oförändrad.",
+    "nothingRecorded": "Inget spelades in, så ingen guide skapades.",
     "startRecording": "Starta inspelning",
     "startTitle": "Starta en inspelning",
     "keysChoice": "Spela in det som skrivs",
@@ -1107,6 +1134,7 @@
       "mergeClickIntoTyping": "Slå ihop klicket med texten som skrivs efter det: {{steps}}",
       "removeDoubleClick": "Ta bort ett upprepat klick: {{steps}}",
       "removeOpenApp": "Ta bort ett ”Öppna”-steg som nästa klick redan visar: {{steps}}",
+      "removeOpenBeforeOpen": "Ta bort ett ”Öppna”-steg som direkt följs av ett annat ”Öppna”-steg: {{steps}}",
       "removeRedirect": "Ta bort ett ”Gå till”-steg som länken bara passerade: {{steps}}"
     },
     "apply_one": "Genomför {{count}} ändring",
@@ -1327,6 +1355,8 @@
     "found_one": "{{count}} träff hittades i {{steps}} steg.",
     "found_other": "{{count}} träffar hittades i {{steps}} steg.",
     "nothing": "Inget hittades.",
+    "matches_one": "{{count}} träff",
+    "matches_other": "{{count}} träffar",
     "unread_one": "{{count}} skärmbild kunde inte läsas, så den söktes inte igenom. Kontrollera den själv.",
     "unread_other": "{{count}} skärmbilder kunde inte läsas, så de söktes inte igenom. Kontrollera dem själv.",
     "notGuaranteed": "Förslag kan missa saker. Kontrollera varje skärmbild innan du delar guiden.",
@@ -1355,17 +1385,18 @@
       "term": "ord som alltid görs suddigt",
       "account": "ditt kontonamn",
       "file": "filnamn",
-      "path": "sökväg"
+      "path": "sökväg",
+      "notification": "avisering"
     },
     "nextTo": "{{kind}} bredvid ”{{label}}”"
   },
   "zoom": {
     "menu": "Zooma in på varje klick",
-    "menuNote": "Beskär mycket breda skärmbilder runt klicket så att de blir läsbara på en sida",
+    "menuNote": "Beskär skärmbilder som är bredare än {{width}} pixlar till området kring klicket, så att texten på sidan blir större",
     "auto": "Auto",
     "done_one": "Har zoomat in på {{count}} skärmbild.",
     "done_other": "Har zoomat in på {{count}} skärmbilder.",
-    "nothing": "Inga skärmbilder behöver zoomas: de är redan läsbara på en sida."
+    "nothing": "Inget att zooma in på: det beskär bara skärmbilder som är bredare än {{width}} pixlar, har ett klick och inte redan är beskurna."
   },
   "exportSettings": {
     "folder": "Spara exporter i",
@@ -1506,7 +1537,7 @@
       "eyebrow": "Rundturen är klar",
       "title": "Nu är allt klart",
       "body": "Det var rundturen. Du kan köra den igen från Inställningar när du vill.",
-      "finish": "Slutför"
+      "gotIt": "Uppfattat"
     },
     "pill": {
       "label": "Rundtur",

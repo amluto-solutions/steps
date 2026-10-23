@@ -7,9 +7,12 @@ import { visibleStepText, type GuideStep } from "@amluto-steps/core";
  */
 export function AltTextField({
   step,
+  readOnly = false,
   onChange,
 }: {
   step: GuideStep;
+  /** A read-only or locked guide: readable and selectable, not changed. */
+  readOnly?: boolean;
   onChange: (text: string | null) => void;
 }) {
   const { t } = useTranslation();
@@ -26,6 +29,7 @@ export function AltTextField({
         value={step.altText ?? ""}
         placeholder={visibleStepText(step)}
         aria-describedby={`${id}-help`}
+        readOnly={readOnly}
         onChange={(event) => {
           const text = event.currentTarget.value;
           onChange(text.trim() ? text : null);

@@ -277,6 +277,43 @@ describe("tagged PDF", () => {
     expect(raw).toMatch(/\/StructParent \d+/);
   }, 60_000);
 
+  it("keeps each emoji in its heading or paragraph, as the real emoji (#89)", async () => {
+    const emoji = new Uint8Array(
+      readFileSync(
+        require.resolve("@fontsource/noto-emoji/files/noto-emoji-emoji-400-normal.woff"),
+      ),
+    );
+    const model = buildRenderModel(
+      { ...guide, title: "Onboarding 🚀", intro: null },
+      [
+        step("a", {
+          notes: {
+            type: "doc",
+            content: [
+              {
+                type: "paragraph",
+                content: [{ type: "text", text: "Great job! 🎉 Ask Gran ☎️ if stuck" }],
+              },
+            ],
+          } as RichText,
+        }),
+      ],
+      new Map(),
+      { preparedBy: "", now: new Date(2026, 9, 12) },
+    );
+    const pdf = await renderPdf(
+      model,
+      { ...fonts, emoji: () => Promise.resolve(emoji) },
+      { pageSize: "A4", orientation: "portrait" },
+      false,
+    );
+    const { outline, unmarked } = await readBack(pdf);
+    expect(unmarked).toEqual([]);
+    const text = outline.join("\n");
+    expect(text).toMatch(/H1: Onboarding ?🚀/);
+    expect(text).toMatch(/P: Great job! ?🎉 ?Ask Gran ?☎️ ?if stuck/);
+  }, 30_000);
+
   it("draws an untagged document as before", async () => {
     // The wrapper only acts on the document being tagged: a second, ordinary pdfmake document in
     // the same process has no structure.

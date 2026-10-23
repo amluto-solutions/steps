@@ -18,6 +18,15 @@ describe("which characters a font has", () => {
     ]);
   });
 
+  it("leaves emoji to the PDF's emoji font", () => {
+    expect(charactersOf("Great job! 🎉 Ask Gran ☎️ 👨‍👩‍👧 🇬🇧 1️⃣")).toEqual([]);
+    expect(charactersOf("日本語 🎉").map((point) => String.fromCodePoint(point))).toEqual([
+      "日",
+      "本",
+      "語",
+    ]);
+  });
+
   it("knows the bundled Latin fallbacks can't show Polish or Greek, but can show French", () => {
     expect(bundledCovers(charactersOf("Cliquez sur « Enregistrer »"))).toBe(true);
     expect(bundledCovers(charactersOf("Kliknij „Zapisz”, łącznie"))).toBe(false);

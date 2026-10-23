@@ -35,6 +35,12 @@ pub struct WindowInfo {
     /// Visible frame, decorations included, in screen pixels.
     pub frame: Rect,
     pub elevation: Elevation,
+    /// The program a frame shows for another program, as Windows' store-app frames do. X11 has
+    /// no such frames, so this is always `None`.
+    pub hosted_exe: Option<String>,
+    /// Its `WM_CLASS` class ([`window_class`]), read with the rest, as on Windows (#98). `None`
+    /// when it has none.
+    pub class: Option<String>,
 }
 
 impl WindowInfo {
@@ -191,6 +197,8 @@ fn info(display: &Display, window: Window) -> Option<WindowInfo> {
         } else {
             elevation(pid)
         },
+        hosted_exe: None,
+        class: class(display, window),
     })
 }
 
@@ -198,8 +206,11 @@ fn info(display: &Display, window: Window) -> Option<WindowInfo> {
 /// apart where Windows uses a window class.
 #[must_use]
 pub fn window_class(hwnd: isize) -> Option<String> {
-    let display = shared()?;
-    let value = text_property(display, from_handle(hwnd)?, AtomEnum::WM_CLASS.into())?;
+    class(shared()?, from_handle(hwnd)?)
+}
+
+fn class(display: &Display, window: Window) -> Option<String> {
+    let value = text_property(display, window, AtomEnum::WM_CLASS.into())?;
     let mut parts = value.split('\0').filter(|part| !part.is_empty());
     let instance = parts.next().map(str::to_string);
     parts.next().map(str::to_string).or(instance)
@@ -278,6 +289,21 @@ pub fn root_window_at(x: i32, y: i32) -> Option<WindowInfo> {
 #[must_use]
 pub fn owner_process_at(x: i32, y: i32) -> Option<u32> {
     root_window_at(x, y).map(|window| window.pid)
+}
+
+/// The processes of the windows up the owners of the window under a point, as on Windows (#103).
+/// Not read on Linux yet (an X11 window's `WM_TRANSIENT_FOR`): the window's own program is what's
+/// judged there.
+#[must_use]
+pub fn owner_processes_at(_x: i32, _y: i32) -> Vec<u32> {
+    Vec::new()
+}
+
+/// The processes of the windows up a window's owners, as on Windows (#110): not read on Linux
+/// yet, as for [`owner_processes_at`], so a screenshot judges each window by its own program.
+#[must_use]
+pub fn owner_processes_of(_hwnd: isize) -> Vec<u32> {
+    Vec::new()
 }
 
 /// The active window (`_NET_ACTIVE_WINDOW`).
@@ -396,6 +422,13 @@ fn entry_runs(path: &Path, exe: &str) -> Option<(String, u8)> {
     runs.then_some(name).flatten().map(|name| (name, distance))
 }
 
+/// The app a store app's frame shows (Windows' `ApplicationFrameHost.exe`, #50). X11 has no such
+/// frames: every window is its own program's.
+#[must_use]
+pub fn hosted_app_name(_hwnd: isize) -> Option<String> {
+    None
+}
+
 /// Whether this process runs as root.
 #[must_use]
 pub fn own_process_elevated() -> bool {
@@ -420,15 +453,50 @@ pub fn show_warning(title: &str, text: &str) {
     }
 }
 
+/// A window's own title-bar button, as on Windows. Never told on Linux: the window manager draws
+/// title bars, and X11 has no hit test to ask.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TitleBarButton {
+    Close,
+    Minimise,
+    Maximise,
+    Restore,
+}
+
+/// What was under the pointer as a button went down, as on Windows. Not read on Linux yet.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Pressed {
+    /// The top-level window under the pointer.
+    pub window: WindowInfo,
+    /// The window's own title-bar button under the pointer.
+    pub title_bar_button: Option<TitleBarButton>,
+    /// For a press in a pop-up, the window it came from, as on Windows (#72).
+    pub owner: Option<WindowInfo>,
+    /// The processes of the windows up the window's owners, as on Windows (#103).
+    pub owners: Vec<u32>,
+}
+
 /// A top-level window that is showing, for working out what a screenshot shows.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ShownWindow {
+    /// The client window's id, as [`WindowInfo::hwnd`]: what [`owner_processes_of`] is asked of.
+    pub hwnd: isize,
     pub pid: u32,
     /// Visible frame in screen pixels.
     pub frame: Rect,
     /// Drawn with transparency, so what's behind it may show through. X11 doesn't say without a
     /// compositor's help, so this is always `false`.
     pub see_through: bool,
+    /// An overlay clicks go through (Windows' click-through layered windows). X11 has no such
+    /// window style, so this is always `false`.
+    pub click_through: bool,
+    /// A notification's popup (`_NET_WM_WINDOW_TYPE_NOTIFICATION`), greyed out over the clicked
+    /// window and flagged where it shows. Popups a notification daemon draws outside the window
+    /// manager's list aren't among these windows at all.
+    pub notification: bool,
+    /// The process a frame shows for another program, as Windows' store-app frames do. X11 has no
+    /// such frames, so this is always `None`.
+    pub hosted_pid: Option<u32>,
 }
 
 /// Every top-level window that is showing, front to back.
@@ -443,9 +511,14 @@ pub fn shown_windows() -> Vec<ShownWindow> {
         .filter_map(|window| {
             let frame = frame(display, window)?;
             (frame.width() > 0 && frame.height() > 0).then(|| ShownWindow {
+                hwnd: to_handle(window),
                 pid: pid(display, window).unwrap_or(0),
                 frame,
                 see_through: false,
+                click_through: false,
+                notification: property32(display, window, display.atoms.net_wm_window_type)
+                    .contains(&display.atoms.net_wm_window_type_notification),
+                hosted_pid: None,
             })
         })
         .collect()

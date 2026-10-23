@@ -233,11 +233,7 @@ export class FolderLibrary {
   /** The `guides` folder; a library without one can't be listed. */
   async guidesDir(): Promise<Dir> {
     const found = await this.root.folder("guides");
-    if (!found)
-      throw new LibraryError(
-        "storageError",
-        "Steps could not read or write the library: its guides folder is missing.",
-      );
+    if (!found) throw new LibraryError("storageError", "The library’s guides folder is missing.");
     return found;
   }
 

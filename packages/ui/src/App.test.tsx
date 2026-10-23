@@ -3,7 +3,9 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_RECORDING_SETTINGS,
+  hashPassword,
   newBrandProfile,
+  parseGuideHistory,
   type GuideStep,
   type RecordedStep,
   type RecorderPreferences,
@@ -16,7 +18,13 @@ import { App } from "./App";
 import { fakeCapabilities } from "./bridge/capabilities-fake";
 import { initI18n } from "./i18n";
 import type { LibraryBridge } from "./library-bridge";
-import { fakeLibrary, type FakeLibrary } from "./library-fake";
+import {
+  fakeBin,
+  fakeGuideCopies,
+  fakeGuideFiles,
+  fakeLibrary,
+  type FakeLibrary,
+} from "./library-fake";
 import { factToStep } from "./recorded-step";
 import type { RecorderBridge, RecorderSnapshot } from "./recorder-bridge";
 import { fakeRecorder } from "./bridge/recorder-fake";
@@ -414,9 +422,43 @@ describe("App start-up", () => {
     expect(await screen.findByText("Imported “Add a supplier (imported)”.")).toBeTruthy();
   });
 
+  const openApplyBlur = async () => {
+    fireEvent.click(await screen.findByRole("button", { name: "More actions for Add a supplier" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Apply blur permanently/ }));
+  };
+  const blurred = (step: ReturnType<typeof stepFile>) => ({
+    ...step,
+    redactions: [{ x: 10, y: 10, w: 20, h: 5, source: "manual" }],
+  });
+
+  it("says straight away that nothing is blurred, without asking, when nothing is (#52)", async () => {
+    const applyRedactions = vi.fn().mockResolvedValue(0);
+    render(<App recorder={makeRecorder()} library={makeLibrary({ applyRedactions })} />);
+    await openApplyBlur();
+    expect(
+      await screen.findByText("Nothing is blurred in this guide, so nothing changed."),
+    ).toBeTruthy();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(applyRedactions).not.toHaveBeenCalled();
+  });
+
+  it("asks before applying a blur that only a saved version still has (#52)", async () => {
+    const library = makeLibrary();
+    await library.saveStep("lib-1", "guide-1", blurred(stepFile("s1", "a", "Click Contacts")));
+    await library.saveVersion("lib-1", "guide-1", "Blurred");
+    await library.saveStep("lib-1", "guide-1", stepFile("s1", "a", "Click Contacts"));
+    render(<App recorder={makeRecorder()} library={library} />);
+    await openApplyBlur();
+    expect(
+      within(await screen.findByRole("alertdialog")).getByText(/can’t be undone/),
+    ).toBeTruthy();
+  });
+
   it("applies blur permanently only after the user confirms, in the app's own dialog", async () => {
     const applyRedactions = vi.fn().mockResolvedValue(2);
-    render(<App recorder={makeRecorder()} library={makeLibrary({ applyRedactions })} />);
+    const library = makeLibrary({ applyRedactions });
+    await library.saveStep("lib-1", "guide-1", blurred(stepFile("s1", "a", "Click Contacts")));
+    render(<App recorder={makeRecorder()} library={library} />);
     const openMenu = async () => {
       fireEvent.click(
         await screen.findByRole("button", { name: "More actions for Add a supplier" }),
@@ -572,6 +614,108 @@ describe("Unsaved recordings", () => {
     await waitFor(() => expect(finalize).toHaveBeenCalledTimes(2));
   });
 
+  /**
+   * An unsaved recording of two steps, its draft kept as the editor writes it, and a Save that
+   * publishes it into "My guides" as the desktop does: the guide gets the recording's session id.
+   */
+  function unsavedRecording() {
+    const library = makeLibrary({
+      pickSaveLocation: vi.fn((_title: string, name: string) => Promise.resolve(`C:/Out/${name}`)),
+    });
+    const draft = new Map<string, unknown>([
+      ["capture-1", stepFile("capture-1", "0000000001", "Click Save")],
+      ["capture-2", stepFile("capture-2", "0000000002", "Click Close")],
+    ]);
+    const recorder = makeRecorder(
+      {
+        getState: vi.fn().mockResolvedValue({ ...idle, sessionId: "session-1" }),
+        getRecoveries: vi.fn().mockResolvedValue([
+          {
+            sessionId: "session-1",
+            title: "Recovered",
+            eventCount: 2,
+            stopped: true,
+            savedGuideId: null,
+          },
+        ]),
+        loadDraft: vi.fn().mockResolvedValue({
+          guide: guideFile("session-1", "Recovered"),
+          steps: [...draft.values()],
+        }),
+        saveDraftStep: vi.fn((_session: string, step: unknown) => {
+          draft.set((step as { id: string }).id, step);
+          return Promise.resolve();
+        }),
+        deleteDraftStep: vi.fn((_session: string, id: string) => {
+          draft.delete(id);
+          return Promise.resolve();
+        }),
+        finalize: vi.fn(async (sessionId: string, guide: Record<string, unknown>) => {
+          await library.createFromParts(
+            "lib-1",
+            { ...guide, recordingSessionId: sessionId },
+            [...draft.values()],
+            [],
+          );
+        }),
+      },
+      ["session-1"],
+    );
+    render(<App recorder={recorder} library={library} />);
+    return { recorder, library };
+  }
+
+  /** Deletes the recording's first step in its editor, waiting for the draft to be written. */
+  const deleteFirstStep = async (recorder: RecorderBridge) => {
+    fireEvent.click(await screen.findByRole("button", { name: "Review and save" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Delete step" }));
+    await waitFor(() =>
+      expect(recorder.deleteDraftStep).toHaveBeenCalledWith("session-1", "capture-1"),
+    );
+  };
+
+  /** The saved guide's editor still undoes the delete, and redoes it, writing each to it. */
+  const undoAndRedoInTheSavedGuide = async (library: FakeLibrary) => {
+    await waitFor(() => expect(library.loadGuide).toHaveBeenCalledWith("lib-1", "session-1"));
+    expect(await screen.findByText("All changes saved")).toBeDefined();
+    fireEvent.click(await screen.findByRole("button", { name: "Guide actions" }));
+    const undo = await screen.findByRole("menuitem", { name: /Undo/ });
+    expect((undo as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(undo);
+    await waitFor(() =>
+      expect(library.saveStep).toHaveBeenCalledWith(
+        "lib-1",
+        "session-1",
+        expect.objectContaining({ id: "capture-1", actionText: "Click Save" }),
+      ),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Guide actions" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Redo/ }));
+    await waitFor(() =>
+      expect(library.deleteStep).toHaveBeenCalledWith("lib-1", "session-1", "capture-1"),
+    );
+  };
+
+  it("keeps Undo and Redo after Save guide, writing them to the saved guide (#82)", async () => {
+    const { recorder, library } = unsavedRecording();
+    await deleteFirstStep(recorder);
+    fireEvent.click(screen.getByRole("button", { name: "Save guide" }));
+    await undoAndRedoInTheSavedGuide(library);
+  });
+
+  it("keeps Undo and Redo after an export saves the recording (#82)", async () => {
+    const { recorder, library } = unsavedRecording();
+    await deleteFirstStep(recorder);
+    fireEvent.click(screen.getByRole("button", { name: /^Export/ }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Word/ }));
+    const review = await screen.findByRole("dialog");
+    const exportIt = within(review).getByRole("button", { name: /^Export Word$/ });
+    await waitFor(() => expect((exportIt as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(exportIt);
+    await waitFor(() => expect(recorder.finalize).toHaveBeenCalled());
+    await undoAndRedoInTheSavedGuide(library);
+  });
+
   it("reviews an interrupted recording before the user chooses to discard it", async () => {
     const discard = vi.fn().mockResolvedValue(idle);
     const recoverSession = vi.fn(async (sessionId: string) => ({ ...idle, sessionId }));
@@ -677,22 +821,20 @@ describe("Recording", () => {
     expect(document.activeElement?.getAttribute("data-step-button")).toBe("s2");
   });
 
-  it("says Steps was already open when it's started a second time (F001)", async () => {
-    let startedAgain: (() => void) | null = null;
-    const recorder = makeRecorder({
-      onAlreadyOpen: vi.fn(async (handler: () => void) => {
-        startedAgain = handler;
-        return () => undefined;
-      }),
-    });
+  it("gives the window's title bar the theme chosen in Steps (P38)", async () => {
+    // The light theme on a PC set to dark kept a dark title bar.
+    window.localStorage.setItem("amluto-steps-theme", "light");
+    const recorder = makeRecorder();
     render(<App recorder={recorder} library={makeLibrary()} />);
     await screen.findByText("Add a supplier");
-    await waitFor(() => expect(startedAgain).not.toBeNull());
-    await act(async () => startedAgain?.());
-    const notice = await screen.findByRole("alertdialog");
-    expect(within(notice).getByText("Steps is already open")).toBeTruthy();
-    fireEvent.click(within(notice).getByRole("button", { name: "OK" }));
-    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(recorder.setWindowTheme).toHaveBeenLastCalledWith("light");
+  });
+
+  it("leaves the title bar to the device when the theme follows it", async () => {
+    const recorder = makeRecorder();
+    render(<App recorder={recorder} library={makeLibrary()} />);
+    await screen.findByText("Add a supplier");
+    expect(recorder.setWindowTheme).toHaveBeenLastCalledWith(null);
   });
 
   it("starts one recording when the start shortcut is pressed twice quickly", async () => {
@@ -800,6 +942,37 @@ describe("Recording", () => {
     await waitFor(() => expect(recorder.start).toHaveBeenCalled());
   };
 
+  it("asks before a stopped recording's draft takes the place of an editor whose save is failing (#80)", async () => {
+    const { recorder, fire } = liveRecorder();
+    const library = makeLibrary({
+      saveStep: vi.fn().mockRejectedValue(new Error("The drive isn't there.")),
+    });
+    await startFromTheSidebar(recorder, library);
+    // While it records, a guide is opened and edited, and its save fails.
+    fireEvent.click(await screen.findByRole("button", { name: "Open Add a supplier" }));
+    fireEvent.change(await screen.findByDisplayValue("Click Contacts"), {
+      target: { value: "Click Suppliers" },
+    });
+    expect(await screen.findByText("Couldn't save, retrying")).toBeDefined();
+
+    // A recording with a step: one with none makes no draft at all (#52).
+    act(() => fire.fact(capture(1)));
+    act(() =>
+      fire.finished({
+        sessionId: "session-9",
+        snapshot: { ...idle, sessionId: "session-9" },
+        title: "Tuesday",
+      }),
+    );
+    const ask = await screen.findByRole("alertdialog", {
+      name: "Leave without your latest changes?",
+    });
+    fireEvent.click(within(ask).getByRole("button", { name: "Stay" }));
+    // The recording waits with the unsaved ones; the edit stays on screen.
+    expect(screen.getByDisplayValue("Click Suppliers")).toBeDefined();
+    expect(screen.queryByRole("button", { name: "Save guide" })).toBeNull();
+  });
+
   it("says when clicks on a screen left out made no steps", async () => {
     const { recorder, fire } = liveRecorder();
     await startFromTheSidebar(recorder);
@@ -815,6 +988,26 @@ describe("Recording", () => {
         "3 clicks were on a screen this recording leaves out, so they aren't in the guide. To record on every screen, choose All monitors in Settings, Recording.",
       ),
     ).toBeDefined();
+  });
+
+  it("says nothing was recorded when a recording with no steps stops, and makes no guide (#52)", async () => {
+    const { recorder, fire } = liveRecorder();
+    const library = makeLibrary();
+    await startFromTheSidebar(recorder, library);
+    act(() =>
+      fire.finished({
+        sessionId: "session-9",
+        snapshot: { ...idle, sessionId: "session-9" },
+        title: "Tuesday",
+      }),
+    );
+    expect(await screen.findByText("Nothing was recorded, so no guide was made.")).toBeDefined();
+    await waitFor(() => expect(recorder.discard).toHaveBeenCalled());
+    expect(recorder.saveDraft).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Save guide" })).toBeNull();
+    // Nothing waits as an unsaved recording either.
+    expect(await recorder.getRecoveries()).toEqual([]);
+    expect(library.createGuide).not.toHaveBeenCalled();
   });
 
   it("journals steps as facts arrive, opens them as a draft when it stops, and saves the guide", async () => {
@@ -1209,11 +1402,14 @@ describe("Editing a saved guide", () => {
       deleteTrashed: vi.fn().mockResolvedValue(undefined),
     });
     render(<App recorder={makeRecorder()} library={library} />);
-    fireEvent.keyDown(await screen.findByRole("button", { name: "Open Add a supplier" }), {
-      key: "a",
-      ctrlKey: true,
+    const first = await screen.findByRole("button", { name: "Open Add a supplier" });
+    // Ctrl+A is heard on the window, by the list's effects, which React may run a moment after
+    // the list shows: until then it ticks nothing. Pressing it again ticks the same guides.
+    const moveTo = await waitFor(() => {
+      fireEvent.keyDown(first, { key: "a", ctrlKey: true });
+      return screen.getByRole("button", { name: "Move to…" });
     });
-    fireEvent.click(screen.getByRole("button", { name: "Move to…" }));
+    fireEvent.click(moveTo);
     fireEvent.click(await screen.findByRole("menuitem", { name: "Finance team" }));
 
     await waitFor(() => expect(library.moveGuide).toHaveBeenCalledTimes(2));
@@ -1486,6 +1682,60 @@ describe("Editing a saved guide", () => {
     );
   });
 
+  it("saves a Steps file in the export folder, and offers its folder (12/10/2026, #88)", async () => {
+    const downloads = String.raw`C:\Users\Robin\Downloads`;
+    const library = makeLibrary({
+      listGuides: vi.fn().mockResolvedValue([
+        {
+          id: "guide-1",
+          title: "Add a supplier",
+          updatedAt: "2026-09-25T10:00:00.000Z",
+          stepCount: 1,
+          tags: [],
+          owner: "Robin",
+          reviewBy: null,
+          thumbnailMediaId: null,
+        },
+      ]),
+      loadGuide: vi.fn(() =>
+        Promise.resolve({
+          guide: guideFile("guide-1", "Add a supplier"),
+          steps: [stepFile("s1", "a", "Click Save")],
+        }),
+      ),
+      pickSaveLocation: vi.fn(() => Promise.resolve(null)),
+      exportAmlstepsTo: vi.fn((_library: string, _guide: string, folder: string, name: string) =>
+        Promise.resolve(`${folder}\\${name}`),
+      ),
+      saveVersion: vi.fn().mockResolvedValue(undefined),
+    });
+    const recorder = makeRecorder({ defaultExportFolder: () => Promise.resolve(downloads) });
+    render(<App recorder={recorder} library={library} />);
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Select Add a supplier" }));
+    fireEvent.click(screen.getByRole("button", { name: "Export…" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Steps file/ }));
+    const review = await screen.findByRole("dialog");
+    const exportIt = within(review).getByRole("button", { name: /^Export Steps file$/ });
+    await waitFor(() => expect((exportIt as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(exportIt);
+
+    await waitFor(() => expect(library.exportAmlstepsTo).toHaveBeenCalled());
+    expect(library.pickSaveLocation).not.toHaveBeenCalled();
+    expect(library.exportAmlstepsTo).toHaveBeenCalledWith(
+      "lib-1",
+      "guide-1",
+      downloads,
+      expect.stringMatching(/^Add a supplier - \d\d-\d\d-\d{4}\.amlsteps$/),
+      false,
+    );
+    const toast = (await screen.findByText(/^Saved Add a supplier - .*\.amlsteps\./)).closest(
+      "[role=status]",
+    ) as HTMLElement;
+    // Shown in its folder; no app opens a Steps file, so there's no Open.
+    expect(within(toast).getByRole("button", { name: "Open file location" })).toBeTruthy();
+    expect(within(toast).queryByRole("button", { name: "Open" })).toBeNull();
+  });
+
   it("deletes a guide in the Bin for good, and empties the Bin, each only once confirmed", async () => {
     const entry = {
       trashId: "t1",
@@ -1639,6 +1889,38 @@ describe("Editing a saved guide", () => {
     }
   });
 
+  it("keeps Undo and Redo after an export, which saves a version (#82)", async () => {
+    const library = makeLibrary({
+      pickSaveLocation: vi.fn((_title: string, name: string) => Promise.resolve(`C:/Out/${name}`)),
+    });
+    render(<App recorder={makeRecorder()} library={library} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Open Add a supplier" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Delete step" }));
+    await waitFor(() => expect(library.deleteStep).toHaveBeenCalledWith("lib-1", "guide-1", "s1"));
+
+    fireEvent.click(screen.getByRole("button", { name: /^Export/ }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Word/ }));
+    const review = await screen.findByRole("dialog");
+    const exportIt = within(review).getByRole("button", { name: /^Export Word$/ });
+    await waitFor(() => expect((exportIt as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(exportIt);
+    await waitFor(() => expect(library.saveVersion).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    fireEvent.click(screen.getByRole("button", { name: "Guide actions" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Undo/ }));
+    await waitFor(() =>
+      expect(library.saveStep).toHaveBeenCalledWith(
+        "lib-1",
+        "guide-1",
+        expect.objectContaining({ id: "s1", actionText: "Click Contacts" }),
+      ),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Guide actions" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Redo/ }));
+    await waitFor(() => expect(library.deleteStep).toHaveBeenCalledTimes(2));
+  });
+
   it("retakes a screenshot: the new picture replaces the old one and the blur stays", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
@@ -1683,6 +1965,36 @@ describe("Editing a saved guide", () => {
     }
   });
 
+  it("saves where a toast showed on a retaken picture with its step (#96)", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const message = { x: 75, y: 50, w: 25, h: 40 };
+      const retakeImage = vi
+        .fn()
+        .mockResolvedValue({ id: "new", width: 1280, height: 720, notifications: [message] });
+      const library = makeLibrary({ retakeImage });
+      render(<App recorder={makeRecorder()} library={library} />);
+      fireEvent.click(await screen.findByRole("button", { name: "Open Add a supplier" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Retake" }));
+      const dialog = await screen.findByRole("dialog", { name: "Retake this screenshot" });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Retake" }));
+      expect(await screen.findByText(/Screenshot retaken/)).toBeTruthy();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(600);
+      });
+      expect(library.saveStep).toHaveBeenCalledWith(
+        "lib-1",
+        "guide-1",
+        expect.objectContaining({
+          id: "s1",
+          media: expect.objectContaining({ id: "new", notifications: [message] }),
+        }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("says why a retake failed, in the app's own words", async () => {
     const library = makeLibrary({
       retakeImage: vi
@@ -1705,6 +2017,676 @@ describe("Editing a saved guide", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Open Add a supplier" }));
     await screen.findByDisplayValue("Click Contacts");
     await expectNoSeriousAxeViolations(container);
+  });
+
+  it("goes back to the library after Move to Bin from the editor's menu, with Undo (#79)", async () => {
+    const library = makeLibrary();
+    render(<App recorder={makeRecorder()} library={library} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Open Add a supplier" }));
+    await screen.findByDisplayValue("Click Contacts");
+    fireEvent.click(screen.getByRole("button", { name: "Guide actions" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Move to Bin" }));
+
+    expect(await screen.findByText("“Add a supplier” moved to the Bin.")).toBeDefined();
+    expect(library.trashGuide).toHaveBeenCalledWith("lib-1", "guide-1");
+    // The library, without the guide: the editor has closed.
+    expect(await screen.findByRole("button", { name: /^Bin/ })).toBeDefined();
+    expect(screen.queryByDisplayValue("Click Contacts")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Open Add a supplier" })).toBeNull();
+    // The Bin leaves the edit lock behind, and the editor let go of its own.
+    await waitFor(() => expect(library.releaseLock).toHaveBeenCalledWith("lib-1", "guide-1"));
+
+    // Undo brings the guide back and opens it in the editor again, to edit.
+    vi.mocked(library.openForEditing).mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(await screen.findByDisplayValue("Click Contacts")).toBeDefined();
+    expect(library.restoreGuide).toHaveBeenCalledWith("lib-1", expect.any(String));
+    await waitFor(() =>
+      expect(library.openForEditing).toHaveBeenCalledWith("lib-1", "guide-1", false),
+    );
+  });
+
+  it("writes the edits still waiting before the guide goes to the Bin from the editor", async () => {
+    let finish: () => void = () => undefined;
+    const library = makeLibrary({
+      saveStep: () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    });
+    render(<App recorder={makeRecorder()} library={library} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Open Add a supplier" }));
+    fireEvent.change(await screen.findByDisplayValue("Click Contacts"), {
+      target: { value: "Click Suppliers" },
+    });
+    await waitFor(() => expect(library.saveStep).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: "Guide actions" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Move to Bin" }));
+
+    // Nothing goes to the Bin while the edit is still being written…
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    expect(library.trashGuide).not.toHaveBeenCalled();
+    // …and once it's on disk, the guide goes.
+    finish();
+    await waitFor(() => expect(library.trashGuide).toHaveBeenCalledWith("lib-1", "guide-1"));
+  });
+});
+
+describe("Leaving the editor while a save is failing (#80)", () => {
+  const leaveTitle = "Leave without your latest changes?";
+
+  /** "Add a supplier" open in the editor with an edit its library can't save. */
+  const failingEditor = async (recorderParts: Partial<RecorderBridge> = {}) => {
+    const library = makeLibrary({
+      saveStep: vi.fn().mockRejectedValue(new Error("The drive isn't there.")),
+    });
+    const recorder = makeRecorder(recorderParts);
+    render(<App recorder={recorder} library={library} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Open Add a supplier" }));
+    fireEvent.change(await screen.findByDisplayValue("Click Contacts"), {
+      target: { value: "Click Suppliers" },
+    });
+    expect(await screen.findByText("Couldn't save, retrying")).toBeDefined();
+    return { library, recorder };
+  };
+
+  it("asks before going back to the guides, and Stay keeps the editor open", async () => {
+    await failingEditor();
+    fireEvent.click(screen.getByRole("button", { name: "Guides" }));
+    const ask = await screen.findByRole("alertdialog", { name: leaveTitle });
+    // Staying is where focus starts, and keeps the edit on screen.
+    expect(document.activeElement?.textContent).toBe("Stay");
+    fireEvent.click(within(ask).getByRole("button", { name: "Stay" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(screen.getByDisplayValue("Click Suppliers")).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "Guides" }));
+    const again = await screen.findByRole("alertdialog", { name: leaveTitle });
+    fireEvent.click(within(again).getByRole("button", { name: "Leave anyway" }));
+    expect(await screen.findByRole("button", { name: "Open Add a supplier" })).toBeDefined();
+  });
+
+  it("asks before opening another guide, and Stay leaves the draft where it was", async () => {
+    const library = makeLibrary({
+      saveStep: vi.fn().mockRejectedValue(new Error("The drive isn't there.")),
+    });
+    // Someone's unsaved changes, kept as a draft on the guide when they were taken over from.
+    await library.saveDraft("lib-1", "guide-1", {
+      guide: guideFile("guide-1", "Add a supplier"),
+      steps: [stepFile("s1", "a", "Click Vendors")],
+    });
+    render(<App recorder={makeRecorder()} library={library} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Open Add a supplier" }));
+    fireEvent.change(await screen.findByDisplayValue("Click Contacts"), {
+      target: { value: "Click Suppliers" },
+    });
+    expect(await screen.findByText("Couldn't save, retrying")).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open as a copy" }));
+    const ask = await screen.findByRole("alertdialog", { name: leaveTitle });
+    fireEvent.click(within(ask).getByRole("button", { name: "Stay" }));
+    expect(screen.getByDisplayValue("Click Suppliers")).toBeDefined();
+    expect(library.draftToCopy).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open as a copy" }));
+    const again = await screen.findByRole("alertdialog", { name: leaveTitle });
+    fireEvent.click(within(again).getByRole("button", { name: "Leave anyway" }));
+    expect(await screen.findByDisplayValue("Click Vendors")).toBeDefined();
+  });
+
+  it("asks before Move to Bin, which Stay leaves undone", async () => {
+    const { library } = await failingEditor();
+    const binIt = async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Guide actions" }));
+      fireEvent.click(await screen.findByRole("menuitem", { name: "Move to Bin" }));
+      return screen.findByRole("alertdialog", { name: leaveTitle });
+    };
+    fireEvent.click(within(await binIt()).getByRole("button", { name: "Stay" }));
+    expect(screen.getByDisplayValue("Click Suppliers")).toBeDefined();
+    expect(library.trashGuide).not.toHaveBeenCalled();
+
+    fireEvent.click(within(await binIt()).getByRole("button", { name: "Leave anyway" }));
+    expect(await screen.findByText("“Add a supplier” moved to the Bin.")).toBeDefined();
+    expect(library.trashGuide).toHaveBeenCalledWith("lib-1", "guide-1");
+    expect(await screen.findByRole("button", { name: /^Bin/ })).toBeDefined();
+  });
+
+  /** The main window's close button, as the app hears of it while closing is held. */
+  const closeButton = () => {
+    let press: (() => void) | null = null;
+    return {
+      parts: {
+        onCloseAsked: vi.fn(async (handler: () => void) => {
+          press = handler;
+          return () => undefined;
+        }),
+      },
+      press: () => act(() => press?.()),
+    };
+  };
+
+  it("holds the window's closing to ask first, and Stay keeps it open", async () => {
+    const close = closeButton();
+    const { recorder } = await failingEditor(close.parts);
+    await waitFor(() => expect(recorder.askBeforeClose).toHaveBeenLastCalledWith(true));
+
+    close.press();
+    const ask = await screen.findByRole("alertdialog", { name: leaveTitle });
+    fireEvent.click(within(ask).getByRole("button", { name: "Stay" }));
+    expect(recorder.closeMain).not.toHaveBeenCalled();
+    expect(screen.getByDisplayValue("Click Suppliers")).toBeDefined();
+
+    close.press();
+    const again = await screen.findByRole("alertdialog", { name: leaveTitle });
+    fireEvent.click(within(again).getByRole("button", { name: "Close anyway" }));
+    await waitFor(() => expect(recorder.closeMain).toHaveBeenCalledOnce());
+  });
+
+  /** The tray's Quit, as the app hears of it while a save is failing (#95). */
+  const trayQuit = () => {
+    let choose: (() => void) | null = null;
+    return {
+      parts: {
+        onQuitAsked: vi.fn(async (handler: () => void) => {
+          choose = handler;
+          return () => undefined;
+        }),
+      },
+      choose: () => act(() => choose?.()),
+    };
+  };
+
+  it("asks before the tray's Quit, and Stay keeps Steps running", async () => {
+    const quit = trayQuit();
+    const { recorder } = await failingEditor(quit.parts);
+
+    quit.choose();
+    const ask = await screen.findByRole("alertdialog", { name: leaveTitle });
+    fireEvent.click(within(ask).getByRole("button", { name: "Stay" }));
+    expect(recorder.quitApp).not.toHaveBeenCalled();
+    expect(screen.getByDisplayValue("Click Suppliers")).toBeDefined();
+
+    quit.choose();
+    const again = await screen.findByRole("alertdialog", { name: leaveTitle });
+    fireEvent.click(within(again).getByRole("button", { name: "Quit anyway" }));
+    await waitFor(() => expect(recorder.quitApp).toHaveBeenCalledOnce());
+  });
+
+  it("quits at once if the save has gone through by the time Quit is asked about", async () => {
+    const quit = trayQuit();
+    const library = makeLibrary();
+    const recorder = makeRecorder(quit.parts);
+    render(<App recorder={recorder} library={library} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Open Add a supplier" }));
+
+    quit.choose();
+    await waitFor(() => expect(recorder.quitApp).toHaveBeenCalledOnce());
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  it("doesn't ask while saves work", async () => {
+    const library = makeLibrary();
+    const recorder = makeRecorder();
+    render(<App recorder={recorder} library={library} />);
+    // Closing the window isn't held: it closes as always.
+    await waitFor(() => expect(recorder.askBeforeClose).toHaveBeenCalledWith(false));
+    fireEvent.click(await screen.findByRole("button", { name: "Open Add a supplier" }));
+    fireEvent.change(await screen.findByDisplayValue("Click Contacts"), {
+      target: { value: "Click Suppliers" },
+    });
+    await waitFor(() => expect(library.saveStep).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: "Guides" }));
+    expect(await screen.findByRole("button", { name: "Open Add a supplier" })).toBeDefined();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(recorder.askBeforeClose).not.toHaveBeenCalledWith(true);
+  });
+});
+
+describe("Move to from the editor (#94)", () => {
+  /** "Add a supplier" in "My guides", with "Finance team" beside it. */
+  const twoLibraries = async (overrides: Partial<LibraryBridge> = {}) => {
+    const library = makeLibrary(overrides);
+    const finance = await library.addLibrary("Finance team", "S:\\Finance");
+    return { library, finance: finance.id };
+  };
+
+  /** "Add a supplier" open in the editor. */
+  const openGuide = async (library: FakeLibrary) => {
+    render(<App recorder={makeRecorder()} library={library} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Open Add a supplier" }));
+    return screen.findByDisplayValue("Click Contacts");
+  };
+
+  const moveToFinance = async () => {
+    fireEvent.click(screen.getByRole("button", { name: "Guide actions" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Move to Finance team" }));
+  };
+
+  /** The guides whose edit lock the app has taken and not let go of, by library and guide. */
+  const locksHeld = (library: FakeLibrary) => {
+    const opened = vi.mocked(library.openForEditing).mock;
+    const released = vi.mocked(library.releaseLock).mock;
+    const held = new Set<string>();
+    [
+      ...opened.calls.map(([id, guide], index) => ({
+        order: opened.invocationCallOrder[index] ?? 0,
+        key: `${id}/${guide}`,
+        open: true,
+      })),
+      ...released.calls.map(([id, guide], index) => ({
+        order: released.invocationCallOrder[index] ?? 0,
+        key: `${id}/${guide}`,
+        open: false,
+      })),
+    ]
+      .sort((one, other) => one.order - other.order)
+      .forEach(({ key, open }) => (open ? held.add(key) : held.delete(key)));
+    return [...held];
+  };
+
+  it("opens the guide again from the library it went to, where its edits are saved", async () => {
+    const { library, finance } = await twoLibraries();
+    await openGuide(library);
+    await moveToFinance();
+
+    expect(await screen.findByText("Moved to Finance team.")).toBeDefined();
+    expect(library.moveGuide).toHaveBeenCalledWith("lib-1", "guide-1", finance);
+    // The editor is on the guide where it is now: its edit lock taken there, the old one let go.
+    await waitFor(() =>
+      expect(library.openForEditing).toHaveBeenCalledWith(finance, "guide-1", false),
+    );
+    expect(library.releaseLock).toHaveBeenCalledWith("lib-1", "guide-1");
+    fireEvent.change(await screen.findByDisplayValue("Click Contacts"), {
+      target: { value: "Click Suppliers" },
+    });
+    await waitFor(() =>
+      expect(library.saveStep).toHaveBeenCalledWith(
+        finance,
+        "guide-1",
+        expect.objectContaining({ actionText: "Click Suppliers" }),
+      ),
+    );
+    expect(library.saveStep).not.toHaveBeenCalledWith(
+      "lib-1",
+      expect.anything(),
+      expect.anything(),
+    );
+
+    // Back goes to the guides of the library it's in now, and no edit lock is left anywhere.
+    fireEvent.click(screen.getByRole("button", { name: "Guides" }));
+    expect(await screen.findByRole("heading", { name: "Finance team" })).toBeDefined();
+    expect(await screen.findByRole("button", { name: "Open Add a supplier" })).toBeDefined();
+    await waitFor(() => expect(locksHeld(library)).toEqual([]));
+  });
+
+  it("writes the edits still waiting before the guide moves", async () => {
+    let finish: () => void = () => undefined;
+    const { library, finance } = await twoLibraries({
+      saveStep: () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    });
+    fireEvent.change(await openGuide(library), { target: { value: "Click Suppliers" } });
+    await waitFor(() => expect(library.saveStep).toHaveBeenCalled());
+    await moveToFinance();
+
+    // Nothing moves while the edit is still being written…
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    expect(library.moveGuide).not.toHaveBeenCalled();
+    // …and once it's on disk, the guide goes.
+    finish();
+    await waitFor(() =>
+      expect(library.moveGuide).toHaveBeenCalledWith("lib-1", "guide-1", finance),
+    );
+  });
+
+  it("asks first while a save is failing, and Stay leaves the guide where it is", async () => {
+    const { library, finance } = await twoLibraries({
+      saveStep: vi.fn().mockRejectedValue(new Error("The drive isn't there.")),
+    });
+    fireEvent.change(await openGuide(library), { target: { value: "Click Suppliers" } });
+    expect(await screen.findByText("Couldn't save, retrying")).toBeDefined();
+    const answer = async (button: string) => {
+      await moveToFinance();
+      const ask = await screen.findByRole("alertdialog", {
+        name: "Leave without your latest changes?",
+      });
+      fireEvent.click(within(ask).getByRole("button", { name: button }));
+    };
+
+    await answer("Stay");
+    await waitFor(() =>
+      expect((screen.getByDisplayValue("Click Suppliers") as HTMLTextAreaElement).readOnly).toBe(
+        false,
+      ),
+    );
+    expect(library.moveGuide).not.toHaveBeenCalled();
+
+    await answer("Leave anyway");
+    expect(await screen.findByText("Moved to Finance team.")).toBeDefined();
+    expect(library.moveGuide).toHaveBeenCalledWith("lib-1", "guide-1", finance);
+    // Open from where it went, as it was last saved.
+    await waitFor(() =>
+      expect(library.openForEditing).toHaveBeenCalledWith(finance, "guide-1", false),
+    );
+    expect(await screen.findByDisplayValue("Click Contacts")).toBeDefined();
+  });
+
+  it("takes no edits while the guide is moving, so none goes to where it has left", async () => {
+    const { library, finance } = await twoLibraries();
+    const { moveGuide } = fakeGuideCopies(library.data);
+    let arrive: () => void = () => undefined;
+    vi.mocked(library.moveGuide).mockImplementation(async (...args) => {
+      await new Promise<void>((resolve) => {
+        arrive = resolve;
+      });
+      return moveGuide(...args);
+    });
+    const words = (await openGuide(library)) as HTMLTextAreaElement;
+    await moveToFinance();
+    await waitFor(() => expect(library.moveGuide).toHaveBeenCalled());
+
+    await waitFor(() => expect(words.readOnly).toBe(true));
+    fireEvent.change(words, { target: { value: "Click Suppliers" } });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    });
+    expect(library.saveStep).not.toHaveBeenCalled();
+
+    // Moved: the guide opens from where it went, to be edited there.
+    arrive();
+    await waitFor(() =>
+      expect(library.openForEditing).toHaveBeenCalledWith(finance, "guide-1", false),
+    );
+    const there = (await screen.findByDisplayValue("Click Contacts")) as HTMLTextAreaElement;
+    expect(there.readOnly).toBe(false);
+  });
+
+  it("takes no edits while the guide goes to the Bin either", async () => {
+    const library = makeLibrary();
+    const { trashGuide } = fakeBin(library.data);
+    let binned: () => void = () => undefined;
+    vi.mocked(library.trashGuide).mockImplementation(async (...args) => {
+      await new Promise<void>((resolve) => {
+        binned = resolve;
+      });
+      return trashGuide(...args);
+    });
+    const words = (await openGuide(library)) as HTMLTextAreaElement;
+    fireEvent.click(screen.getByRole("button", { name: "Guide actions" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Move to Bin" }));
+    await waitFor(() => expect(library.trashGuide).toHaveBeenCalled());
+
+    await waitFor(() => expect(words.readOnly).toBe(true));
+    fireEvent.change(words, { target: { value: "Click Suppliers" } });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    });
+    expect(library.saveStep).not.toHaveBeenCalled();
+    binned();
+    expect(await screen.findByText("“Add a supplier” moved to the Bin.")).toBeDefined();
+  });
+
+  /** The button on the toast saying `text`. */
+  const onToast = async (text: string, label: string) => {
+    const box = (await screen.findByText(text)).parentElement;
+    if (!box) throw new Error(`no toast saying ${text}`);
+    return within(box).getByRole("button", { name: label });
+  };
+
+  it("takes the guide back with Undo, edits made where it went included, and opens it there", async () => {
+    let finish: () => void = () => undefined;
+    const { library, finance } = await twoLibraries();
+    await openGuide(library);
+    await moveToFinance();
+    const undo = await onToast("Moved to Finance team.", "Undo");
+    await waitFor(() =>
+      expect(library.openForEditing).toHaveBeenCalledWith(finance, "guide-1", false),
+    );
+    // An edit where it went, still being written when Undo is chosen.
+    const { saveStep } = fakeGuideFiles(library.data);
+    vi.mocked(library.saveStep).mockImplementation(
+      (...args) =>
+        new Promise<void>((resolve) => {
+          finish = () => void saveStep(...args).then(resolve);
+        }),
+    );
+    fireEvent.change(await screen.findByDisplayValue("Click Contacts"), {
+      target: { value: "Click Suppliers" },
+    });
+    await waitFor(() => expect(library.saveStep).toHaveBeenCalled());
+    fireEvent.click(undo);
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    expect(library.moveGuide).not.toHaveBeenCalledWith(finance, "guide-1", "lib-1");
+    finish();
+    await waitFor(() =>
+      expect(library.moveGuide).toHaveBeenCalledWith(finance, "guide-1", "lib-1"),
+    );
+    // Back in the editor, from "My guides", with the edit.
+    await waitFor(() =>
+      expect(library.openForEditing).toHaveBeenLastCalledWith("lib-1", "guide-1", false),
+    );
+    expect(await screen.findByDisplayValue("Click Suppliers")).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Guides" }));
+    expect(await screen.findByRole("heading", { name: "My guides" })).toBeDefined();
+    await waitFor(() => expect(locksHeld(library)).toEqual([]));
+  });
+
+  it("opens the guide again with Undo after the editor was left, as Undo of Move to Bin does", async () => {
+    const { library, finance } = await twoLibraries();
+    await openGuide(library);
+    await moveToFinance();
+    const undo = await onToast("Moved to Finance team.", "Undo");
+    await waitFor(() =>
+      expect(library.openForEditing).toHaveBeenCalledWith(finance, "guide-1", false),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Guides" }));
+    expect(await screen.findByRole("heading", { name: "Finance team" })).toBeDefined();
+    fireEvent.click(undo);
+
+    await waitFor(() =>
+      expect(library.moveGuide).toHaveBeenCalledWith(finance, "guide-1", "lib-1"),
+    );
+    await waitFor(() =>
+      expect(library.openForEditing).toHaveBeenLastCalledWith("lib-1", "guide-1", false),
+    );
+    expect(await screen.findByDisplayValue("Click Contacts")).toBeDefined();
+    // Behind it, the guides of the library it's back in.
+    fireEvent.click(screen.getByRole("button", { name: "Guides" }));
+    expect(await screen.findByRole("heading", { name: "My guides" })).toBeDefined();
+    expect(await screen.findByRole("button", { name: "Open Add a supplier" })).toBeDefined();
+    await waitFor(() => expect(locksHeld(library)).toEqual([]));
+  });
+
+  it("stays on the guide, taking edits again, when the move fails", async () => {
+    const { library } = await twoLibraries({
+      moveGuide: vi
+        .fn()
+        .mockRejectedValue({ code: "storageError", message: "The folder isn't there." }),
+    });
+    await openGuide(library);
+    await moveToFinance();
+
+    expect(
+      await screen.findByText("That couldn’t be saved or read: The folder isn't there."),
+    ).toBeDefined();
+    const words = screen.getByDisplayValue("Click Contacts") as HTMLTextAreaElement;
+    await waitFor(() => expect(words.readOnly).toBe(false));
+    fireEvent.change(words, { target: { value: "Click Suppliers" } });
+    await waitFor(() =>
+      expect(library.saveStep).toHaveBeenCalledWith(
+        "lib-1",
+        "guide-1",
+        expect.objectContaining({ actionText: "Click Suppliers" }),
+      ),
+    );
+  });
+
+  it("opens a guide locked with a password locked again where it went", async () => {
+    const { library, finance } = await twoLibraries();
+    await library.writeGuideLock("lib-1", "guide-1", {
+      formatVersion: 1,
+      locked: { by: "Sam Jones", login: "", pc: "", at: "2026-10-04T10:00:00Z" },
+      password: await hashPassword("secret1", 1_000),
+    });
+    render(<App recorder={makeRecorder()} library={library} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Open Add a supplier" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Unlock to edit" }));
+    const ask = await screen.findByRole("dialog", { name: "Password for “Add a supplier”" });
+    fireEvent.change(within(ask).getByLabelText("Password"), { target: { value: "secret1" } });
+    fireEvent.click(within(ask).getByRole("button", { name: "Unlock" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Unlock to edit" })).toBeNull(),
+    );
+
+    // Unlocked for this editing session, it moves without asking again…
+    await moveToFinance();
+    expect(await screen.findByText("Moved to Finance team.")).toBeDefined();
+    expect(library.moveGuide).toHaveBeenCalledWith("lib-1", "guide-1", finance);
+    // …and the session ended with it: where it went, the password is asked for again.
+    expect(await screen.findByRole("button", { name: "Unlock to edit" })).toBeDefined();
+    expect(library.loadGuide).toHaveBeenCalledWith(finance, "guide-1");
+    expect(library.openForEditing).not.toHaveBeenCalledWith(finance, "guide-1", false);
+    expect(locksHeld(library)).toEqual([]);
+  });
+
+  it("takes a guide moved from its card back from the editor opened on it since", async () => {
+    const { library, finance } = await twoLibraries();
+    render(<App recorder={makeRecorder()} library={library} />);
+    fireEvent.click(await screen.findByRole("button", { name: "More actions for Add a supplier" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Move to Finance team" }));
+    const undo = await onToast("Moved to Finance team.", "Undo");
+    // Opened where it went, and edited there, before Undo.
+    fireEvent.change(screen.getByRole("combobox", { name: "LIBRARY" }), {
+      target: { value: finance },
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Open Add a supplier" }));
+    fireEvent.change(await screen.findByDisplayValue("Click Contacts"), {
+      target: { value: "Click Suppliers" },
+    });
+    fireEvent.click(undo);
+
+    await waitFor(() =>
+      expect(library.moveGuide).toHaveBeenCalledWith(finance, "guide-1", "lib-1"),
+    );
+    const saved = vi.mocked(library.saveStep).mock.invocationCallOrder[0] ?? Infinity;
+    const movedBack = vi.mocked(library.moveGuide).mock.invocationCallOrder[1] ?? 0;
+    expect(saved).toBeLessThan(movedBack);
+    await waitFor(() =>
+      expect(library.openForEditing).toHaveBeenLastCalledWith("lib-1", "guide-1", false),
+    );
+    expect(await screen.findByDisplayValue("Click Suppliers")).toBeDefined();
+  });
+
+  describe("the save its edits count as (#111)", () => {
+    /** The save count of "Add a supplier" in a library, as its history says. */
+    const savesIn = (library: FakeLibrary, libraryId: string) =>
+      parseGuideHistory(library.data.libraries.get(libraryId)?.guides.get("guide-1")?.history)
+        .saves;
+
+    /** Back to the guides, once every edit lock is let go of. */
+    const leaveEditor = async (library: FakeLibrary) => {
+      fireEvent.click(screen.getByRole("button", { name: "Guides" }));
+      await screen.findByRole("button", { name: "Open Add a supplier" });
+      await waitFor(() => expect(locksHeld(library)).toEqual([]));
+    };
+
+    it("counts edits made before Move to as one save where the guide went, as Properties shows", async () => {
+      const { library, finance } = await twoLibraries();
+      fireEvent.change(await openGuide(library), { target: { value: "Click Suppliers" } });
+      await waitFor(() => expect(library.saveStep).toHaveBeenCalled());
+      await moveToFinance();
+      await waitFor(() =>
+        expect(library.openForEditing).toHaveBeenCalledWith(finance, "guide-1", false),
+      );
+      await screen.findByDisplayValue("Click Suppliers");
+
+      fireEvent.click(screen.getByRole("button", { name: "Guide actions" }));
+      fireEvent.click(await screen.findByRole("menuitem", { name: "Properties" }));
+      const properties = await screen.findByRole("dialog", {
+        name: "Properties of “Add a supplier”",
+      });
+      expect(await within(properties).findByText("1 save")).toBeDefined();
+      fireEvent.click(within(properties).getByRole("button", { name: "Close" }));
+
+      // Leaving the editor where it went, with nothing changed there, counts nothing more.
+      await leaveEditor(library);
+      expect(savesIn(library, finance)).toBe(1);
+    });
+
+    it("counts nothing when the guide moves with nothing changed", async () => {
+      const { library, finance } = await twoLibraries();
+      await openGuide(library);
+      await moveToFinance();
+      await waitFor(() =>
+        expect(library.openForEditing).toHaveBeenCalledWith(finance, "guide-1", false),
+      );
+      await screen.findByDisplayValue("Click Contacts");
+      await leaveEditor(library);
+      expect(savesIn(library, finance)).toBe(0);
+    });
+
+    it("counts edits made before Move to Bin as one save, which Undo brings back", async () => {
+      const library = makeLibrary();
+      fireEvent.change(await openGuide(library), { target: { value: "Click Suppliers" } });
+      await waitFor(() => expect(library.saveStep).toHaveBeenCalled());
+      fireEvent.click(screen.getByRole("button", { name: "Guide actions" }));
+      fireEvent.click(await screen.findByRole("menuitem", { name: "Move to Bin" }));
+      fireEvent.click(await onToast("“Add a supplier” moved to the Bin.", "Undo"));
+
+      await waitFor(() =>
+        expect(library.openForEditing).toHaveBeenLastCalledWith("lib-1", "guide-1", false),
+      );
+      await screen.findByDisplayValue("Click Suppliers");
+      await leaveEditor(library);
+      expect(savesIn(library, "lib-1")).toBe(1);
+    });
+
+    it("follows the guide where it went when only its Bin entry can't be removed", async () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+      try {
+        // The editions move by copying and putting the original in the Bin, whose entry then
+        // can't be removed (a file held open by OneDrive).
+        const entry = { trashId: "t1", guideId: "guide-1", title: "Add a supplier", deletedAt: "" };
+        const { library, finance } = await twoLibraries({
+          listTrash: vi.fn((id: string) => Promise.resolve(id === "lib-1" ? [entry] : [])),
+          deleteTrashed: vi
+            .fn()
+            .mockRejectedValue({ code: "storageError", message: "The Bin is held open." }),
+        });
+        await openGuide(library);
+        await moveToFinance();
+
+        expect(await screen.findByText("Moved to Finance team.")).toBeDefined();
+        expect(library.deleteTrashed).toHaveBeenCalledWith("lib-1", "t1");
+        await waitFor(() =>
+          expect(library.openForEditing).toHaveBeenCalledWith(finance, "guide-1", false),
+        );
+        const words = (await screen.findByDisplayValue("Click Contacts")) as HTMLTextAreaElement;
+        await waitFor(() => expect(words.readOnly).toBe(false));
+        expect(screen.queryByText(/The Bin is held open/)).toBeNull();
+        // Its edits are saved where it is now.
+        fireEvent.change(words, { target: { value: "Click Suppliers" } });
+        await waitFor(() =>
+          expect(library.saveStep).toHaveBeenCalledWith(
+            finance,
+            "guide-1",
+            expect.objectContaining({ actionText: "Click Suppliers" }),
+          ),
+        );
+        expect(warn).toHaveBeenCalled();
+      } finally {
+        warn.mockRestore();
+      }
+    });
   });
 });
 
@@ -1797,6 +2779,35 @@ describe("Record steps here (docs/spec/04-editor.md#record-steps-here)", () => {
         .mock.calls.map(([, , id]) => id)
         .sort(),
     ).toEqual(saved.map((step) => step.id).sort());
+  });
+
+  it("leaves the guide as it was when the recording has no steps, and says so (#52)", async () => {
+    const recorder = makeRecorder();
+    const library = makeLibrary();
+    await recordIntoTheGuide(recorder, library);
+    stop(recorder, "session-9");
+    expect(
+      await screen.findByText("Nothing was recorded, so “Add a supplier” is as it was."),
+    ).toBeTruthy();
+    await waitFor(() => expect(recorder.discard).toHaveBeenCalled());
+    expect(recorder.copyMedia).not.toHaveBeenCalled();
+    expect(recorder.saveDraft).not.toHaveBeenCalled();
+    expect(library.saveStep).not.toHaveBeenCalled();
+    // The guide stays open in the editor, its steps as they were.
+    expect(screen.getByDisplayValue("Click Contacts")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Save guide" })).toBeNull();
+  });
+
+  it("says nothing was recorded, not that the steps went elsewhere, when the guide closed meanwhile and there were none", async () => {
+    const recorder = makeRecorder();
+    const library = makeLibrary();
+    await recordIntoTheGuide(recorder, library);
+    fireEvent.click(screen.getByRole("button", { name: "Guides" }));
+    await waitFor(() => expect(library.releaseLock).toHaveBeenCalled());
+    stop(recorder, "session-9");
+    expect(await screen.findByText("Nothing was recorded, so no guide was made.")).toBeTruthy();
+    expect(screen.queryByText(/couldn't go into/)).toBeNull();
+    expect(recorder.saveDraft).not.toHaveBeenCalled();
   });
 
   it("inserts nothing when the recording is discarded", async () => {

@@ -322,6 +322,23 @@ describe("sharing", () => {
     expect(await mayWrite(library, guideId, "anyone")).toBe(true);
   });
 
+  it("moves a guide open for editing to another library with no edit lock left in either (#94)", async () => {
+    await openForEditing(library, guideId, robin, false);
+    const elsewhere = memoryDir("elsewhere");
+    const other = new FolderLibrary(elsewhere, codec);
+    const moved = await library.moveGuideTo(guideId, other);
+
+    // It arrives free to edit, and nothing in the Bin it left behind holds a lock.
+    expect(await readLock(other, moved.id)).toBeNull();
+    expect(await names(await walk(elsewhere, "guides", moved.id))).not.toContain(".lock");
+    for (const entry of await library.listTrash())
+      expect(await names(await walk(root, ".trash", entry.trashId))).not.toContain(".lock");
+    // Letting go where it was, and the heartbeat there, write nothing: the guide has gone.
+    await releaseLock(library, guideId, "robin").catch(() => undefined);
+    await heartbeat(library, guideId, robin).catch(() => undefined);
+    expect(await walk(root, "guides", guideId)).toBeNull();
+  });
+
   it("settles a sync client's conflict copies", async () => {
     const steps = (await walk(root, "guides", guideId, "steps")) as Dir;
     const theirs = step("s1", "a0", { actionText: "Theirs" });
@@ -443,6 +460,22 @@ describe("history", () => {
     await expect(loadVersion(library, guideId, "nope")).rejects.toMatchObject({
       code: "versionNotFound",
     });
+  });
+
+  it("forgets the delete notes of the steps a restore puts back, and only those (#58)", async () => {
+    const version = await saveVersion(library, guideId, "", "Robin Hale");
+    await library.saveStep(guideId, step("s3", "a2"));
+    for (const id of ["s2", "s3"]) {
+      await library.deleteStep(guideId, id);
+      await noteDelete(library, guideId, id, "Robin Hale", "robin");
+    }
+    await restoreVersion(library, guideId, version.id, "Robin Hale");
+    expect(await listConflicts(library, guideId)).toEqual([]);
+    // Sam's edit of s3, made before Robin's delete reached Sam, syncs in after the restore.
+    await library.saveStep(guideId, step("s3", "a2", { updatedBy: "Sam Jones" }));
+    expect(await listConflicts(library, guideId)).toMatchObject([
+      { kind: "restored", id: "s3", deletedBy: "Robin Hale", step: { updatedBy: "Sam Jones" } },
+    ]);
   });
 
   it("burns blur into copies, points every step at them, then deletes the originals", async () => {

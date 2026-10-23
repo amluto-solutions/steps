@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "re
 import { useTranslation } from "react-i18next";
 import type { HotkeyAction, HotkeyBinding, Hotkeys } from "../bridge/hotkeys";
 import { errorMessage } from "../errors";
+import { commonShortcut } from "./common-shortcuts";
 import { displayKeys, keysFromEvent } from "./preferences";
 import type { SettingsProps } from "./settings-props";
 
@@ -114,6 +115,18 @@ export function ShortcutsSection({
     if (binding.action === "startRecording") return t("settings.shortcuts.startHelp");
     return null;
   };
+  // A combination other apps use is kept, with a warning: it's theirs while Steps holds it (P24).
+  const common = (keys: string): string | null => {
+    const use = commonShortcut(keys);
+    if (!use) return null;
+    const shown = displayKeys(keys, i18n.language).join(" + ");
+    return use === "many"
+      ? t("settings.shortcuts.commonMany", { keys: shown })
+      : t("settings.shortcuts.commonUse", {
+          keys: shown,
+          use: t(`settings.shortcuts.uses.${use}`),
+        });
+  };
 
   return (
     <>
@@ -144,6 +157,9 @@ export function ShortcutsSection({
                       ? t("settings.shortcuts.heldBySteps")
                       : t("settings.shortcuts.unavailable")}
                   </span>
+                )}
+                {binding.keys && binding.registered && !isEditing && common(binding.keys) && (
+                  <span className="text-xs text-warning">{common(binding.keys)}</span>
                 )}
               </div>
               {isEditing ? (

@@ -187,13 +187,21 @@ function host(): { commands: Record<string, Handler>; plugins: Record<string, Ha
 /** The main window and the recording bar. */
 function windows(): { commands: Record<string, Handler>; plugins: Record<string, Handler> } {
   const nothing = () => undefined;
+  // Where the bar was moved to, as recorder_bar_place answers until it's dragged.
+  let place: unknown = null;
   return {
-    commands: { recorder_move_bar: nothing },
+    commands: {
+      recorder_move_bar: (given) => {
+        place = args(given).place;
+      },
+      recorder_bar_place: () => place,
+      main_window_ask_before_close: nothing,
+      main_window_quit: nothing,
+    },
     plugins: Object.fromEntries(
-      ["minimize", "unminimize", "show", "set_focus", "set_size"].map((name) => [
-        `plugin:window|${name}`,
-        nothing,
-      ]),
+      ["minimize", "unminimize", "show", "set_focus", "set_size", "hide", "set_theme"].map(
+        (name) => [`plugin:window|${name}`, nothing],
+      ),
     ),
   };
 }
@@ -226,6 +234,7 @@ function exportFiles(): Record<string, Handler> {
     export_default_folder: () => "C:\\Users\\Robin\\Downloads",
     export_show: () => undefined,
     export_preview: () => undefined,
+    export_log_failure: () => undefined,
   };
 }
 

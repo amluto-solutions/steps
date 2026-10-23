@@ -98,7 +98,7 @@ for (const [index, step] of steps.entries()) {
     record.queueDelayMs !== undefined && `queue ${record.queueDelayMs} ms`,
     record.screenshotMs !== undefined && `screenshot ${record.screenshotMs} ms`,
     record.uia &&
-      `UIA ${record.uia.status} ${record.uia.ms} ms${record.uia.retried ? " (looked again)" : ""}`,
+      `UIA ${record.uia.status} ${record.uia.ms} ms${record.uia.retried ? " (looked again)" : ""}${record.uia.preRead ? " (read before the click)" : ""}`,
   ].filter(Boolean);
   console.log(
     `   ${record.kind} #${record.id} at ${record.x ?? "-"},${record.y ?? "-"} in ${window}`,
@@ -115,6 +115,9 @@ for (const [index, step] of steps.entries()) {
           .join(""),
     );
   if (record.uia?.error) console.log(`   UIA error: ${record.uia.error}`);
+  // The items of a menu the click landed in, read as it opened (#56).
+  if (record.menuItems?.length)
+    console.log(`   menu ${record.menuItems.map((item) => `"${clip(item.name, 30)}"`).join(", ")}`);
   console.log(`   picture media/${record.capture.image}`);
 
   if (canvas && record.capture?.image) {

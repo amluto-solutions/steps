@@ -84,13 +84,16 @@ export function updateStep(
  * Why a recorded step asks to be checked, so the editor names that one reason (F031).
  * `checkName`: a click named from its screenshot's words, which text recognition may misread.
  * `fillEnd`: a fill handle dragged to where no cell was found (08/10/2026).
+ * `appSwitch`: an app that came to the front with no click, tap or key before it (#67).
  */
-export type ReviewReason = "unnamed" | "checkName" | "missed" | "typing" | "code" | "fillEnd";
+export type ReviewReason =
+  "unnamed" | "checkName" | "missed" | "typing" | "code" | "fillEnd" | "appSwitch";
 
 export function reviewReason(step: GuideStep): ReviewReason | null {
   if (!step.reviewRequired) return null;
   if (step.textParts.kind === "warning") return "missed";
   if (step.textParts.verb === "fill") return "fillEnd";
+  if (step.action === "appswitch") return "appSwitch";
   if (["command", "code", "formula"].includes(step.action)) return "code";
   if (step.action === "type") return "typing";
   if (step.action === "click" && step.naming?.source === "screen") return "checkName";

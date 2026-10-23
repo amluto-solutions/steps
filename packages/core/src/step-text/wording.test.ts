@@ -85,7 +85,8 @@ describe("keys and other steps", () => {
     expect(wordStep("keypress", null, null, "Shift + Win + S")).toBe(
       'Press "Shift + Win + S" (Snipping Tool)',
     );
-    expect(wordStep("keypress", null, null, "Ctrl + N")).toBe('Press "Ctrl + N"');
+    expect(wordStep("keypress", null, null, "Ctrl + N")).toBe('Press "Ctrl + N" (New)');
+    expect(wordStep("keypress", null, null, "Ctrl + Shift + N")).toBe('Press "Ctrl + Shift + N"');
   });
 
   it("leaves a navigation to its site's wording (\"Go to\"), never an element's", () => {

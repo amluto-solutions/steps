@@ -37,5 +37,10 @@ export function exportFilesContract(edition: string, make: MakeSubject<ExportFil
         await part.showExport(saved, true);
       }
     });
+
+    it("note why an export failed, where the edition keeps a log", async () => {
+      const { part } = await make();
+      await part.logExportFailure?.("pdf", "RangeError: Offset is outside the bounds");
+    });
   });
 }

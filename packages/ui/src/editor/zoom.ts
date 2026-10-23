@@ -10,10 +10,16 @@ import type { Stamp } from "./edits";
  */
 export const LEGIBLE_WIDTH_PX = 1600;
 
+/**
+ * Only screenshots wider than this are cropped: a crop of a narrower one would cut too little to
+ * help. The menu's note and its "nothing to zoom" message name this number (#87).
+ */
+export const ZOOM_ABOVE_PX = LEGIBLE_WIDTH_PX * 1.25;
+
 export function smartZoomCrop(step: GuideStep): GuideStep["crop"] {
   const width = step.media?.width ?? 0;
   const height = step.media?.height ?? 0;
-  if (!step.highlight || width <= LEGIBLE_WIDTH_PX * 1.25 || height <= 0) return null;
+  if (!step.highlight || width <= ZOOM_ABOVE_PX || height <= 0) return null;
   const w = (LEGIBLE_WIDTH_PX / width) * 100;
   // The same share of the height keeps the screenshot's own shape, so the page layout holds.
   const h = w;

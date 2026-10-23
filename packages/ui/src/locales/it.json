@@ -1,7 +1,5 @@
 {
   "app": {
-    "alreadyOpenTitle": "Steps è già aperto",
-    "alreadyOpenBody": "Può essere in esecuzione un solo Steps alla volta, quindi abbiamo portato questo in primo piano per te.",
     "name": "Steps",
     "by": "by",
     "logoAlt": "Amluto"
@@ -83,6 +81,9 @@
     "count_one": "{{count}} guida",
     "count_many": "{{count}} guide",
     "count_other": "{{count}} guide",
+    "countOf_one": "{{shown}} di {{count}} guida",
+    "countOf_many": "{{shown}} di {{count}} guide",
+    "countOf_other": "{{shown}} di {{count}} guide",
     "steps_one": "{{count}} passaggio",
     "steps_many": "{{count}} passaggi",
     "steps_other": "{{count}} passaggi",
@@ -222,7 +223,7 @@
       "note": "Per un altro utente di Steps",
       "pickTitle": "Salva la guida come file di Steps",
       "filter": "Guida di Steps",
-      "done": "Guida esportata. Le aree sfocate restano sfocate per sempre nel file.",
+      "blurredForGood": "Le aree sfocate restano sfocate per sempre nel file.",
       "originals": "Includi gli originali non sfocati (per passaggi di consegne interni)",
       "originalsWarning": "Il file conterrà ogni screenshot senza sfocatura. Chiunque lo riceva potrà vedere ciò che era sfocato. Usa questa opzione solo per passare una guida a un collega che deve modificare la sfocatura.",
       "burnedIn": "Le aree sfocate restano sfocate per sempre nel file. Valori digitati nascosti, commenti e versioni sono esclusi."
@@ -513,6 +514,14 @@
       "error": "Impossibile salvare, nuovo tentativo",
       "saved": "Tutte le modifiche salvate"
     },
+    "leave": {
+      "title": "Uscire senza le ultime modifiche?",
+      "body": "Steps non è riuscito a salvare le ultime modifiche e sta ancora riprovando. Se esci adesso, potrebbero andare perse.",
+      "leave": "Esci comunque",
+      "close": "Chiudi comunque",
+      "quit": "Esci comunque",
+      "stay": "Rimani"
+    },
     "stepsList": "Passaggi",
     "stepCount_one": "{{count}} passaggio",
     "stepCount_many": "{{count}} passaggi",
@@ -565,6 +574,7 @@
       "typing": "Controlla questo passaggio: il testo digitato potrebbe non corrispondere esattamente.",
       "code": "Controlla questo passaggio: un segreto non è stato trovato nello screenshot per sfocarlo, oppure il testo potrebbe non corrispondere esattamente.",
       "fillEnd": "Controlla questo passaggio: la registrazione non è riuscita a capire in quale cella si è concluso il riempimento. Scrivi fin dove è arrivato oppure scegli “Va bene”.",
+      "appSwitch": "Controlla questo passaggio: nessun clic o tasto ha portato in primo piano questa app, quindi potrebbe essersi portata avanti da sola. Elimina il passaggio se la guida non è passata di lì oppure scegli “Va bene”.",
       "looksRight": "Va bene"
     },
     "stepText": "Testo del passaggio",
@@ -968,6 +978,20 @@
       "inUse": "Già usata per {{name}}.",
       "unavailable": "Un'altra app la usa già, quindi al momento non funziona.",
       "heldBySteps": "Un'altra copia di Steps è aperta e la sta usando. Chiudila, poi riavvia questa.",
+      "commonUse": "Altre app usano {{keys}} per “{{use}}”. Finché è assegnata a Steps, in quelle app non eseguirà quel comando.",
+      "commonMany": "Molte app usano {{keys}} per conto proprio. Finché è assegnata a Steps, in quelle app non funzionerà.",
+      "uses": {
+        "reloadNoCache": "Ricarica senza cache",
+        "reopenTab": "Riapri scheda chiusa",
+        "privateWindow": "Nuova finestra privata",
+        "closeWindow": "Chiudi finestra",
+        "closeTab": "Chiudi scheda",
+        "devTools": "Strumenti per sviluppatori",
+        "pastePlain": "Incolla come testo normale",
+        "redo": "Ripeti",
+        "saveAs": "Salva con nome",
+        "bookmarksBar": "Mostra barra dei preferiti"
+      },
       "failed": "Impossibile salvare la scelta rapida.",
       "reset": "Ripristina predefiniti",
       "resetDone": "Scelte rapide ripristinate.",
@@ -1080,6 +1104,9 @@
     "excludeApp": "Non registrare mai {{app}}",
     "excludeAppEmpty": "Non registrare mai questa app",
     "appExcluded": "{{app}} non viene mai registrata",
+    "excludeAppsLike": "Non registrare mai app di Windows come {{app}}",
+    "appsLikeExcluded": "Le app di Windows come {{app}} non vengono mai registrate",
+    "waitingForKeys": "In attesa dei tasti",
     "startAgain": "Ricomincia",
     "startAgainHelp_one": "Cancella questo passaggio e continua a registrare",
     "startAgainHelp_many": "Cancella questi {{count}} passaggi e continua a registrare",
@@ -1107,6 +1134,7 @@
     "into": "Registrazione in “{{title}}”",
     "intoFallback": "I nuovi passaggi non hanno potuto entrare in “{{title}}”: la guida è stata chiusa, oppure qualcun altro la sta modificando. Si trovano invece in una registrazione a parte.",
     "intoNothing": "Non è stato registrato nulla, quindi “{{title}}” è rimasta com'era.",
+    "nothingRecorded": "Non è stato registrato nulla, quindi non è stata creata alcuna guida.",
     "startRecording": "Avvia registrazione",
     "startTitle": "Avvia una registrazione",
     "keysChoice": "Registra la digitazione",
@@ -1163,6 +1191,7 @@
       "mergeClickIntoTyping": "Unisci il clic alla digitazione che lo segue: {{steps}}",
       "removeDoubleClick": "Rimuovi un clic ripetuto: {{steps}}",
       "removeOpenApp": "Rimuovi un passaggio “Apri” che il clic successivo mostra già: {{steps}}",
+      "removeOpenBeforeOpen": "Rimuovi un passaggio “Apri” seguito subito da un altro passaggio “Apri”: {{steps}}",
       "removeRedirect": "Rimuovi un passaggio “Vai a” da cui il collegamento è solo passato: {{steps}}"
     },
     "apply_one": "Applica {{count}} modifica",
@@ -1393,6 +1422,9 @@
     "found_many": "{{count}} corrispondenze trovate in {{steps}} passaggi.",
     "found_other": "{{count}} corrispondenze trovate in {{steps}} passaggi.",
     "nothing": "Nessun risultato.",
+    "matches_one": "{{count}} corrispondenza",
+    "matches_many": "{{count}} di corrispondenze",
+    "matches_other": "{{count}} corrispondenze",
     "unread_one": "Non è stato possibile leggere {{count}} screenshot, quindi non è stato analizzato. Controllalo tu.",
     "unread_many": "Non è stato possibile leggere {{count}} screenshot, quindi non sono stati analizzati. Controllali tu.",
     "unread_other": "Non è stato possibile leggere {{count}} screenshot, quindi non sono stati analizzati. Controllali tu.",
@@ -1426,18 +1458,19 @@
       "term": "parola da sfocare sempre",
       "account": "il nome del tuo account",
       "file": "nome file",
-      "path": "percorso file"
+      "path": "percorso file",
+      "notification": "notifica"
     },
     "nextTo": "{{kind}} accanto a “{{label}}”"
   },
   "zoom": {
     "menu": "Ingrandisci su ogni clic",
-    "menuNote": "Ritaglia gli screenshot molto larghi attorno al clic perché si leggano bene sulla pagina",
+    "menuNote": "Ritaglia gli screenshot più larghi di {{width}} pixel sull'area attorno al clic, per un testo più grande sulla pagina",
     "auto": "Automatico",
     "done_one": "Ingrandito {{count}} screenshot.",
     "done_many": "Ingranditi {{count}} screenshot.",
     "done_other": "Ingranditi {{count}} screenshot.",
-    "nothing": "Nessuno screenshot da ingrandire: si leggono già bene sulla pagina."
+    "nothing": "Niente da ingrandire: ritaglia solo gli screenshot più larghi di {{width}} pixel che hanno un clic e non sono ancora ritagliati."
   },
   "exportSettings": {
     "folder": "Salva le esportazioni in",
@@ -1578,7 +1611,7 @@
       "eyebrow": "Tour completato",
       "title": "Tutto pronto",
       "body": "Il tour è finito. Puoi ripeterlo da Impostazioni quando vuoi.",
-      "finish": "Fine"
+      "gotIt": "OK"
     },
     "pill": {
       "label": "Tour",

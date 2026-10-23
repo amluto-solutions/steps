@@ -20,6 +20,11 @@ const at = (text: string, x: number, y: number): OcrLine => {
   return { words: words.map((word) => ({ ...word, x: word.x - 5 + x })) };
 };
 
+/** A line OCR read as one word in one box, as copied from a real reading. */
+const word = (text: string, x: number, y: number, w: number, h: number): OcrLine => ({
+  words: [{ text, x, y, w, h }],
+});
+
 const kinds = (text: string, terms: string[] = []) =>
   findSensitive([line(text)], terms).map((found) => found.kind);
 
@@ -103,12 +108,92 @@ describe("suggested blurs", () => {
     expect(kinds("IBAN GB82 WEST 1234 5698 7654 32")).toEqual(["iban"]);
   });
 
+  it("doesn't take a row of colour swatches for a phone number (#51, P17)", () => {
+    // Paint's palette as Windows OCR read it on 10/10/2026: each row of round swatches came back
+    // as one word of circles, and the middle row as ten zeros.
+    const palette = [
+      word("Ooooooeoooo", 27.22, 45.15, 14.39, 3.02),
+      word("0000000000", 29.53, 47.69, 12.07, 1.48),
+      word("oooooooooo", 29.51, 49.88, 12.12, 1.54),
+    ];
+    expect(findSensitive(palette, [], { strength: "light" })).toEqual([]);
+    // The same glyph however OCR spaces it, or reads some circles as O.
+    expect(kinds("00000 00000")).toEqual([]);
+    expect(kinds("00 00 00 00 00")).toEqual([]);
+    expect(kinds("0O00000000")).toEqual([]);
+    expect(kinds("+44 4444 444444")).toEqual([]);
+    // Nor beside a phone label: a placeholder's zeros aren't anyone's number.
+    expect(findSensitive([line("Phone: 0000 000000")])).toEqual([]);
+    expect(findSensitive([at("Mobile", 5, 10), at("000000000", 30, 10)])).toEqual([]);
+    expect(
+      findSensitive([line("Mobile: 07700 900123")]).map((found) => [found.kind, found.label]),
+    ).toEqual([["phone", "Mobile"]]);
+  });
+
+  it("still finds real phone numbers, however many digits repeat (#51)", () => {
+    for (const number of [
+      "07700900123",
+      "07700 900123",
+      "07777 777777",
+      "+447777777777",
+      "0800 000000",
+      "01111 111111",
+      "(020) 7946 0958",
+      "+44 20 7946 0958",
+      "+447700900456",
+      "+ 44 7700 900456",
+      "O7700 9OO123",
+      "O1111 111111",
+    ])
+      expect(kinds(`Call ${number} today`), number).toEqual(["phone"]);
+  });
+
+  it("finds a UK number written with a bracketed trunk zero after +44 (#99)", () => {
+    const texts = (text: string) =>
+      findSensitive([line(text)]).map((found) => [found.kind, found.text]);
+    // The "(0)" isn't counted, but is blurred with the number.
+    expect(texts("Tel +44 (0)20 7946 0958 today")).toEqual([["phone", "+44 (0)20 7946 0958"]]);
+    expect(texts("Mobile +44 (0) 7700 900123")).toEqual([["phone", "+44 (0) 7700 900123"]]);
+    expect(texts("Office +44(0)1632 960123.")).toEqual([["phone", "+44(0)1632 960123"]]);
+  });
+
+  it("doesn't make a number of a (0) anywhere but after +44 (#99)", () => {
+    const texts = (text: string) =>
+      findSensitive([line(text)]).map((found) => [found.kind, found.text]);
+    expect(texts("Option (0)")).toEqual([]);
+    expect(texts("Option (0) 1632 960123")).toEqual([]);
+    expect(texts("Option (0)20 7946 0958")).toEqual([]);
+    // A count before a number isn't part of it.
+    expect(texts("Drafts (0) 01632 960123")).toEqual([["phone", "01632 960123"]]);
+    expect(texts("+44 20 (0) 7946 0958")).toEqual([]);
+  });
+
+  it("never takes one glyph repeated for a number with a bracketed trunk zero (#99, #51)", () => {
+    // Read from abroad ("+44 4444 444444") or at home ("00000 000000"), it's one digit over and
+    // over, by its digits or beside a phone label.
+    expect(kinds("+44 (0) 4444 444444")).toEqual([]);
+    expect(kinds("+44 (0)0000 000000")).toEqual([]);
+    expect(findSensitive([line("Phone: +44 (0)0000 000000")])).toEqual([]);
+    expect(findSensitive([at("Mobile", 5, 10), at("+44 (0)0000 000000", 30, 10)])).toEqual([]);
+    // However many of its own digits repeat, a real number is still found.
+    expect(kinds("Call +44 (0)7777 777777 today")).toEqual(["phone"]);
+    expect(
+      findSensitive([line("Mobile: +44 (0)7777 777777")]).map((found) => [found.kind, found.label]),
+    ).toEqual([["phone", "Mobile"]]);
+  });
+
   it("finds a phone number OCR misread", () => {
     expect(kinds("+447700900456 ✓")).toEqual(["phone"]);
     expect(kinds("+ 44 7700 900456")).toEqual(["phone"]);
     expect(kinds("O7700 9OO123")).toEqual(["phone"]);
     // Too few real digits to be a number at all.
     expect(kinds("OIlO OIlO OIlO")).toEqual([]);
+    // With a bracketed trunk zero too (#99), and still never one glyph repeated.
+    const texts = (text: string) => findSensitive([line(text)]).map((found) => found.text);
+    expect(texts("Tel + 44 (0)20 7946 0958")).toEqual(["+ 44 (0)20 7946 0958"]);
+    expect(texts("Tel +44 (O)20 7946 O958")).toEqual(["+44 (O)20 7946 O958"]);
+    expect(kinds("+ 44 (O) OOOO OOOOOO")).toEqual([]);
+    expect(kinds("+ 44 (0) 4444 444444")).toEqual([]);
   });
 
   it("finds names, addresses and IDs by the label beside them, and says which label", () => {
@@ -143,6 +228,216 @@ describe("suggested blurs", () => {
     const owner = findSensitive(page).find((item) => item.label === "Account owner");
     expect(owner?.rect.x).toBeLessThanOrEqual(45);
     expect((owner?.rect.x ?? 0) + (owner?.rect.w ?? 0)).toBeGreaterThanOrEqual(45 + 27);
+  });
+
+  it("doesn't take the next item of a menu or list for the value of a Name heading (#51, P37)", () => {
+    // File Explorer's Sort menu as Windows OCR read it on 10/10/2026: "Date modified" had been
+    // suggested as the name next to "Name".
+    const menu = [
+      word("Name", 21.55, 14.51, 1.89, 0.99),
+      word("•", 20.21, 17.69, 0.31, 0.56),
+      word("Date modified", 21.55, 17.47, 4.51, 0.99),
+      word("Type", 21.49, 20.43, 1.53, 1.27),
+      word("More", 21.51, 23.43, 1.67, 0.93),
+      word("Ascending", 21.51, 26.57, 3.33, 1.3),
+      word("Descending", 21.56, 29.54, 3.7, 1.3),
+      word("Group by", 21.51, 32.87, 3.02, 1.2),
+    ];
+    expect(findSensitive(menu)).toEqual([]);
+  });
+
+  it("doesn't take the next column's heading for the value of a Name heading (#51, P37)", () => {
+    // File Explorer's Details view, laid out as Windows OCR read one on 10/10/2026 (the files'
+    // names made up): "Date modified" had been suggested as the name next to "Name".
+    const explorer = [
+      word("Name", 19.1, 13.49, 1.65, 0.9),
+      word("Date modified", 47.5, 13.52, 3.86, 0.83),
+      word("Type", 54.95, 13.52, 1.3, 1.11),
+      word("Size", 61.2, 13.52, 1.04, 0.83),
+      word("v Today", 16.91, 16.54, 2.9, 0.59),
+      ...[18.98, 21.57, 24.17].flatMap((y, row) => [
+        word(
+          ["Club rota.xlsx", "Minutes October.docx", "Newsletter.pdf"][row] ?? "",
+          19.43,
+          y,
+          9,
+          1.11,
+        ),
+        word("10/10/2026 09:57", 47.45, y, 4.58, 0.83),
+        word("Microsoft Word Document", 55, y, 5.31, 0.83),
+        word("12 KB", 62.4, y, 1.25, 1.02),
+      ]),
+    ];
+    expect(findSensitive(explorer)).toEqual([]);
+    // With OneDrive's Status column next to Name, which shows icons, not words.
+    const onedrive = [
+      word("Name", 19.1, 13.49, 1.65, 0.9),
+      word("Status", 31.09, 13.49, 2.28, 0.9),
+      word("Date modified", 35.3, 13.49, 4.46, 0.9),
+      word("Type", 42.74, 13.49, 1.3, 1.17),
+      ...[16.45, 19.35, 22.22].flatMap((y, row) => [
+        word(["Club rota.xlsx", "Minutes.docx", "Newsletter.pdf"][row] ?? "", 19.38, y, 9, 1.11),
+        word("10/10/2026 09:57", 35.26, y, 4.58, 0.83),
+        word("File folder", 42.81, y, 3.2, 0.83),
+      ]),
+    ];
+    expect(findSensitive(onedrive)).toEqual([]);
+    // A Teams files list, each file on two lines: "Opened" had been suggested as the name next to
+    // "Name". ("Activity" beside "Owner" still is: with no heading after it, the two can't be told
+    // from a label and its value with more labels under them.)
+    const teams = [
+      word("Name", 18.54, 61.92, 1.93, 0.97),
+      word("Opened", 45.26, 61.92, 2.6, 1.26),
+      word("Owner", 55.68, 61.92, 2.19, 0.97),
+      word("Activity", 69.22, 61.92, 2.5, 1.26),
+      ...[66.18, 71.61, 77.03].flatMap((y) => [
+        word("Club rota", 20.94, y, 3.07, 0.97),
+        word("In Files", 20.99, y + 1.84, 2.19, 1.16),
+        word("3d ago", 45.21, y + 0.78, 2.24, 0.97),
+        word("Robin Hale", 55.62, y + 0.78, 3.39, 1.26),
+        word("Sam edited this", 70.78, y + 0.78, 5, 0.97),
+      ]),
+    ];
+    expect(findSensitive(teams).filter((found) => found.label === "Name")).toEqual([]);
+  });
+
+  it("still finds a phone number under a Phone heading, which must look like one anyway (#51)", () => {
+    // Not a UK number, so only its label finds it.
+    const list = [
+      at("Phone", 10, 10),
+      at("+1 415 555 0100", 10, 13),
+      at("+1 415 555 0101", 10, 16),
+      at("+1 415 555 0102", 10, 19),
+    ];
+    expect(findSensitive(list).map((found) => [found.kind, found.text, found.label])).toEqual([
+      ["phone", "+1 415 555 0100", "Phone"],
+    ]);
+  });
+
+  it("still finds every email, phone and card number in a table's rows (#51)", () => {
+    // The Name heading no longer labels anything, but what's in the rows is found by itself.
+    const contacts = [
+      at("Name", 5, 10),
+      at("Email", 30, 10),
+      at("Mobile", 60, 10),
+      at("Card", 80, 10),
+      ...[
+        ["Robin Hale", "robin@example.com", "07700 900123", "4111 1111 1111 1111"],
+        ["Jo Bloggs", "jo.bloggs@example.co.uk", "07700 900456", "5555 5555 5555 4444"],
+        ["Sam Jones", "sam@example.org", "+44 20 7946 0958", "4000 0566 5566 5556"],
+      ].flatMap(([name, email, mobile, card], row) => [
+        at(name ?? "", 5, 14 + row * 3),
+        at(email ?? "", 30, 14 + row * 3),
+        at(mobile ?? "", 60, 14 + row * 3),
+        at(card ?? "", 80, 14 + row * 3),
+      ]),
+    ];
+    const found = findSensitive(contacts, [], { strength: "light" });
+    expect(found.map((item) => item.kind).sort()).toEqual([
+      ...Array<string>(3).fill("card"),
+      ...Array<string>(3).fill("email"),
+      ...Array<string>(3).fill("phone"),
+    ]);
+  });
+
+  it("still finds a name labelled beside it on a page laid out like a table (#51)", () => {
+    const found = (lines: OcrLine[]) =>
+      findSensitive(lines).map((item) => [item.kind, item.text, item.label ?? ""]);
+    // Labels on the left, values on the right, the name's followed by labels that aren't personal.
+    const profile = [
+      at("Name", 20, 10),
+      at("Robin Hale", 50, 10),
+      at("Company", 20, 14),
+      at("Amluto Solutions", 50, 14),
+      at("Job title", 20, 18),
+      at("Director", 50, 18),
+    ];
+    expect(found(profile)).toEqual([["name", "Robin Hale", "Name"]]);
+    // With an Edit button on every row, and a side menu whose items line up with the rows.
+    expect(
+      found([
+        ...profile,
+        at("Edit", 85, 10),
+        at("Edit", 85, 14),
+        at("Edit", 85, 18),
+        at("Profile", 1, 10),
+        at("Security", 1, 14),
+        at("Billing", 1, 18),
+      ]),
+    ).toEqual([["name", "Robin Hale", "Name"]]);
+    // Two pairs to a row.
+    expect(
+      found([
+        at("First name", 5, 10),
+        at("Robin", 25, 10),
+        at("Last name", 50, 10),
+        at("Hale", 70, 10),
+        at("Email", 5, 14),
+        at("robin@example.com", 25, 14),
+        at("Phone", 50, 14),
+        at("07700 900123", 70, 14),
+      ]),
+    ).toEqual([
+      ["name", "Robin", "First name"],
+      ["name", "Hale", "Last name"],
+      ["email", "robin@example.com", "Email"],
+      ["phone", "07700 900123", "Phone"],
+    ]);
+  });
+
+  it("still finds a name or address labelled above its field in a form (#51)", () => {
+    const found = (lines: OcrLine[]) =>
+      findSensitive(lines).map((item) => [item.kind, item.text, item.label ?? ""]);
+    // A profile form: each label close to its field, the next field further on, and the fields
+    // after the name labelled with words that aren't personal.
+    expect(
+      found([
+        at("Full name", 10, 20),
+        at("Robin Hale", 10, 22.5),
+        at("Company", 10, 27),
+        at("Amluto Solutions", 10, 29.5),
+        at("Job title", 10, 34),
+        at("Director", 10, 36.5),
+        at("Department", 10, 41),
+        at("Sales", 10, 43.5),
+      ]),
+    ).toEqual([["name", "Robin Hale", "Full name"]]);
+    // A settings page: the name's box, its help text, then the next setting.
+    expect(
+      found([
+        at("Name", 10, 20),
+        at("Robin Hale", 10.5, 22.6),
+        at("Your name may appear where you share guides.", 10, 26),
+        at("Bio", 10, 31),
+        at("I write the club's guides", 10.5, 33.6),
+        at("Company", 10, 38),
+      ]),
+    ).toEqual([["name", "Robin Hale", "Name"]]);
+    // A form laid out evenly, where the next label is one the finder knows.
+    expect(
+      found([
+        at("Name", 10, 20),
+        at("Robin Hale", 10, 23),
+        at("Email", 10, 26),
+        at("robin@example.com", 10, 29),
+        at("Phone", 10, 32),
+        at("07700 900123", 10, 35),
+      ]),
+    ).toEqual([
+      ["name", "Robin Hale", "Name"],
+      ["email", "robin@example.com", "Email"],
+      ["phone", "07700 900123", "Phone"],
+    ]);
+    // An address runs on over evenly spaced lines under its label: they're the address, not a list.
+    expect(
+      found([
+        at("Home address", 10, 20),
+        at("Flat 2", 10, 23),
+        at("Elm House", 10, 26),
+        at("Station Road", 10, 29),
+        at("Anytown", 10, 32),
+      ]),
+    ).toEqual([["address", "Flat 2, Elm House, Station Road, Anytown", "Home address"]]);
   });
 
   it("finds a filled-in username under its label or after a colon, and skips empty ones", () => {

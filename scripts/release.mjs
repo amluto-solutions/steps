@@ -58,7 +58,7 @@ import {
 } from "./lib/notices.mjs";
 import { peImports } from "./lib/pe.mjs";
 import { unstampFile } from "./lib/stamp.mjs";
-import { changelogNotes, latestJson, UPDATE_HTACCESS } from "./lib/update.mjs";
+import { changelogDate, changelogNotes, latestJson, UPDATE_HTACCESS } from "./lib/update.mjs";
 import { msiCodes, PACKAGE_ID, wingetManifests } from "./lib/winget.mjs";
 
 // No trailing separator: a path ending in a backslash would escape its closing quote.
@@ -290,6 +290,15 @@ for (const [file, found] of Object.entries(versions)) {
   if (found !== version) fail(`${file} says ${found}, the tag says ${version}`);
 }
 
+// The release date is the one CHANGELOG.md gives the version, "## 1.2.3 (dd/mm/yyyy)": the update
+// manifest's pub_date (which the download page shows) and winget's ReleaseDate both take it, so the
+// site, the changelog and winget agree (docs/decisions.md, Distribution and IT; #90).
+const changelogPath = join(work, "CHANGELOG.md");
+const changelog = existsSync(changelogPath) ? readFileSync(changelogPath, "utf8") : "";
+const released = changelogDate(changelog, version);
+if (!preRelease && !released)
+  fail(`CHANGELOG.md has no dated entry for ${version}: "## ${version} (dd/mm/yyyy)"`);
+
 const lockfiles = ["package-lock.json", "apps/desktop/src-tauri/Cargo.lock"];
 const lockHashes = Object.fromEntries(lockfiles.map((file) => [file, sha256(join(work, file))]));
 
@@ -503,11 +512,10 @@ let latest = null;
 if (!preRelease) {
   const updateDir = join(out, "update");
   mkdirSync(updateDir);
-  const changelog = join(work, "CHANGELOG.md");
   latest = latestJson({
     version,
-    notes: existsSync(changelog) ? changelogNotes(readFileSync(changelog, "utf8"), version) : null,
-    published: new Date(),
+    notes: changelogNotes(changelog, version),
+    published: released,
     url: releaseAsset(version, setupName),
     signature: setupSignature,
     portable: {
@@ -605,10 +613,9 @@ writeFileSync(join(downloadDir, "SHA256SUMS.txt"), `${downloadSums.join("\n")}\n
 // to microsoft/winget-pkgs once the downloads are live. Not for pre-releases.
 let wingetDir = null;
 if (!preRelease) {
-  const changelog = join(work, "CHANGELOG.md");
   const files = wingetManifests({
     version,
-    released: new Date(),
+    released,
     setup: {
       url: releaseAsset(version, `amluto-steps-${version}-x64-setup.exe`),
       sha256: sha256(keptSetup),
@@ -618,7 +625,7 @@ if (!preRelease) {
       sha256: sha256(keptMsi),
       ...msiCodes(keptMsi),
     },
-    notes: existsSync(changelog) ? changelogNotes(readFileSync(changelog, "utf8"), version) : null,
+    notes: changelogNotes(changelog, version),
   });
   wingetDir = join(out, "winget", ...PACKAGE_ID.split("."), version);
   mkdirSync(wingetDir, { recursive: true });
@@ -725,3 +732,11 @@ console.log(
 console.log(`  - push the tag to ${REPOSITORY}, then node scripts/publish-github.mjs ${version}`);
 console.log(`  - then node scripts/publish-site.mjs ${version}`);
 console.log("  - the browser zips to their stores, once each is listed");
+// A rebuild of a version not yet announced moves its date to the day it's published (the runbook).
+const builtOn = `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}`;
+const releasedOn = released?.toISOString().slice(0, 10).split("-").reverse().join("/");
+if (releasedOn && releasedOn !== builtOn)
+  console.log(
+    `
+! CHANGELOG.md dates ${version} ${releasedOn}, not today (${builtOn}). If that's not the day it's published, change the date, move the tag and release again.`,
+  );

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { expectNoSeriousAxeViolations } from "../../test/axe";
@@ -100,6 +100,20 @@ describe("searching the library", () => {
     await waitFor(() => expect(searchGuides).toHaveBeenCalledTimes(2));
     expect(screen.queryByText(/Old answer/)).toBeNull();
     expect(screen.getByRole("button", { name: /Open Book a room/ })).toBeTruthy();
+  });
+
+  it("says in the header how many of the guides a search shows", async () => {
+    const searchGuides = vi
+      .fn()
+      .mockResolvedValue([{ guideId: "g2", foundIn: { stepNumber: 2, snippet: "Room" } }]);
+    show(searchGuides);
+    expect(screen.getByText("2 guides")).toBeTruthy();
+    search("supplier");
+    expect(screen.getByText("1 of 2 guides")).toBeTruthy();
+    // The wording search adds what it finds.
+    await waitFor(() => expect(screen.getByText("2 of 2 guides")).toBeTruthy());
+    search("");
+    expect(screen.getByText("2 guides")).toBeTruthy();
   });
 
   it("searches only the cards when the wording can't be searched", () => {
@@ -253,6 +267,79 @@ describe("selecting several guides", () => {
     fireEvent.click(screen.getByRole("button", { name: "Select Book a room" }));
     fireEvent.click(screen.getByRole("button", { name: "Move to Bin" }));
     expect(bulk.onTrash).toHaveBeenCalledWith([guides[1]]);
+  });
+
+  it("keeps every button in its place as the selection changes, disabling rather than hiding", () => {
+    const withLocks = [
+      guide("g1", "Add a supplier"),
+      { ...guide("g2", "Book a room"), locked: { by: "Sam", at: "2026-09-20T10:00:00.000Z" } },
+    ];
+    render(
+      <LibraryHome
+        heading="All guides"
+        guides={withLocks}
+        loading={false}
+        pending={[]}
+        busy={false}
+        onOpen={vi.fn()}
+        onReviewPending={vi.fn()}
+        onDiscardPending={vi.fn()}
+        guideMenu={() => []}
+        exportMenu={() => []}
+        loadThumbnail={() => Promise.reject(new Error("none"))}
+        onNewRecording={vi.fn()}
+        onImport={vi.fn()}
+        bulk={{
+          targets: [{ id: "lib-2", name: "Finance team" }],
+          onMove: vi.fn(),
+          onCopy: vi.fn(),
+          onTrash: vi.fn(),
+          onMerge: vi.fn(),
+          exportMenu: vi.fn(() => []),
+          onLock: vi.fn(),
+          onRemoveLock: vi.fn(),
+        }}
+      />,
+    );
+    /** The bar's action buttons in order, each with whether it's disabled. */
+    const barButtons = () =>
+      within(screen.getByRole("region", { name: "Guides selected" }))
+        .getAllByRole("button")
+        .map((button) => [button.textContent, (button as HTMLButtonElement).disabled]);
+    const all = [
+      "Select all",
+      "Clear",
+      "Move to…",
+      "Copy to…",
+      "Merge…",
+      "Export…",
+      "Lock…",
+      "Remove lock…",
+      "Move to Bin",
+    ];
+
+    fireEvent.click(box("Add a supplier"));
+    const unlockedOnly = barButtons();
+    expect(unlockedOnly.map(([label]) => label)).toEqual(all);
+    expect(unlockedOnly.filter(([, disabled]) => disabled).map(([label]) => label)).toEqual([
+      "Merge…",
+      "Remove lock…",
+    ]);
+
+    // Adding a locked guide changes what's enabled, never what's there or where.
+    fireEvent.click(box("Book a room"));
+    const both = barButtons();
+    expect(both.map(([label]) => label)).toEqual(all);
+    expect(both.filter(([, disabled]) => disabled)).toEqual([]);
+
+    // A locked guide alone can't be locked again.
+    fireEvent.click(box("Add a supplier"));
+    const lockedOnly = barButtons();
+    expect(lockedOnly.map(([label]) => label)).toEqual(all);
+    expect(lockedOnly.filter(([, disabled]) => disabled).map(([label]) => label)).toEqual([
+      "Merge…",
+      "Lock…",
+    ]);
   });
 
   it("has no serious accessibility problems while selecting", async () => {

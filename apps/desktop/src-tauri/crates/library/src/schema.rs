@@ -139,9 +139,18 @@ const NAMING_KINDS: &[&str] = &[
     "switch",
     "picture",
     "listItem",
+    "closeButton",
+    "minimiseButton",
+    "maximiseButton",
+    "restoreButton",
+    "filterButton",
+    "document",
+    "inputPanel",
     "other",
 ];
-const NAMING_SOURCES: &[&str] = &["element", "ancestor", "page", "taskbar", "screen", "window"];
+const NAMING_SOURCES: &[&str] = &[
+    "element", "ancestor", "page", "taskbar", "titleBar", "screen", "menu", "window",
+];
 
 /// A naming as the UI reads it: one with a kind or source from a newer version, or that isn't a
 /// naming at all, is left out rather than refusing the step, which then works its naming out
@@ -312,6 +321,9 @@ pub(crate) struct Media {
     pub height: Option<Number>,
     pub scale: Option<Number>,
     pub capture_rect: Option<[Number; 4]>,
+    /// Where a notification toast showed on the screenshot, suggested for blurring. Absent on most.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub notifications: Vec<Area>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -629,6 +641,13 @@ fn check_step_limits(step: &StepV1) -> Result<(), Problem> {
     }
     if step.not_personal.len() > 200 {
         return Err("has more than 200 areas marked not personal".to_string());
+    }
+    if step
+        .media
+        .as_ref()
+        .is_some_and(|media| media.notifications.len() > 50)
+    {
+        return Err("has more than 50 notification areas".to_string());
     }
     if step.annotations.len() > 200 {
         return Err("has more than 200 annotations".to_string());
@@ -1091,6 +1110,22 @@ pub(crate) mod tests {
         let mut guide = fixture("guide.json");
         guide["title"] = json!("x".repeat(301));
         assert!(guide_from_value(guide).unwrap_err().contains("title"));
+    }
+
+    #[test]
+    fn where_a_notification_showed_goes_with_the_screenshot() {
+        let areas = json!([{ "x": 80.2, "y": 75, "w": 18.9, "h": 19.4 }]);
+        let mut step = fixture_steps().remove(0);
+        step["media"]["notifications"] = areas.clone();
+        let kept = serde_json::to_value(step_from_value(step.clone()).unwrap()).unwrap();
+        assert_eq!(kept["media"]["notifications"], areas);
+        // A screenshot with none says nothing about them.
+        let plain =
+            serde_json::to_value(step_from_value(fixture_steps().remove(0)).unwrap()).unwrap();
+        assert!(plain["media"].get("notifications").is_none());
+        // At most 50, as the UI's schema allows.
+        step["media"]["notifications"] = json!(vec![json!({ "x": 1, "y": 1, "w": 1, "h": 1 }); 51]);
+        assert!(step_from_value(step).unwrap_err().contains("50"));
     }
 
     #[test]

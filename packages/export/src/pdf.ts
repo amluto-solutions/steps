@@ -2,6 +2,8 @@ import * as pdfmakeModule from "pdfmake";
 import type { Content, ContentText, TDocumentDefinitions } from "pdfmake/interfaces";
 import type { CalloutKind, PdfLayout, RichText } from "@amluto-steps/core";
 
+import { withEmojiFont, type EmojiChoice } from "./emoji";
+import { fontCodePoints } from "./font-coverage";
 import { base64 } from "./html";
 import { tagDefinition, tagged, type PdfMakeLike } from "./pdf-tags";
 import type { RenderBlock, RenderCode, RenderModel, RenderStep } from "./model";
@@ -23,6 +25,11 @@ export interface PdfFonts {
   body: { normal: Uint8Array; bold: Uint8Array; italics: Uint8Array; bolditalics: Uint8Array };
   /** Monospace, for code blocks. Without it code is set in the body font. */
   mono?: Uint8Array;
+  /**
+   * A monochrome emoji font, for emoji and the symbols the text fonts lack
+   * (docs/spec/05-export.md#emoji). Loaded only when the PDF shows one, as it is large.
+   */
+  emoji?: () => Promise<Uint8Array>;
 }
 
 export interface PdfOptions {
@@ -45,6 +52,14 @@ const {
 
 const CODE_SIZE = 9.5;
 const OUTPUT_SIZE = 8.5;
+
+/**
+ * Code is set as typed, without JetBrains Mono's programming ligatures (its `calt` feature).
+ * Those also break the PDF: the bundled Latin subset keeps the lookups but not all the glyphs
+ * they point at, so fontkit reads past the end of the font and the export fails on `//`, `==`,
+ * `<>`, `>=`, `..` and the like. pdfkit hands this object to fontkit as it is.
+ */
+const CODE_FEATURES = { calt: false, liga: false } as unknown as ContentText["fontFeatures"];
 
 /** A step's code as a light, labelled box, and its output below in a dashed one (docs/spec/05-export.md#code). */
 /** Characters of monospace text at `size` that fit a code box across `width` (JetBrains Mono is 0.6 em). */
@@ -76,6 +91,7 @@ function codeContent(code: RenderCode | null, width: number): Content[] {
               text,
               tag: "Code",
               font: "Mono",
+              fontFeatures: CODE_FEATURES,
               fontSize: size,
               lineHeight: 1.2,
               color: INK,
@@ -733,6 +749,80 @@ function definitionOf(model: RenderModel, options: PdfOptions): TDocumentDefinit
   };
 }
 
+/** Each pdfmake family's faces, by their file names in `renderPdf`. */
+const FAMILY_FILES: Record<string, string[]> = {
+  Heading: ["heading-normal", "heading-bold"],
+  Body: ["body-normal", "body-bold", "body-italics", "body-bolditalics"],
+  Mono: ["mono-normal"],
+};
+
+/**
+ * The definition with its emoji in the emoji font (docs/spec/05-export.md#emoji): each emoji typed
+ * as one (with an emoji selector, a sequence, or a character shown as an emoji by default), and
+ * any other pictograph the text font it sits in lacks (☎ in Inter). The emoji font is loaded, and
+ * given to `embed`, only when there is one, so a PDF without emoji is made exactly as before.
+ */
+async function withEmoji(
+  definition: TDocumentDefinitions,
+  files: Record<string, Uint8Array>,
+  load: (() => Promise<Uint8Array>) | undefined,
+  embed: (bytes: Uint8Array) => void,
+): Promise<TDocumentDefinitions> {
+  if (!load) return definition;
+  const styles = (definition.styles ?? {}) as Record<string, { font?: string }>;
+  const family = (definition.defaultStyle?.font as string | undefined) ?? "Body";
+  const pass = (content: unknown, choose: EmojiChoice) =>
+    withEmojiFont(content, { choose, font: "Emoji", family, styles });
+  // The footer is made as each page is drawn; its words are the same on every page.
+  const footer = definition.footer;
+  const footerContent =
+    typeof footer === "function"
+      ? (footer as (current: number, total: number) => unknown)(1, 1)
+      : footer;
+  const count = (choose: EmojiChoice) =>
+    pass(definition.content, choose).found + pass(footerContent, choose).found;
+
+  // The families a pictograph not typed as an emoji sits in: only their fonts need reading.
+  const asked = new Set<string>();
+  const typedAsEmoji = count((cluster, name) => {
+    if (!cluster.presentation) asked.add(name);
+    return cluster.presentation;
+  });
+  if (typedAsEmoji === 0 && asked.size === 0) return definition;
+  const lacks = new Map<string, (point: number) => boolean>();
+  for (const name of asked) {
+    const faces = await Promise.all(
+      (FAMILY_FILES[name] ?? []).flatMap((face) => {
+        const bytes = files[face];
+        return bytes ? [fontCodePoints(bytes)] : [];
+      }),
+    );
+    // A face that can't be read is taken to have it, as before.
+    lacks.set(name, (point) => faces.some((points) => points !== null && !points.has(point)));
+  }
+  const wanted: EmojiChoice = (cluster, name) =>
+    cluster.presentation || (lacks.get(name)?.(cluster.base) ?? false);
+  if (count(wanted) === 0) return definition;
+
+  const bytes = await load();
+  const inEmojiFont = await fontCodePoints(bytes);
+  // An emoji the emoji font hasn't got stays in the text font rather than becoming a blank.
+  const choose: EmojiChoice = (cluster, name) =>
+    wanted(cluster, name) && (inEmojiFont === null || inEmojiFont.has(cluster.base));
+  embed(bytes);
+  const drawn = <T>(make: T): T =>
+    typeof make === "function"
+      ? (((...args: unknown[]) =>
+          pass((make as (...given: unknown[]) => unknown)(...args), choose).content) as T)
+      : (pass(make, choose).content as T);
+  return {
+    ...definition,
+    content: drawn(definition.content),
+    header: drawn(definition.header),
+    footer: drawn(definition.footer),
+  };
+}
+
 interface PdfMake {
   createPdf: typeof pdfmakeModule.createPdf;
   setFonts: typeof pdfmakeModule.setFonts;
@@ -761,14 +851,7 @@ export async function renderPdf(
     "body-bolditalics": fonts.body.bolditalics,
     "mono-normal": fonts.mono ?? fonts.body.normal,
   };
-  const vfs = Object.fromEntries(
-    Object.entries(files).map(([name, bytes]) => [name, base64(bytes)]),
-  );
-  if (pdfmake.addVirtualFileSystem) pdfmake.addVirtualFileSystem(vfs);
-  else
-    for (const [name, data] of Object.entries(vfs))
-      pdfmake.virtualfs?.writeFileSync(name, data, "base64");
-  pdfmake.setFonts({
+  const families: Record<string, Record<"normal" | "bold" | "italics" | "bolditalics", string>> = {
     Heading: {
       normal: "heading-normal",
       bold: "heading-bold",
@@ -787,12 +870,23 @@ export async function renderPdf(
       italics: "mono-normal",
       bolditalics: "mono-normal",
     },
+  };
+  const base = await withEmoji(pdfDefinition(model, options), files, fonts.emoji, (bytes) => {
+    files.emoji = bytes;
+    families.Emoji = { normal: "emoji", bold: "emoji", italics: "emoji", bolditalics: "emoji" };
   });
+  const vfs = Object.fromEntries(
+    Object.entries(files).map(([name, bytes]) => [name, base64(bytes)]),
+  );
+  if (pdfmake.addVirtualFileSystem) pdfmake.addVirtualFileSystem(vfs);
+  else
+    for (const [name, data] of Object.entries(vfs))
+      pdfmake.virtualfs?.writeFileSync(name, data, "base64");
+  pdfmake.setFonts(families);
   // No network: images are data URLs, and any URL in a document is refused.
   pdfmake.setUrlAccessPolicy(() => false);
   // Tagged (docs/spec/05-export.md#tagged-pdf): each line and picture is marked as what it is,
   // headers and footers as page furniture. The viewer shows the guide's title, not the file name.
-  const base = pdfDefinition(model, options);
   let keys = 0;
   const newKey = () => `k${(keys += 1)}`;
   const furniture = <T>(make: T): T =>

@@ -15,9 +15,10 @@ use tauri::{AppHandle, Emitter};
 
 use super::files::{write_new_bytes, write_new_bytes_atomic};
 use super::{
-    CommandError, ERROR_EVENT, FACT_EVENT, JournalGap, RecorderSnapshot, RecordingFact, lock,
-    publish_state, snapshot_from,
+    ERROR_EVENT, FACT_EVENT, JournalGap, RecorderSnapshot, RecordingFact, lock, publish_state,
+    snapshot_from,
 };
+use crate::error::CommandError;
 
 pub(super) struct JournalSink {
     app: AppHandle,
@@ -64,6 +65,7 @@ impl JournalSink {
             // A field's screenshot from when focus arrived in it (04/10/2026).
             Record::Input(input) => (input.id.unwrap_or(0), "field", input.capture.as_mut()),
             Record::Drag(drag) => (drag.id, "drag", drag.capture.as_mut()),
+            Record::Draw(draw) => (draw.id, "draw", draw.capture.as_mut()),
             // The page a "Go to" arrived at (04/10/2026).
             Record::Navigation(navigation) => (
                 navigation.id.unwrap_or(0),

@@ -46,11 +46,12 @@ async function renderPopup() {
   const recorder = fakeRecorder();
   recorder.addSession("session-1");
   const appendStep = vi.spyOn(recorder, "appendStep");
+  const closeShortcutPopup = vi.spyOn(recorder, "closeShortcutPopup");
   const onFact = vi.spyOn(recorder, "onFact");
   render(<ShortcutPopup recorder={recorder} />);
   await waitFor(() => expect(onFact).toHaveBeenCalled());
   act(() => recorder.fire.fact(shortcutFact));
-  return { appendStep };
+  return { appendStep, closeShortcutPopup };
 }
 
 describe("shortcutKeyName", () => {
@@ -82,6 +83,17 @@ describe("ShortcutPopup", () => {
     await waitFor(() => expect(appendStep).toHaveBeenCalledOnce());
     const step = vi.mocked(appendStep).mock.calls[0]?.[1];
     expect(step?.actionText).toContain("Ctrl + Alt + S");
+  });
+
+  it("tells the recorder whether the keys came, so the bar stops waiting and counts the step", async () => {
+    const { closeShortcutPopup } = await renderPopup();
+    fireEvent.keyDown(window, { key: "b", code: "KeyB", ctrlKey: true });
+    await waitFor(() => expect(closeShortcutPopup).toHaveBeenCalledWith(true));
+
+    cleanup();
+    const cancelled = await renderPopup();
+    fireEvent.keyDown(window, { key: "Escape", code: "Escape" });
+    await waitFor(() => expect(cancelled.closeShortcutPopup).toHaveBeenCalledWith(false));
   });
 
   it("lets Tab move between its buttons and Enter press them", async () => {

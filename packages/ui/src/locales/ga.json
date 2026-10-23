@@ -1,7 +1,5 @@
 {
   "app": {
-    "alreadyOpenTitle": "Tá Steps ar oscailt cheana",
-    "alreadyOpenBody": "Ní féidir ach Steps amháin a rith ag an am, mar sin tá an ceann atá ar oscailt tugtha chun tosaigh agat.",
     "name": "Steps",
     "by": "le",
     "logoAlt": "Amluto"
@@ -99,6 +97,11 @@
     "count_few": "{{count}} threoir",
     "count_many": "{{count}} dtreoir",
     "count_other": "{{count}} treoir",
+    "countOf_one": "{{shown}} as {{count}} treoir",
+    "countOf_two": "{{shown}} as {{count}} threoir",
+    "countOf_few": "{{shown}} as {{count}} threoir",
+    "countOf_many": "{{shown}} as {{count}} dtreoir",
+    "countOf_other": "{{shown}} as {{count}} treoir",
     "steps_one": "{{count}} chéim",
     "steps_two": "{{count}} chéim",
     "steps_few": "{{count}} chéim",
@@ -258,7 +261,7 @@
       "note": "D’úsáideoir Steps eile",
       "pickTitle": "Sábháil an treoir mar chomhad Steps",
       "filter": "Treoir Steps",
-      "done": "Easpórtáladh an treoir. Tá na limistéir dhoiléirithe doiléirithe go buan sa chomhad.",
+      "blurredForGood": "Tá na limistéir dhoiléirithe doiléirithe go buan sa chomhad.",
       "originals": "Cuir na bunleaganacha gan doiléiriú san áireamh (le tabhairt do chomhghleacaí)",
       "originalsWarning": "Beidh gach gabháil scáileáin sa chomhad gan a doiléiriú. Is féidir le duine ar bith a fhaigheann é an rud a doiléiríodh a fheiceáil. Ná húsáid é seo ach chun treoir a thabhairt do chomhghleacaí a chaithfidh an doiléiriú a chur in eagar.",
       "burnedIn": "Tá na limistéir dhoiléirithe doiléirithe go buan sa chomhad. Fágtar luachanna clóscríofa folaithe, tráchtanna agus leaganacha ar lár."
@@ -595,6 +598,14 @@
       "error": "Níorbh fhéidir sábháil, ag triail arís",
       "saved": "Gach athrú sábháilte"
     },
+    "leave": {
+      "title": "An bhfágfaidh tú gan d’athruithe is déanaí a shábháil?",
+      "body": "Níor éirigh le Steps d’athruithe is déanaí a shábháil, ach leanann sé ag triail arís. Má fhágann tú anois, is féidir go gcaillfear iad.",
+      "leave": "Fág ar aon nós",
+      "close": "Dún ar aon nós",
+      "quit": "Scoir ar aon nós",
+      "stay": "Fan"
+    },
     "stepsList": "Céimeanna",
     "stepCount_one": "{{count}} chéim",
     "stepCount_two": "{{count}} chéim",
@@ -657,6 +668,7 @@
       "typing": "Seiceáil an chéim seo: b’fhéidir nach bhfuil an clóscríobh ag teacht go beacht.",
       "code": "Seiceáil an chéim seo: níorbh fhéidir rún atá inti a aimsiú sa ghabháil scáileáin lena dhoiléiriú, nó b’fhéidir nach bhfuil an téacs ag teacht go beacht.",
       "fillEnd": "Seiceáil an chéim seo: níorbh fhéidir leis an taifeadadh a rá cén chill ar chríochnaigh an líonadh. Scríobh cá ndeachaigh sé, nó roghnaigh “Tá sé ceart”.",
+      "appSwitch": "Seiceáil an chéim seo: níor thug aon chliceáil ná aon eochair an aip seo chun tosaigh, mar sin b’fhéidir gur tháinig sí chun tosaigh uaithi féin. Scrios an chéim mura ndeachaigh an treoir ansin, nó roghnaigh “Tá sé ceart”.",
       "looksRight": "Tá sé ceart"
     },
     "stepText": "Téacs na céime",
@@ -1070,6 +1082,20 @@
       "inUse": "In úsáid cheana do {{name}}.",
       "unavailable": "Úsáideann aip eile é seo cheana, mar sin ní oibríonn sé faoi láthair.",
       "heldBySteps": "Tá cóip eile de Steps oscailte agus úsáideann sí seo. Dún í, ansin atosaigh an ceann seo.",
+      "commonUse": "Úsáideann aipeanna eile {{keys}} le haghaidh “{{use}}”. Fad is atá sé ag Steps, ní oibreoidh sé sin iontu.",
+      "commonMany": "Úsáideann a lán aipeanna {{keys}} iad féin. Fad is atá sé ag Steps, ní oibreoidh sé iontu.",
+      "uses": {
+        "reloadNoCache": "Athlódáil gan taisce",
+        "reopenTab": "Athoscail an cluaisín dúnta",
+        "privateWindow": "Fuinneog phríobháideach nua",
+        "closeWindow": "Dún an fhuinneog",
+        "closeTab": "Dún an cluaisín",
+        "devTools": "Uirlisí forbróra",
+        "pastePlain": "Greamaigh mar théacs simplí",
+        "redo": "Athdhéan",
+        "saveAs": "Sábháil mar",
+        "bookmarksBar": "Taispeáin barra na leabharmharcanna"
+      },
       "failed": "Níorbh fhéidir an t-aicearra sin a shábháil.",
       "reset": "Athshocraigh go réamhshocruithe",
       "resetDone": "Athshocraíodh na haicearraí.",
@@ -1182,6 +1208,9 @@
     "excludeApp": "Ná taifead {{app}} riamh",
     "excludeAppEmpty": "Ná taifead an aip seo riamh",
     "appExcluded": "Ní thaifeadtar {{app}} riamh",
+    "excludeAppsLike": "Ná taifead aipeanna Windows cosúil le {{app}} riamh",
+    "appsLikeExcluded": "Ní thaifeadtar aipeanna Windows cosúil le {{app}} riamh",
+    "waitingForKeys": "Ag fanacht leis na heochracha",
     "startAgain": "Tosaigh arís",
     "startAgainHelp_one": "Glanann sé an chéim seo agus leanann sé ag taifeadadh",
     "startAgainHelp_two": "Glanann sé na {{count}} chéim seo agus leanann sé ag taifeadadh",
@@ -1217,6 +1246,7 @@
     "into": "Ag taifeadadh isteach in “{{title}}”",
     "intoFallback": "Níorbh fhéidir na céimeanna nua a chur isteach in “{{title}}”: dúnadh é, nó tá duine eile á chur in eagar. Tá siad i dtaifeadadh dá gcuid féin ina ionad sin.",
     "intoNothing": "Níor taifeadadh aon rud, mar sin tá “{{title}}” mar a bhí.",
+    "nothingRecorded": "Níor taifeadadh aon rud, mar sin níor cruthaíodh treoir.",
     "startRecording": "Tosaigh ag taifeadadh",
     "startTitle": "Tosaigh taifeadadh",
     "keysChoice": "Taifead an méid a chlóscríobhtar",
@@ -1275,6 +1305,7 @@
       "mergeClickIntoTyping": "Cumaisc an chliceáil leis an gclóscríobh a leanann í: {{steps}}",
       "removeDoubleClick": "Bain cliceáil a rinneadh faoi dhó: {{steps}}",
       "removeOpenApp": "Bain céim “Oscail” a thaispeánann an chéad chliceáil eile cheana: {{steps}}",
+      "removeOpenBeforeOpen": "Bain céim “Oscail” a bhfuil céim “Oscail” eile ag teacht díreach ina diaidh: {{steps}}",
       "removeRedirect": "Bain céim “Téigh go” nach ndeachaigh an nasc ach tríd: {{steps}}"
     },
     "apply_one": "Cuir {{count}} athrú i bhfeidhm",
@@ -1525,6 +1556,11 @@
     "found_many": "Aimsíodh {{count}} meaitseáil (céimeanna: {{steps}}).",
     "found_other": "Aimsíodh {{count}} meaitseáil (céimeanna: {{steps}}).",
     "nothing": "Níor aimsíodh faic.",
+    "matches_one": "{{count}} toradh",
+    "matches_two": "{{count}} thoradh",
+    "matches_few": "{{count}} thoradh",
+    "matches_many": "{{count}} toradh",
+    "matches_other": "{{count}} toradh",
     "unread_one": "Níorbh fhéidir {{count}} ghabháil scáileáin a léamh, mar sin níor cuardaíodh í. Seiceáil féin í.",
     "unread_two": "Níorbh fhéidir {{count}} ghabháil scáileáin a léamh, mar sin níor cuardaíodh iad. Seiceáil féin iad.",
     "unread_few": "Níorbh fhéidir {{count}} ghabháil scáileáin a léamh, mar sin níor cuardaíodh iad. Seiceáil féin iad.",
@@ -1568,20 +1604,21 @@
       "term": "focal a dhoiléirítear i gcónaí",
       "account": "d’ainm cuntais",
       "file": "ainm comhaid",
-      "path": "cosán comhaid"
+      "path": "cosán comhaid",
+      "notification": "fógra"
     },
     "nextTo": "{{kind}} in aice le “{{label}}”"
   },
   "zoom": {
     "menu": "Zúmáil isteach ar gach cliceáil",
-    "menuNote": "Bearrann sé gabhálacha scáileáin an-leathana timpeall na cliceála ionas go léann siad go maith ar leathanach",
+    "menuNote": "Bearrann sé gabhálacha scáileáin níos leithne ná {{width}} picteilín go dtí an limistéar timpeall na cliceála, le go mbeidh téacs níos mó ar an leathanach",
     "auto": "Uathoibríoch",
     "done_one": "Zúmáladh isteach ar {{count}} ghabháil scáileáin.",
     "done_two": "Zúmáladh isteach ar {{count}} ghabháil scáileáin.",
     "done_few": "Zúmáladh isteach ar {{count}} ghabháil scáileáin.",
     "done_many": "Zúmáladh isteach ar {{count}} ngabháil scáileáin.",
     "done_other": "Zúmáladh isteach ar {{count}} gabháil scáileáin.",
-    "nothing": "Níl gá le zúmáil ar aon ghabháil scáileáin: léann siad go maith ar leathanach cheana."
+    "nothing": "Níl aon rud le zúmáil: ní bhearrann sé ach gabhálacha scáileáin níos leithne ná {{width}} picteilín a bhfuil cliceáil orthu agus nach bhfuil bearrtha go fóill."
   },
   "exportSettings": {
     "folder": "Sábháil easpórtálacha i",
@@ -1722,7 +1759,7 @@
       "eyebrow": "Turas déanta",
       "title": "Tá tú réidh",
       "body": "Sin é an turas. Is féidir leat é a dhéanamh arís ó na Socruithe aon uair is maith leat.",
-      "finish": "Críochnaigh"
+      "gotIt": "Tuigim"
     },
     "pill": {
       "label": "Turas",

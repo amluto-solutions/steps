@@ -1,7 +1,5 @@
 {
   "app": {
-    "alreadyOpenTitle": "Steps가 이미 열려 있습니다",
-    "alreadyOpenBody": "Steps는 한 번에 하나만 실행되므로 이미 열려 있는 창을 맨 앞으로 가져왔습니다.",
     "name": "Steps",
     "by": "by",
     "logoAlt": "Amluto"
@@ -67,6 +65,7 @@
   "library": {
     "heading": "내 가이드",
     "count_other": "가이드 {{count}}개",
+    "countOf_other": "가이드 {{count}}개 중 {{shown}}개",
     "steps_other": "단계 {{count}}개",
     "search": "가이드 검색",
     "searchPlaceholder": "제목, 단계, 메모 검색",
@@ -186,7 +185,7 @@
       "note": "다른 Steps 사용자용",
       "pickTitle": "가이드를 Steps 파일로 저장",
       "filter": "Steps 가이드",
-      "done": "가이드를 내보냈습니다. 흐리게 처리한 영역은 파일에서 영구적으로 흐리게 처리됩니다.",
+      "blurredForGood": "흐리게 처리한 영역은 파일에서 영구적으로 흐리게 처리됩니다.",
       "originals": "흐리게 처리하지 않은 원본 포함(내부 인계용)",
       "originalsWarning": "파일에 모든 스크린샷이 흐리게 처리되지 않은 상태로도 들어갑니다. 파일을 받은 사람은 누구나 흐리게 처리한 내용을 볼 수 있습니다. 흐리게 처리를 편집해야 하는 동료에게 가이드를 넘길 때만 사용하세요.",
       "burnedIn": "흐리게 처리한 영역은 파일에서 영구적으로 흐리게 처리됩니다. 숨긴 입력 값, 댓글, 버전은 포함되지 않습니다."
@@ -431,6 +430,14 @@
       "error": "저장하지 못해 다시 시도하는 중",
       "saved": "모든 변경 내용 저장됨"
     },
+    "leave": {
+      "title": "최신 변경 내용을 저장하지 않고 나갈까요?",
+      "body": "Steps에서 최신 변경 내용을 저장하지 못해 다시 시도하는 중입니다. 지금 나가면 변경 내용이 손실될 수 있습니다.",
+      "leave": "그래도 나가기",
+      "close": "그래도 닫기",
+      "quit": "그래도 종료",
+      "stay": "머무르기"
+    },
     "stepsList": "단계",
     "stepCount_other": "단계 {{count}}개",
     "add": "추가",
@@ -473,6 +480,7 @@
       "typing": "이 단계를 확인하세요. 입력 내용이 정확히 일치하지 않을 수 있습니다.",
       "code": "이 단계를 확인하세요. 포함된 비밀 정보를 스크린샷에서 찾지 못해 흐리게 처리하지 못했거나, 텍스트가 정확히 일치하지 않을 수 있습니다.",
       "fillEnd": "이 단계를 확인하세요. 채우기가 어느 셀에서 끝났는지 알 수 없었습니다. 어디까지였는지 적거나 “이상 없음”을 선택하세요.",
+      "appSwitch": "이 단계를 확인하세요. 이 앱을 맨 앞으로 가져온 클릭이나 키 입력이 없어서 저절로 앞으로 나왔을 수 있습니다. 가이드에서 그 앱으로 이동하지 않았다면 단계를 삭제하거나 “이상 없음”을 선택하세요.",
       "looksRight": "이상 없음"
     },
     "stepText": "단계 텍스트",
@@ -866,6 +874,20 @@
       "inUse": "이미 {{name}}에 사용 중입니다.",
       "unavailable": "다른 앱에서 이미 사용 중이라 지금은 작동하지 않습니다.",
       "heldBySteps": "다른 Steps가 열려 있고 이를 사용 중입니다. 그 Steps를 닫은 다음 이 Steps를 다시 시작하세요.",
+      "commonUse": "다른 앱에서는 {{keys}} 키를 “{{use}}”에 사용합니다. Steps가 이 키를 사용하는 동안에는 해당 앱에서 그 기능이 작동하지 않습니다.",
+      "commonMany": "많은 앱이 {{keys}} 키를 자체적으로 사용합니다. Steps가 이 키를 사용하는 동안에는 해당 앱에서 작동하지 않습니다.",
+      "uses": {
+        "reloadNoCache": "캐시 없이 새로 고침",
+        "reopenTab": "닫은 탭 다시 열기",
+        "privateWindow": "새 비공개 창",
+        "closeWindow": "창 닫기",
+        "closeTab": "탭 닫기",
+        "devTools": "개발자 도구",
+        "pastePlain": "일반 텍스트로 붙여넣기",
+        "redo": "다시 실행",
+        "saveAs": "다른 이름으로 저장",
+        "bookmarksBar": "북마크바 표시"
+      },
       "failed": "바로 가기 키를 저장하지 못했습니다.",
       "reset": "기본값으로 재설정",
       "resetDone": "바로 가기 키를 재설정했습니다.",
@@ -978,6 +1000,9 @@
     "excludeApp": "{{app}} 녹화 안 함",
     "excludeAppEmpty": "이 앱 녹화 안 함",
     "appExcluded": "{{app}}은(는) 녹화하지 않습니다",
+    "excludeAppsLike": "{{app}} 같은 Windows 앱 녹화 안 함",
+    "appsLikeExcluded": "{{app}} 같은 Windows 앱은 녹화하지 않습니다",
+    "waitingForKeys": "키 입력 대기 중",
     "startAgain": "처음부터 다시",
     "startAgainHelp_other": "단계 {{count}}개를 지우고 녹화를 계속합니다",
     "startedAgain_other": "처음부터 다시 시작했습니다. 이전 단계 {{count}}개를 지웠습니다.",
@@ -997,6 +1022,7 @@
     "into": "“{{title}}”에 녹화 중",
     "intoFallback": "“{{title}}”이(가) 닫혔거나 다른 사람이 편집 중이라 새 단계를 넣지 못했습니다. 대신 별도의 녹화로 저장되어 있습니다.",
     "intoNothing": "녹화된 내용이 없어 “{{title}}”은(는) 그대로입니다.",
+    "nothingRecorded": "녹화된 내용이 없어 가이드를 만들지 않았습니다.",
     "startRecording": "녹화 시작",
     "startTitle": "녹화 시작",
     "keysChoice": "입력 내용 녹화",
@@ -1051,6 +1077,7 @@
       "mergeClickIntoTyping": "클릭을 뒤이은 입력과 병합: {{steps}}",
       "removeDoubleClick": "반복된 클릭 제거: {{steps}}",
       "removeOpenApp": "다음 클릭에 이미 나타나는 “열기” 단계 제거: {{steps}}",
+      "removeOpenBeforeOpen": "바로 뒤에 또 다른 “열기” 단계가 이어지는 “열기” 단계 제거: {{steps}}",
       "removeRedirect": "링크가 거쳐 가기만 한 “이동” 단계 제거: {{steps}}"
     },
     "apply_other": "변경 내용 {{count}}개 적용",
@@ -1261,6 +1288,7 @@
     "searching": "스크린샷 읽는 중: {{done}}/{{total}}",
     "found_other": "단계 {{steps}}개에서 일치 항목 {{count}}개를 찾았습니다.",
     "nothing": "찾은 항목이 없습니다.",
+    "matches_other": "{{count}}개 일치",
     "unread_other": "스크린샷 {{count}}개를 읽을 수 없어 검색하지 못했습니다. 직접 확인하세요.",
     "notGuaranteed": "제안은 놓치는 부분이 있을 수 있습니다. 가이드를 공유하기 전에 모든 스크린샷을 확인하세요.",
     "inText_other": "단계 {{count}}개({{steps}})의 문구나 메모에도 있습니다.",
@@ -1284,16 +1312,17 @@
       "term": "항상 흐리게 처리할 단어",
       "account": "내 계정 이름",
       "file": "파일 이름",
-      "path": "파일 경로"
+      "path": "파일 경로",
+      "notification": "알림"
     },
     "nextTo": "“{{label}}” 옆의 {{kind}}"
   },
   "zoom": {
     "menu": "클릭 위치 확대",
-    "menuNote": "아주 넓은 스크린샷을 클릭 위치 주변으로 잘라 페이지에서 잘 보이게 합니다",
+    "menuNote": "너비가 {{width}}픽셀보다 큰 스크린샷을 클릭 위치 주변으로 잘라 페이지에서 글자가 더 크게 보이게 합니다",
     "auto": "자동",
     "done_other": "스크린샷 {{count}}개를 확대했습니다.",
-    "nothing": "확대할 스크린샷이 없습니다. 이미 페이지에서 잘 보입니다."
+    "nothing": "확대할 항목이 없습니다. 너비가 {{width}}픽셀보다 크고 클릭이 있으며 아직 자르지 않은 스크린샷만 잘립니다."
   },
   "exportSettings": {
     "folder": "내보내기 저장 위치",
@@ -1434,7 +1463,7 @@
       "eyebrow": "둘러보기 완료",
       "title": "모든 준비가 끝났습니다",
       "body": "둘러보기를 마쳤습니다. 설정에서 언제든지 다시 실행할 수 있습니다.",
-      "finish": "마침"
+      "gotIt": "확인"
     },
     "pill": {
       "label": "둘러보기",

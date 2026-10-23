@@ -10,6 +10,7 @@ import type { Stamp } from "../editor/edits";
 import type { EditorHooks } from "../editor/useGuideEditor";
 import { errorMessage } from "../errors";
 import { ExportDialog, type ExportFormat } from "../export/ExportDialog";
+import type { AmlstepsTarget } from "../export/job";
 import type { FileDialogs, GuideFiles, StepsFiles, Versions } from "../library-bridge";
 import { formatDate } from "../library/dates";
 import type { RecorderBridge } from "../recorder-bridge";
@@ -38,7 +39,13 @@ export function useExports(context: {
   brands: BrandProfile[];
   blurTerms: string[];
   /** Saves an unsaved recording to the library, quietly; true once saved. */
-  saveDraft?: (sessionId: string, flush: () => Promise<void>, doc: EditorDoc) => Promise<boolean>;
+  saveDraft?: (
+    sessionId: string,
+    flush: () => Promise<void>,
+    doc: EditorDoc,
+    /** The editor's undo and redo, which the saved guide keeps (#82). */
+    history?: History,
+  ) => Promise<boolean>;
 }) {
   const { t } = useTranslation();
   const { recorder, library, notify, run, author, brands, blurTerms, saveDraft } = context;
@@ -200,25 +207,25 @@ export function useExports(context: {
       if (copied) parts.push(t("export.pathCopied"));
     }
     if (source.kind === "draft" && saveDraft) {
-      if (await saveDraft(source.sessionId, exportedFrom.flush, exportedFrom.doc))
+      const history = exportedFrom.editor?.history();
+      if (await saveDraft(source.sessionId, exportedFrom.flush, exportedFrom.doc, history))
         parts.push(t("export.draftSaved"));
     }
     const text = parts.join(" ");
-    notify(
-      path && recorder
-        ? {
-            text,
-            action: {
-              label: t("export.open"),
-              run: () => void recorder.showExport(path, false).catch(() => undefined),
-            },
-            secondAction: {
-              label: t("export.openLocation"),
-              run: () => void recorder.showExport(path, true).catch(() => undefined),
-            },
-          }
-        : { text },
-    );
+    if (!path || !recorder) notify({ text });
+    else {
+      const show = (label: string, reveal: boolean) => ({
+        label,
+        run: () => void recorder.showExport(path, reveal).catch(() => undefined),
+      });
+      const openLocation = show(t("export.openLocation"), true);
+      notify(
+        // No app opens a Steps file (it's opened from inside Steps), so only its folder is offered.
+        format === "amlsteps"
+          ? { text, action: openLocation }
+          : { text, action: show(t("export.open"), false), secondAction: openLocation },
+      );
+    }
     if (source.kind === "guide" && library && format !== "copy") {
       const now = new Date();
       const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
@@ -272,6 +279,28 @@ export function useExports(context: {
     );
   };
 
+  /**
+   * A guide's Steps file, built from the saved guide (so pending edits go to disk first): where
+   * the save dialog said, or in the export folder under a name no file has. Answers where it went.
+   */
+  const saveAmlsteps = (source: ExportSource, flush: () => Promise<void>) =>
+    source.kind === "guide" && library
+      ? async (where: AmlstepsTarget, includeOriginals: boolean) => {
+          await flush();
+          const { libraryId, guideId } = source;
+          if ("folder" in where)
+            return library.exportAmlstepsTo(
+              libraryId,
+              guideId,
+              where.folder,
+              where.name,
+              includeOriginals,
+            );
+          await library.exportAmlsteps(libraryId, guideId, where.path, includeOriginals);
+          return where.path;
+        }
+      : undefined;
+
   const dialog =
     exporting && recorder && library ? (
       <ExportDialog
@@ -323,22 +352,7 @@ export function useExports(context: {
               }
             : undefined
         }
-        saveAmlsteps={
-          exporting.source.kind === "guide"
-            ? async (path, includeOriginals) => {
-                const source = exporting.source;
-                if (source.kind !== "guide") return;
-                // The file is built from the saved guide, so pending edits go to disk first.
-                await exporting.flush();
-                await library.exportAmlsteps(
-                  source.libraryId,
-                  source.guideId,
-                  path,
-                  includeOriginals,
-                );
-              }
-            : undefined
-        }
+        saveAmlsteps={saveAmlsteps(exporting.source, exporting.flush)}
         edit={(make) => {
           const current = exporting;
           // From the editor: its own edit, so Undo and saving work as usual. From the library:

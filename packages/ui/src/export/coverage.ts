@@ -4,67 +4,28 @@
  * the reader's PC, which falls back by itself; a PDF carries its fonts, so it must be right.
  */
 
-const u16 = (view: DataView, at: number) => view.getUint16(at);
-const u32 = (view: DataView, at: number) => view.getUint32(at);
+import { isEmojiPoint, sfntCodePoints } from "@amluto-steps/export";
 
 /** The code points a TrueType font maps (formats 4 and 12, Unicode subtables), or null if unread. */
-export function fontCodePoints(bytes: Uint8Array): Set<number> | null {
-  try {
-    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-    const tables = u16(view, 4);
-    let cmap = -1;
-    for (let index = 0; index < tables; index += 1) {
-      const record = 12 + index * 16;
-      if (String.fromCharCode(...bytes.subarray(record, record + 4)) === "cmap")
-        cmap = u32(view, record + 8);
-    }
-    if (cmap < 0) return null;
-    const subtables = u16(view, cmap + 2);
-    const offsets: number[] = [];
-    for (let index = 0; index < subtables; index += 1) {
-      const record = cmap + 4 + index * 8;
-      const platform = u16(view, record);
-      const encoding = u16(view, record + 2);
-      // Unicode (platform 0), or Windows' Unicode BMP (3, 1) and full repertoire (3, 10).
-      if (platform === 0 || (platform === 3 && (encoding === 1 || encoding === 10)))
-        offsets.push(cmap + u32(view, record + 4));
-    }
-    const points = new Set<number>();
-    for (const at of offsets) {
-      const format = u16(view, at);
-      if (format === 4) {
-        const segments = u16(view, at + 6) / 2;
-        const ends = at + 14;
-        const starts = ends + segments * 2 + 2;
-        for (let index = 0; index < segments; index += 1) {
-          const end = u16(view, ends + index * 2);
-          const start = u16(view, starts + index * 2);
-          // 0xFFFF ends the table; it maps nothing.
-          for (let point = start; point <= end && point !== 0xffff; point += 1) points.add(point);
-        }
-      } else if (format === 12) {
-        const groups = u32(view, at + 12);
-        for (let index = 0; index < groups; index += 1) {
-          const group = at + 16 + index * 12;
-          const start = u32(view, group);
-          const end = Math.min(u32(view, group + 4), start + 0x30000);
-          for (let point = start; point <= end; point += 1) points.add(point);
-        }
-      }
-    }
-    return points.size > 0 ? points : null;
-  } catch {
-    return null;
-  }
-}
+export const fontCodePoints = sfntCodePoints;
 
-/** The characters of `text` a font must have: everything past plain ASCII, once each. */
+/**
+ * The characters of `text` a font must have: everything past plain ASCII, once each, except
+ * emoji, which the PDF draws from its emoji font when the text font lacks them
+ * (docs/spec/05-export.md#emoji).
+ */
 export function charactersOf(text: string): number[] {
   const found = new Set<number>();
   for (const character of text) {
     const point = character.codePointAt(0) ?? 0;
     // Plain ASCII is in every font; joiners and selectors don't need glyphs of their own.
-    if (point > 0x7e && !(point >= 0xfe00 && point <= 0xfe0f) && point !== 0x200d) found.add(point);
+    if (
+      point > 0x7e &&
+      !(point >= 0xfe00 && point <= 0xfe0f) &&
+      point !== 0x200d &&
+      !isEmojiPoint(point)
+    )
+      found.add(point);
   }
   return [...found];
 }

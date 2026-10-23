@@ -1,7 +1,7 @@
 {
   "name": "@amluto-steps/chrome",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "license": "GPL-3.0-or-later",
   "type": "module",
   "description": "Steps for Chrome (docs/spec/02-capture.md#chrome-edition).",
@@ -17,15 +17,15 @@
     "@amluto-steps/core": "*",
     "@amluto-steps/ui": "*",
     "fflate": "^0.8.3",
-    "idb": "^8.0.3",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "idb": "^8.0.4",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
-    "@types/chrome": "^0.3.4",
+    "@types/chrome": "^0.3.5",
     "@wxt-dev/module-react": "^1.2.2",
-    "fake-indexeddb": "^6.2.5",
+    "fake-indexeddb": "^6.2.6",
     "tailwindcss": "^4.3.3",
     "wxt": "^0.21.4"
   }

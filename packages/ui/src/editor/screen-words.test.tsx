@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { GuideStep, OcrLine } from "@amluto-steps/core";
 
@@ -44,7 +44,11 @@ const doc: EditorDoc = {
   steps: [shot("a", "0000000001"), shot("b", "0000000002"), shot("c", "0000000003")],
 };
 
-function show(screens: Record<string, OcrLine[] | "unavailable">) {
+function show(
+  screens: Record<string, OcrLine[] | "unavailable">,
+  steps = doc.steps,
+  more: Partial<GuideStore> = {},
+) {
   const reader = fakeTextReader(screens);
   const notify = vi.fn();
   const store: GuideStore = {
@@ -52,10 +56,11 @@ function show(screens: Record<string, OcrLine[] | "unavailable">) {
     saveStep: vi.fn().mockResolvedValue(undefined),
     deleteStep: vi.fn().mockResolvedValue(undefined),
     loadImage: (mediaId) => Promise.resolve(fakeScreenshot(mediaId)),
+    ...more,
   };
   render(
     <GuideEditor
-      initial={doc}
+      initial={{ ...doc, steps }}
       store={store}
       author="Robin"
       mode="saved"
@@ -74,6 +79,61 @@ describe("the editor's screen words", () => {
   it("suggests blurs from the selected step's screenshot words", async () => {
     show({ "m-a": email });
     expect(await screen.findByText("1 possible personal detail here (email).")).toBeTruthy();
+  });
+
+  it("suggests a notification toast on the screenshot even when its words can't be read (P35)", async () => {
+    const plain = shot("a", "0000000001");
+    const toasted: GuideStep = {
+      ...plain,
+      media: {
+        id: "m-a",
+        width: 100,
+        height: 100,
+        scale: 1,
+        captureRect: null,
+        notifications: [{ x: 80, y: 75, w: 19, h: 19 }],
+      },
+    };
+    show({ "m-a": "unavailable" }, [toasted]);
+    expect(await screen.findByText("1 possible personal detail here (notification).")).toBeTruthy();
+  });
+
+  it("suggests a notification toast a retake noted on its new picture (#96)", async () => {
+    // Monitor mode: the recorder noted where a toast still showed on the retaken screenshot.
+    const retakeImage = vi.fn().mockResolvedValue({
+      id: "m-new",
+      width: 100,
+      height: 100,
+      notifications: [{ x: 80, y: 75, w: 19, h: 19 }],
+    });
+    show({ "m-a": [], "m-new": "unavailable" }, [shot("a", "0000000001")], { retakeImage });
+    fireEvent.click(await screen.findByRole("button", { name: "Retake" }));
+    const dialog = await screen.findByRole("dialog", { name: "Retake this screenshot" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Retake" }));
+    expect(await screen.findByText("1 possible personal detail here (notification).")).toBeTruthy();
+  });
+
+  it("drops the old picture's toast when a retake shows none (#96)", async () => {
+    const toasted: GuideStep = {
+      ...shot("a", "0000000001"),
+      media: {
+        id: "m-a",
+        width: 100,
+        height: 100,
+        scale: 1,
+        captureRect: null,
+        notifications: [{ x: 80, y: 75, w: 19, h: 19 }],
+      },
+    };
+    const retakeImage = vi.fn().mockResolvedValue({ id: "m-new", width: 100, height: 100 });
+    show({ "m-a": "unavailable", "m-new": [] }, [toasted], { retakeImage });
+    await screen.findByText("1 possible personal detail here (notification).");
+    fireEvent.click(screen.getByRole("button", { name: "Retake" }));
+    const dialog = await screen.findByRole("dialog", { name: "Retake this screenshot" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Retake" }));
+    await waitFor(() =>
+      expect(screen.queryByText("1 possible personal detail here (notification).")).toBeNull(),
+    );
   });
 
   it("blurs a whole guide without reading a screenshot twice, and says which it couldn't read", async () => {

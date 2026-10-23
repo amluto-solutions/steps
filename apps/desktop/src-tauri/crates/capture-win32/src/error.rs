@@ -9,6 +9,8 @@ pub enum Error {
     AlreadyRunning,
     #[error("OCR could not read the image: {0}")]
     Ocr(String),
+    #[error("the watch for pop-up windows could not start")]
+    WatchNotStarted,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

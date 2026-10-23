@@ -9,7 +9,14 @@ import { ModalDialog } from "../ModalDialog";
  * app; a window without it (a test, a lone dialog) falls back to the browser's.
  */
 type Request =
-  | { kind: "confirm"; title: string; body: string; yes: string; done: (answer: boolean) => void }
+  | {
+      kind: "confirm";
+      title: string;
+      body: string;
+      yes: string;
+      no: string | undefined;
+      done: (answer: boolean) => void;
+    }
   | {
       kind: "text";
       title: string;
@@ -21,10 +28,18 @@ type Request =
 
 let show: ((request: Request | null) => void) | null = null;
 
-/** Asks a yes-or-no question; true when the person chose `yes`. */
-export const askConfirm = (title: string, body: string, yes: string): Promise<boolean> =>
+/**
+ * Asks a yes-or-no question; true when the person chose `yes`. The other button, where focus
+ * starts, is Cancel unless `no` names it.
+ */
+export const askConfirm = (
+  title: string,
+  body: string,
+  yes: string,
+  no?: string,
+): Promise<boolean> =>
   show
-    ? new Promise((done) => show?.({ kind: "confirm", title, body, yes, done }))
+    ? new Promise((done) => show?.({ kind: "confirm", title, body, yes, no, done }))
     : Promise.resolve(window.confirm(body));
 
 /** Asks for a short text; null when the person cancelled. */
@@ -99,7 +114,7 @@ export function AskHost() {
               className="btn"
               onClick={() => finish(false)}
             >
-              {t("common.cancel")}
+              {(request.kind === "confirm" && request.no) || t("common.cancel")}
             </button>
             <button type="submit" className="btn btn-dark">
               {request.yes}

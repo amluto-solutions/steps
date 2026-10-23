@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 use base64::Engine;
 use serde::Serialize;
 
-use crate::recorder::CommandError;
+use crate::error::CommandError;
 
 /// Big enough for any guide export; a sanity limit, not a quota.
 const MAX_EXPORT_BYTES: usize = 1024 * 1024 * 1024;
@@ -427,11 +427,15 @@ fn checked_export_path(path: &str) -> Result<&Path, CommandError> {
     if allowed {
         Ok(path)
     } else {
-        Err(CommandError::new(
-            "notExportFile",
-            "Exports can only be saved as PDF, Word or web page files.",
-        ))
+        Err(not_export_file())
     }
+}
+
+fn not_export_file() -> CommandError {
+    CommandError::new(
+        "notExportFile",
+        "Exports can only be saved as PDF, Word or web page files.",
+    )
 }
 
 /// Writes an export where the user chose in the save dialog (which already asked before
@@ -494,6 +498,19 @@ fn unique_path(folder: &Path, name: &str) -> Result<PathBuf, CommandError> {
     Ok(candidate)
 }
 
+/// Where an export named `name` goes in the export folder: a folder on this PC's drives that's
+/// there, and a name no file in it has yet. For every export, `.amlsteps` files too (#88).
+pub(crate) fn in_export_folder(folder: &str, name: &str) -> Result<PathBuf, CommandError> {
+    let folder = PathBuf::from(folder);
+    if !folder.is_absolute() || !local_drive(&folder) || !folder.is_dir() {
+        return Err(CommandError::new(
+            "folderMissing",
+            "The export folder isn't available. Choose another in Settings.",
+        ));
+    }
+    unique_path(&folder, name)
+}
+
 /// Takes the file as the raw request body (not a JSON array of numbers, which is slow for a
 /// large PDF). The destination comes base64-encoded in headers: `x-path` for a place the user
 /// chose in the save dialog (which already asked about replacing), or `x-folder` + `x-name` for
@@ -514,14 +531,9 @@ pub fn export_write_file(request: tauri::ipc::Request<'_>) -> Result<String, Com
             .ok_or_else(|| CommandError::new("invalidRequest", "The export has no destination."))?;
         let name = header(&request, "x-name")
             .ok_or_else(|| CommandError::new("invalidRequest", "The export has no file name."))?;
-        let folder = PathBuf::from(folder);
-        if !folder.is_absolute() || !local_drive(&folder) || !folder.is_dir() {
-            return Err(CommandError::new(
-                "folderMissing",
-                "The export folder isn't available. Choose another in Settings.",
-            ));
-        }
-        unique_path(&folder, &name)?.to_string_lossy().into_owned()
+        in_export_folder(&folder, &name)?
+            .to_string_lossy()
+            .into_owned()
     };
     write_export(&path, bytes)?;
     Ok(path)
@@ -580,17 +592,61 @@ pub fn export_default_folder(app: tauri::AppHandle) -> Option<String> {
         .map(|path| path.to_string_lossy().into_owned())
 }
 
-/// "Open" and "Show in folder" after an export. Only an existing export file (PDF, Word or web
-/// page) can be opened this way, with its default app, through Explorer.
-#[tauri::command(async)]
-pub fn export_show(path: String, reveal: bool) -> Result<(), CommandError> {
-    let file = checked_export_path(&path)?;
+/// The longest failure reason kept in the log: the error's own words, not a guide's text.
+const MAX_FAILURE_REASON: usize = 300;
+
+/// The format and reason as the log keeps them: one line, the format letters only, the reason
+/// trimmed to `MAX_FAILURE_REASON` characters.
+fn failure_line(format: &str, reason: &str) -> String {
+    let format: String = format
+        .chars()
+        .filter(char::is_ascii_alphanumeric)
+        .take(12)
+        .collect();
+    let reason: String = reason
+        .chars()
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .take(MAX_FAILURE_REASON)
+        .collect();
+    format!("an export ({format}) failed: {}", reason.trim())
+}
+
+/// Notes why an export failed. PDF, Word and web pages are drawn in the window, not here, so
+/// without this the log never hears of a failure the person sees.
+#[tauri::command]
+pub fn export_log_failure(format: String, reason: String) {
+    log::warn!("{}", failure_line(&format, &reason));
+}
+
+/// The exported file "Open" or "Open file location" is for: an existing PDF, Word or web page,
+/// or, only to be shown in its folder, a `.amlsteps` file (no app opens one; Steps imports it).
+fn shown_export(path: &str, reveal: bool) -> Result<&Path, CommandError> {
+    let steps_file = Path::new(path)
+        .extension()
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("amlsteps"));
+    let file = if reveal && steps_file {
+        let file = Path::new(path);
+        if !file.is_absolute() || !ordinary_path(file) {
+            return Err(not_export_file());
+        }
+        file
+    } else {
+        checked_export_path(path)?
+    };
     if !file.is_file() {
         return Err(CommandError::new(
             "notFound",
             "The exported file isn't there any more.",
         ));
     }
+    Ok(file)
+}
+
+/// "Open" and "Open file location" after an export, through Explorer: the file with its default
+/// app, or its folder with it selected.
+#[tauri::command(async)]
+pub fn export_show(path: String, reveal: bool) -> Result<(), CommandError> {
+    let file = shown_export(&path, reveal)?;
     if reveal {
         crate::open::reveal(file)
     } else {
@@ -618,6 +674,73 @@ mod tests {
                 "notExportFile"
             );
         }
+    }
+
+    #[test]
+    fn a_steps_file_goes_in_the_export_folder_under_a_new_name() {
+        let folder = tempfile::tempdir().expect("temp dir");
+        let at = folder.path().to_string_lossy().into_owned();
+        let first = in_export_folder(&at, "Guide - 12-10-2026.amlsteps").expect("path");
+        assert_eq!(first, folder.path().join("Guide - 12-10-2026.amlsteps"));
+        fs::write(&first, b"zip").expect("write");
+        let second = in_export_folder(&at, "Guide - 12-10-2026.amlsteps").expect("path");
+        assert_eq!(
+            second.file_name().and_then(|name| name.to_str()),
+            Some("Guide - 12-10-2026 (2).amlsteps")
+        );
+        let missing = folder.path().join("gone").to_string_lossy().into_owned();
+        assert_eq!(
+            in_export_folder(&missing, "Guide.amlsteps")
+                .unwrap_err()
+                .code(),
+            "folderMissing"
+        );
+        assert_eq!(
+            in_export_folder("relative", "Guide.amlsteps")
+                .unwrap_err()
+                .code(),
+            "folderMissing"
+        );
+        #[cfg(windows)]
+        assert_eq!(
+            in_export_folder(r"\\server\share", "Guide.amlsteps")
+                .unwrap_err()
+                .code(),
+            "folderMissing"
+        );
+    }
+
+    #[test]
+    fn a_steps_file_can_be_shown_in_its_folder_but_not_opened() {
+        let folder = tempfile::tempdir().expect("temp dir");
+        let file = folder.path().join("Guide.amlsteps");
+        fs::write(&file, b"zip").expect("write");
+        let path = file.to_string_lossy().into_owned();
+        assert_eq!(shown_export(&path, true).expect("shown"), file.as_path());
+        assert_eq!(
+            shown_export(&path, false).unwrap_err().code(),
+            "notExportFile"
+        );
+        let gone = folder
+            .path()
+            .join("Gone.pdf")
+            .to_string_lossy()
+            .into_owned();
+        assert_eq!(shown_export(&gone, false).unwrap_err().code(), "notFound");
+    }
+
+    #[test]
+    fn a_failure_is_logged_on_one_short_line() {
+        assert_eq!(
+            failure_line("pdf", "RangeError: Offset is outside\nthe bounds"),
+            "an export (pdf) failed: RangeError: Offset is outside the bounds"
+        );
+        assert_eq!(failure_line("p\nd/f", "x"), "an export (pdf) failed: x");
+        let long = failure_line("pdf", &"é".repeat(1000));
+        assert_eq!(
+            long.chars().filter(|c| *c == 'é').count(),
+            MAX_FAILURE_REASON
+        );
     }
 
     #[test]

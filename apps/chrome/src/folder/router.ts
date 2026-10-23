@@ -279,6 +279,22 @@ export function createLibraryRouter(options: RouterOptions): LibraryRouter {
     return summary;
   };
 
+  /** A folder library's guide as a `.amlsteps` file, as "My guides" writes one. */
+  const folderAmlsteps = async (libraryId: string, guideId: string, includeOriginals: boolean) => {
+    const library = await folder(libraryId);
+    const { guide, steps } = await library.loadGuide(guideId);
+    return exportArchive(
+      {
+        guide,
+        steps,
+        image: (mediaId) => library.loadImage(guideId, mediaId, false).catch(() => null),
+      },
+      codec,
+      includeOriginals,
+      options.appVersion,
+    );
+  };
+
   const bridge: LibraryRouter = {
     session,
 
@@ -636,19 +652,16 @@ export function createLibraryRouter(options: RouterOptions): LibraryRouter {
     async exportAmlsteps(libraryId, guideId, destination, includeOriginals) {
       if (isBrowser(libraryId))
         return browser.exportAmlsteps(libraryId, guideId, destination, includeOriginals);
-      const library = await folder(libraryId);
-      const { guide, steps } = await library.loadGuide(guideId);
-      const bytes = await exportArchive(
-        {
-          guide,
-          steps,
-          image: (mediaId) => library.loadImage(guideId, mediaId, false).catch(() => null),
-        },
-        codec,
-        includeOriginals,
-        options.appVersion,
-      );
+      const bytes = await folderAmlsteps(libraryId, guideId, includeOriginals);
       await files.write(destination, bytes, "application/zip");
+    },
+
+    // Into the browser's downloads, its one export folder, as a guide in "My guides" goes.
+    async exportAmlstepsTo(libraryId, guideId, folderName, name, includeOriginals) {
+      if (isBrowser(libraryId))
+        return browser.exportAmlstepsTo(libraryId, guideId, folderName, name, includeOriginals);
+      const bytes = await folderAmlsteps(libraryId, guideId, includeOriginals);
+      return files.download(name, bytes, "application/zip");
     },
 
     async importAmlsteps(libraryId, source) {

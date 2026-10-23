@@ -1,7 +1,5 @@
 {
   "app": {
-    "alreadyOpenTitle": "Steps diġà miftuħ",
-    "alreadyOpenBody": "Steps wieħed biss jaħdem fl-istess ħin, għalhekk ġibna quddiem dak li diġà kien miftuħ.",
     "name": "Steps",
     "by": "minn",
     "logoAlt": "Amluto"
@@ -99,6 +97,11 @@
     "count_few": "{{count}} gwidi",
     "count_many": "{{count}}-il gwida",
     "count_other": "{{count}} gwida",
+    "countOf_one": "{{shown}} minn {{count}} gwida",
+    "countOf_two": "{{shown}} minn {{count}} gwidi",
+    "countOf_few": "{{shown}} minn {{count}} gwidi",
+    "countOf_many": "{{shown}} minn {{count}}-il gwida",
+    "countOf_other": "{{shown}} minn {{count}} gwida",
     "steps_one": "{{count}} pass",
     "steps_two": "{{count}} passi",
     "steps_few": "{{count}} passi",
@@ -258,7 +261,7 @@
       "note": "Għal utent ieħor ta’ Steps",
       "pickTitle": "Issejvja l-gwida bħala fajl ta’ Steps",
       "filter": "Gwida ta’ Steps",
-      "done": "Il-gwida ġiet esportata. Iż-żoni mċajpra huma mċajpra għal dejjem fil-fajl.",
+      "blurredForGood": "Iż-żoni mċajpra huma mċajpra għal dejjem fil-fajl.",
       "originals": "Inkludi l-oriġinali mhux imċajprin (biex tgħaddiha lil kollega)",
       "originalsWarning": "Il-fajl se jkun fih kull screenshot mingħajr iċ-ċajpir tiegħu. Kull min jirċevih jista’ jara x’kien imċajpar. Uża dan biss biex tgħaddi gwida lil kollega li jeħtieġ jeditja ċ-ċajpir.",
       "burnedIn": "Iż-żoni mċajpra huma mċajpra għal dejjem fil-fajl. Il-valuri ttajpjati moħbija, il-kummenti u l-verżjonijiet jitħallew barra."
@@ -595,6 +598,14 @@
       "error": "Ma setgħetx tiġi issejvjata, qed nerġgħu nippruvaw",
       "saved": "Il-bidliet kollha ġew issejvjati"
     },
+    "leave": {
+      "title": "Toħroġ mingħajr ma tissejvja l-aħħar bidliet tiegħek?",
+      "body": "Steps ma setax isejvja l-aħħar bidliet tiegħek u jibqa’ jipprova. Jekk toħroġ issa, jistgħu jintilfu.",
+      "leave": "Oħroġ xorta",
+      "close": "Agħlaq xorta",
+      "quit": "Oħroġ xorta",
+      "stay": "Ibqa’"
+    },
     "stepsList": "Passi",
     "stepCount_one": "{{count}} pass",
     "stepCount_two": "{{count}} passi",
@@ -657,6 +668,7 @@
       "typing": "Iċċekkja dan il-pass: l-ittajpjar jista’ ma jaqbilx eżatt.",
       "code": "Iċċekkja dan il-pass: sigriet fih ma setax jinstab fl-iscreenshot biex jiġi mċajpar, jew it-test jista’ ma jaqbilx eżatt.",
       "fillEnd": "Iċċekkja dan il-pass: ir-reġistrazzjoni ma setgħetx tgħid f’liema ċellola intemm il-mili. Ikteb fejn intemm, jew agħżel “Jidher tajjeb”.",
+      "appSwitch": "Iċċekkja dan il-pass: l-ebda klikk jew tast ma ġab din l-app quddiem, allura jista’ jkun li ġiet quddiem waħedha. Ħassar il-pass jekk il-gwida ma marritx hemm, jew agħżel “Jidher tajjeb”.",
       "looksRight": "Jidher tajjeb"
     },
     "stepText": "Test tal-pass",
@@ -1070,6 +1082,20 @@
       "inUse": "Diġà jintuża għal {{name}}.",
       "unavailable": "App oħra diġà tuża dan, għalhekk bħalissa ma jaħdimx.",
       "heldBySteps": "Kopja oħra ta' Steps hija miftuħa u qed tuża dan. Agħlaqha, imbagħad erġa' ibda din.",
+      "commonUse": "Apps oħra jużaw {{keys}} għal “{{use}}”. Waqt li Steps ikollu dan, ma jagħmilx dan hemm.",
+      "commonMany": "Ħafna apps jużaw {{keys}} huma stess. Waqt li Steps ikollu dan, ma jaħdimx fihom.",
+      "uses": {
+        "reloadNoCache": "Erġa’ tella’ mingħajr cache",
+        "reopenTab": "Erġa’ iftaħ tab magħluq",
+        "privateWindow": "Tieqa privata ġdida",
+        "closeWindow": "Agħlaq it-tieqa",
+        "closeTab": "Agħlaq it-tab",
+        "devTools": "Għodod tal-iżviluppatur",
+        "pastePlain": "Waħħal bħala test sempliċi",
+        "redo": "Erġa’ agħmel",
+        "saveAs": "Salva bħala",
+        "bookmarksBar": "Uri l-bar tal-bookmarks"
+      },
       "failed": "Dak is-shortcut ma setax jiġi issejvjat.",
       "reset": "Irrisettja għall-oriġinali",
       "resetDone": "Is-shortcuts ġew irrisettjati.",
@@ -1182,6 +1208,9 @@
     "excludeApp": "Eskludi {{app}} mir-reġistrazzjoni",
     "excludeAppEmpty": "Eskludi din l-app mir-reġistrazzjoni",
     "appExcluded": "{{app}} qatt ma jiġi rreġistrat",
+    "excludeAppsLike": "Eskludi app tal-Windows bħal {{app}} mir-reġistrazzjoni",
+    "appsLikeExcluded": "L-apps tal-Windows bħal {{app}} qatt ma jiġu rreġistrati",
+    "waitingForKeys": "Nistennew it-tasti",
     "startAgain": "Erġa’ ibda",
     "startAgainHelp_one": "Iħassar dan il-pass u jkompli jirreġistra",
     "startAgainHelp_two": "Iħassar dawn il-{{count}} passi u jkompli jirreġistra",
@@ -1217,6 +1246,7 @@
     "into": "Qed jirreġistra f’“{{title}}”",
     "intoFallback": "Il-passi l-ġodda ma setgħux jidħlu f’“{{title}}”: ngħalqet, jew xi ħadd ieħor qed jeditjaha. Minflok qegħdin f’reġistrazzjoni separata.",
     "intoNothing": "Ma ġie rreġistrat xejn, għalhekk “{{title}}” baqgħet kif kienet.",
+    "nothingRecorded": "Ma ġie rreġistrat xejn, għalhekk ma nħolqot ebda gwida.",
     "startRecording": "Ibda rreġistra",
     "startTitle": "Ibda reġistrazzjoni",
     "keysChoice": "Irreġistra dak li jinkiteb",
@@ -1275,6 +1305,7 @@
       "mergeClickIntoTyping": "Għaqqad il-klikk mal-ittajpjar li jiġi warajh: {{steps}}",
       "removeDoubleClick": "Neħħi klikk ripetut: {{steps}}",
       "removeOpenApp": "Neħħi pass “Iftaħ” li l-klikk li jmiss diġà juri: {{steps}}",
+      "removeOpenBeforeOpen": "Neħħi pass “Iftaħ” li warajh jiġi direttament pass “Iftaħ” ieħor: {{steps}}",
       "removeRedirect": "Neħħi pass “Mur fuq” li l-link għadda minnu biss: {{steps}}"
     },
     "apply_one": "Applika {{count}} bidla",
@@ -1525,6 +1556,11 @@
     "found_many": "Instabu {{count}}-il riżultat (passi: {{steps}}).",
     "found_other": "Instabu {{count}} riżultat (passi: {{steps}}).",
     "nothing": "Ma nstab xejn.",
+    "matches_one": "{{count}} korrispondenza",
+    "matches_two": "{{count}} korrispondenzi",
+    "matches_few": "{{count}} korrispondenzi",
+    "matches_many": "{{count}} korrispondenza",
+    "matches_other": "{{count}} korrispondenza",
     "unread_one": "{{count}} screenshot ma setax jinqara, għalhekk ma sarx tfittxija fih. Iċċekkjah int.",
     "unread_two": "{{count}} screenshots ma setgħux jinqraw, għalhekk ma sarx tfittxija fihom. Iċċekkjahom int.",
     "unread_few": "{{count}} screenshots ma setgħux jinqraw, għalhekk ma sarx tfittxija fihom. Iċċekkjahom int.",
@@ -1568,20 +1604,21 @@
       "term": "kelma li dejjem tiġi mċajpra",
       "account": "isem il-kont tiegħek",
       "file": "isem il-fajl",
-      "path": "mogħdija tal-fajl"
+      "path": "mogħdija tal-fajl",
+      "notification": "notifika"
     },
     "nextTo": "{{kind}} ħdejn “{{label}}”"
   },
   "zoom": {
     "menu": "Kabbar fuq kull klikk",
-    "menuNote": "Jaqta’ screenshots wesgħin ħafna madwar il-klikk biex jinqraw tajjeb fuq paġna",
+    "menuNote": "Jaqta’ screenshots aktar wesgħin minn {{width}} pixel madwar il-klikk, biex it-test fuq il-paġna jidher akbar",
     "auto": "Awtomatiku",
     "done_one": "Sar żum fuq {{count}} screenshot.",
     "done_two": "Sar żum fuq {{count}} screenshots.",
     "done_few": "Sar żum fuq {{count}} screenshots.",
     "done_many": "Sar żum fuq {{count}}-il screenshot.",
     "done_other": "Sar żum fuq {{count}} screenshot.",
-    "nothing": "L-ebda screenshot ma jeħtieġ żum: diġà jinqraw tajjeb fuq paġna."
+    "nothing": "L-ebda żum: dan jaqta’ biss screenshots aktar wesgħin minn {{width}} pixel li għandhom klikk u li għadhom ma nqatgħux."
   },
   "exportSettings": {
     "folder": "Issejvja l-esportazzjonijiet f’",
@@ -1722,7 +1759,7 @@
       "eyebrow": "It-tour lest",
       "title": "Lest kollox",
       "body": "Dan kien it-tour. Tista’ terġa’ tagħmlu mill-Issettjar meta trid.",
-      "finish": "Lesti"
+      "gotIt": "Fhimt"
     },
     "pill": {
       "label": "Tour",

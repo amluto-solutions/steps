@@ -1,7 +1,6 @@
 import {
   compareSortKeys,
   parseStep,
-  type Box,
   type GuideStep,
   type RecordedStep,
   type RecordingFact,
@@ -11,6 +10,7 @@ import {
 
 import { sortSteps } from "../editor/document";
 import {
+  applyDoubleClicks,
   applyDrags,
   borrowScreenshots,
   captureSequenceOf,
@@ -21,7 +21,7 @@ import {
   orderRecordedSteps,
 } from "../recorded-step";
 import type { ScreenWords } from "../screen-words";
-import { nameFromScreen } from "./screen-names";
+import { nameFromScreen, type ClickScreen } from "./screen-names";
 
 /** A recording as its journal and the window showing it hold it. */
 export interface RecordingData {
@@ -77,11 +77,11 @@ const afterRestart = (steps: RecordedStep[], restart: number | null) =>
  *
  * The passes run in one order, each needing the one before: every fact's step merged with the
  * journalled and live ones, after "Start again"; a field's value a later read replaced dropped;
- * a drag in place of the click it began with; steps journalled late put back where they happened;
- * "Open" steps trailing the end dropped; typing given the screenshot before it; then clicks
- * nothing named are named from their screenshots' words. A step that doesn't fit the format (say,
- * from before a limit existed) is left out and counted, rather than stopping the whole recording
- * from opening.
+ * a drag in place of the click it began with; a double-click's step saying so; steps journalled
+ * late put back where they happened; "Open" steps trailing the end dropped; typing given the
+ * screenshot before it; then clicks nothing named are named from their screenshots' words. A step
+ * that doesn't fit the format (say, from before a limit existed) is left out and counted, rather
+ * than stopping the whole recording from opening.
  */
 export async function recordingToDraft(recording: RecordingData): Promise<DraftSteps> {
   const { facts, wording, settings, words } = recording;
@@ -89,7 +89,12 @@ export async function recordingToDraft(recording: RecordingData): Promise<DraftS
     .map((fact) => factToStep(fact, wording, settings))
     .filter((step): step is RecordedStep => step !== null);
   const all = afterRestart(merged(fromFacts, recording.saved, recording.live), recording.restart);
-  const placed = orderRecordedSteps(applyDrags(dropReplacedValues(all, facts), facts), facts);
+  const clicks = applyDoubleClicks(
+    applyDrags(dropReplacedValues(all, facts), facts),
+    facts,
+    wording,
+  );
+  const placed = orderRecordedSteps(clicks, facts);
   const steps: GuideStep[] = [];
   let skipped = 0;
   for (const step of borrowScreenshots(dropTrailingOpens(placed))) {
@@ -99,11 +104,20 @@ export async function recordingToDraft(recording: RecordingData): Promise<DraftS
       skipped += 1;
     }
   }
-  // Each click's element outline, so an unnamed icon is named by its own label (07/10/2026).
-  const outlines = new Map<string, Box>();
+  // What each click's fact says about its screenshot: the element's outline, so an unnamed icon
+  // is named by its own label (07/10/2026), whether its window had gone before the picture was
+  // taken, when the words at the click are another window's (#48), the items of a menu it
+  // landed in, which the words are matched against (#56), and whether that menu still showed as
+  // the button went down, when the item under the click names it without words (#106).
+  const screens = new Map<string, ClickScreen>();
   for (const fact of facts)
-    if (fact.record.kind === "click" && fact.record.elementPct)
-      outlines.set(captureStepId(fact.sequence), fact.record.elementPct);
-  const named = words ? await nameFromScreen(steps, words, wording, outlines) : steps;
+    if (fact.record.kind === "click")
+      screens.set(captureStepId(fact.sequence), {
+        element: fact.record.elementPct,
+        windowGone: fact.record.windowGone,
+        menuItems: fact.record.menuItems,
+        menuShowing: fact.record.menuShowing,
+      });
+  const named = words ? await nameFromScreen(steps, words, wording, screens) : steps;
   return { steps: sortSteps(named), skipped };
 }

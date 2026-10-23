@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useLatest } from "../useLatest";
 import type { Guide, GuideStep } from "@amluto-steps/core";
 
-import type { MediaInfo } from "../library-bridge";
+import type { MediaInfo, RetakenImage } from "../library-bridge";
 import {
   applyChanges,
   emptyHistory,
@@ -28,7 +28,7 @@ export interface GuideStore {
   /** Pasted, dropped or chosen images; not available for an unsaved recording. */
   importImage?: (bytes: Uint8Array) => Promise<MediaInfo>;
   /** Retake: minimise, count down `delayMs`, capture the window in front as a new image. */
-  retakeImage?: (delayMs: number) => Promise<MediaInfo>;
+  retakeImage?: (delayMs: number) => Promise<RetakenImage>;
 }
 
 export type SaveState = "saved" | "saving" | "error";
@@ -55,6 +55,8 @@ const changeKey = (change: Change) => (change.kind === "guide" ? "guide" : `step
 export interface GuideEditor {
   doc: EditorDoc;
   history: History;
+  /** The history as it is now, for a callback that runs after later edits (an export's save). */
+  latestHistory: () => History;
   saveState: SaveState;
   /** Runs an edit builder on the current document; returns the edit, or null if nothing changed. */
   apply: (make: (doc: EditorDoc, stamp: Stamp) => Edit | null) => Edit | null;
@@ -73,6 +75,8 @@ export interface GuideEditor {
  */
 export interface EditorHooks extends Pick<GuideEditor, "apply" | "undo" | "redo"> {
   showStep: (stepId: string) => void;
+  /** Its undo and redo as they are now, kept when an export saves an unsaved recording (#82). */
+  history: () => History;
 }
 
 /** A change waiting to be written, and which edit of its file it is. */
@@ -86,15 +90,17 @@ export function useGuideEditor(
   store: GuideStore,
   author: string,
   options: EditorOptions = {},
+  /** Undo and redo the editor starts with: an unsaved recording's, carried into its saved guide. */
+  initialHistory: History = emptyHistory(),
 ): GuideEditor {
   const optionsRef = useLatest(options);
   /** Someone took over: writing stops for good in this editor. */
   const lockLost = useRef(false);
   const [doc, setDoc] = useState(initial);
-  const [history, setHistory] = useState<History>(emptyHistory);
+  const [history, setHistory] = useState<History>(initialHistory);
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const docRef = useRef(initial);
-  const historyRef = useRef<History>(emptyHistory());
+  const historyRef = useRef<History>(initialHistory);
   const pending = useRef(new Map<string, Queued>());
   /** The newest edit made to each file; an older one that fails is never written over it. */
   const latest = useRef(new Map<string, number>());
@@ -183,7 +189,9 @@ export function useGuideEditor(
         latest.current.set(key, counter.current);
         pending.current.set(key, { change, generation: counter.current });
       }
-      setSaveState("saving");
+      // A failed change still waiting keeps "Couldn't save": a new edit isn't the save coming
+      // right, and leaving the editor asks first until it does.
+      setSaveState(failing.current ? "error" : "saving");
       window.clearTimeout(timer.current);
       timer.current = window.setTimeout(() => void flush().catch(() => undefined), WRITE_DELAY_MS);
     },
@@ -243,5 +251,7 @@ export function useGuideEditor(
     return stepped.label;
   }, [commit, schedule, optionsRef]);
 
-  return { doc, history, saveState, apply, undo, redo, flush };
+  const latestHistory = () => historyRef.current;
+
+  return { doc, history, latestHistory, saveState, apply, undo, redo, flush };
 }

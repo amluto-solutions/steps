@@ -4,6 +4,7 @@ import type { Guide, GuideStep } from "@amluto-steps/core";
 import {
   applyChanges,
   emptyHistory,
+  historyAfterPublish,
   recordEdit,
   redo,
   undo,
@@ -372,6 +373,21 @@ describe("why a step asks to be checked (F031)", () => {
     const fixed = roundTrips(start, setStepText(start, "s1", 'Fill "H8" down to "H250"', stamp()));
     expect(fixed.steps[0]?.reviewRequired).toBe(false);
   });
+
+  it("asks whether an app that came forward with no click or key was gone to (#67)", () => {
+    const open: GuideStep = {
+      ...step("s1", "0000000001", 'Open "RustDesk Remote Desktop"'),
+      action: "appswitch",
+      textParts: { verb: "appswitch", target: "RustDesk Remote Desktop", kind: "application" },
+      textEdited: false,
+      reviewRequired: true,
+    };
+    expect(reviewReason(open)).toBe("appSwitch");
+    // Rewording doesn't answer it: the question is whether the guide went there at all.
+    const start = { ...doc(), steps: [open] };
+    const reworded = roundTrips(start, setStepText(start, "s1", 'Open "RustDesk"', stamp()));
+    expect(reworded.steps[0]?.reviewRequired).toBe(true);
+  });
 });
 
 describe("history", () => {
@@ -401,6 +417,63 @@ describe("history", () => {
     if (!first || !later || !other) throw new Error("no edit");
     history = recordEdit(recordEdit(recordEdit(history, first), later), other);
     expect(history.past).toHaveLength(3);
+  });
+
+  it("carries an unsaved recording's undo and redo into its saved guide (#82)", () => {
+    const picture = (id: string) => ({
+      id,
+      width: 100,
+      height: 100,
+      scale: 1,
+      captureRect: [0, 0, 100, 100] as [number, number, number, number],
+    });
+    const recording: EditorDoc = {
+      guide,
+      steps: [
+        { ...step("s1", "0000000001", "Click One"), media: picture("click-1") },
+        { ...step("s2", "0000000002", "Click Two"), media: picture("click-2") },
+      ],
+    };
+    let current = recording;
+    let history = emptyHistory();
+    const edits: ((value: EditorDoc) => Edit | null)[] = [
+      (value) => deleteSteps(value, ["s2"], stamp(1000)),
+      (value) => setStepText(value, "s1", "Click the green One", stamp(5000)),
+      (value) => updateGuide(value, { title: "Pay staff" }, "rename", stamp(9000)),
+    ];
+    for (const make of edits) {
+      const made = make(current);
+      if (!made) throw new Error("no edit");
+      current = applyChanges(current, made.changes, "do");
+      history = recordEdit(history, made);
+    }
+    const undone = undo(current, history);
+    if (!undone) throw new Error("no undo");
+
+    // Saving publishes only the screenshots a step uses (click-2 stays behind), and the guide
+    // gets the recording it came from.
+    const saved = undone.doc;
+    const published: EditorDoc = {
+      guide: { ...saved.guide, recordingSessionId: "session-1", createdBy: "Sam" },
+      steps: saved.steps,
+    };
+    const carried = historyAfterPublish(undone.history, saved, published);
+
+    // Redo renames it, keeping what saving gave the guide, and so does undoing that.
+    const redone = redo(published, carried);
+    expect(redone?.doc.guide).toMatchObject({
+      title: "Pay staff",
+      recordingSessionId: "session-1",
+      createdBy: "Sam",
+    });
+    const renamedBack = redone && undo(redone.doc, redone.history);
+    expect(renamedBack?.doc.guide).toEqual(published.guide);
+
+    // Undo takes back the wording, but not the delete: its step's screenshot wasn't published.
+    expect(carried.past).toHaveLength(1);
+    const reworded = undo(published, carried);
+    expect(reworded && texts(reworded.doc)).toEqual(["Click One"]);
+    expect(reworded && undo(reworded.doc, reworded.history)).toBeNull();
   });
 
   it("clears redo after a new edit", () => {

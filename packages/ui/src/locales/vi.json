@@ -1,7 +1,5 @@
 {
   "app": {
-    "alreadyOpenTitle": "Steps đã được mở",
-    "alreadyOpenBody": "Steps chỉ chạy một cửa sổ tại một thời điểm, nên chúng tôi đã đưa cửa sổ đang mở lên phía trước cho bạn.",
     "name": "Steps",
     "by": "by",
     "logoAlt": "Amluto"
@@ -67,6 +65,7 @@
   "library": {
     "heading": "Hướng dẫn của bạn",
     "count_other": "{{count}} hướng dẫn",
+    "countOf_other": "{{shown}} trong số {{count}} hướng dẫn",
     "steps_other": "{{count}} bước",
     "search": "Tìm kiếm hướng dẫn",
     "searchPlaceholder": "Tìm trong tiêu đề, các bước và ghi chú",
@@ -186,7 +185,7 @@
       "note": "Cho người dùng Steps khác",
       "pickTitle": "Lưu hướng dẫn dưới dạng tệp Steps",
       "filter": "Hướng dẫn Steps",
-      "done": "Đã xuất hướng dẫn. Các vùng làm mờ được làm mờ vĩnh viễn trong tệp.",
+      "blurredForGood": "Các vùng làm mờ được làm mờ vĩnh viễn trong tệp.",
       "originals": "Kèm bản gốc chưa làm mờ (để bàn giao nội bộ)",
       "originalsWarning": "Tệp sẽ chứa mọi ảnh chụp màn hình không có phần làm mờ. Bất kỳ ai nhận được tệp đều có thể thấy nội dung đã làm mờ. Chỉ dùng khi bàn giao hướng dẫn cho đồng nghiệp cần chỉnh sửa phần làm mờ.",
       "burnedIn": "Các vùng làm mờ được làm mờ vĩnh viễn trong tệp. Giá trị đã nhập bị ẩn, nhận xét và phiên bản không được đưa vào."
@@ -431,6 +430,14 @@
       "error": "Không lưu được, đang thử lại",
       "saved": "Đã lưu mọi thay đổi"
     },
+    "leave": {
+      "title": "Rời đi mà không lưu các thay đổi mới nhất?",
+      "body": "Steps không lưu được các thay đổi mới nhất của bạn và vẫn đang thử lại. Nếu rời đi bây giờ, các thay đổi đó có thể bị mất.",
+      "leave": "Vẫn rời đi",
+      "close": "Vẫn đóng",
+      "quit": "Vẫn thoát",
+      "stay": "Ở lại"
+    },
     "stepsList": "Các bước",
     "stepCount_other": "{{count}} bước",
     "add": "Thêm",
@@ -473,6 +480,7 @@
       "typing": "Hãy kiểm tra bước này: nội dung nhập có thể không khớp hoàn toàn.",
       "code": "Hãy kiểm tra bước này: không tìm thấy thông tin bí mật trong ảnh chụp màn hình để làm mờ, hoặc văn bản có thể không khớp hoàn toàn.",
       "fillEnd": "Hãy kiểm tra bước này: bản ghi không xác định được thao tác điền kết thúc ở ô nào. Hãy ghi rõ nó đã điền đến đâu, hoặc chọn “Đúng rồi”.",
+      "appSwitch": "Hãy kiểm tra bước này: không có lần bấm hay lần nhấn phím nào đưa ứng dụng này lên phía trước, nên có thể nó đã tự hiện lên. Hãy xóa bước nếu hướng dẫn không chuyển sang ứng dụng này, hoặc chọn “Đúng rồi”.",
       "looksRight": "Đúng rồi"
     },
     "stepText": "Nội dung bước",
@@ -866,6 +874,20 @@
       "inUse": "Đã được dùng cho {{name}}.",
       "unavailable": "Một ứng dụng khác đã dùng tổ hợp này, nên hiện tại nó không hoạt động.",
       "heldBySteps": "Một bản sao Steps khác đang mở và dùng tổ hợp này. Hãy đóng bản đó, rồi khởi động lại bản này.",
+      "commonUse": "Các ứng dụng khác dùng {{keys}} cho “{{use}}”. Khi Steps giữ tổ hợp này, nó sẽ không làm việc đó ở các ứng dụng ấy.",
+      "commonMany": "Nhiều ứng dụng tự dùng {{keys}}. Khi Steps giữ tổ hợp này, nó sẽ không hoạt động trong các ứng dụng ấy.",
+      "uses": {
+        "reloadNoCache": "Tải lại không dùng bộ nhớ đệm",
+        "reopenTab": "Mở lại tab đã đóng",
+        "privateWindow": "Cửa sổ ẩn danh mới",
+        "closeWindow": "Đóng cửa sổ",
+        "closeTab": "Đóng tab",
+        "devTools": "Công cụ cho nhà phát triển",
+        "pastePlain": "Dán dưới dạng văn bản thuần túy",
+        "redo": "Làm lại",
+        "saveAs": "Lưu dưới dạng",
+        "bookmarksBar": "Hiện thanh dấu trang"
+      },
       "failed": "Không thể lưu phím tắt đó.",
       "reset": "Đặt lại về mặc định",
       "resetDone": "Đã đặt lại phím tắt.",
@@ -978,6 +1000,9 @@
     "excludeApp": "Không bao giờ ghi {{app}}",
     "excludeAppEmpty": "Không bao giờ ghi ứng dụng này",
     "appExcluded": "{{app}} không bao giờ được ghi",
+    "excludeAppsLike": "Không bao giờ ghi các ứng dụng Windows như {{app}}",
+    "appsLikeExcluded": "Các ứng dụng Windows như {{app}} không bao giờ được ghi",
+    "waitingForKeys": "Đang chờ phím bấm",
     "startAgain": "Ghi lại từ đầu",
     "startAgainHelp_other": "Xóa {{count}} bước này và tiếp tục ghi",
     "startedAgain_other": "Đã bắt đầu lại. {{count}} bước trước đó đã bị xóa.",
@@ -997,6 +1022,7 @@
     "into": "Đang ghi vào “{{title}}”",
     "intoFallback": "Không thể đưa các bước mới vào “{{title}}”: hướng dẫn đã bị đóng hoặc người khác đang chỉnh sửa. Thay vào đó, các bước nằm trong một bản ghi riêng.",
     "intoNothing": "Không ghi được gì nên “{{title}}” vẫn như cũ.",
+    "nothingRecorded": "Không ghi được gì nên không có hướng dẫn nào được tạo.",
     "startRecording": "Bắt đầu ghi",
     "startTitle": "Bắt đầu ghi",
     "keysChoice": "Ghi nội dung nhập",
@@ -1051,6 +1077,7 @@
       "mergeClickIntoTyping": "Hợp nhất lần bấm vào nội dung nhập ngay sau đó: {{steps}}",
       "removeDoubleClick": "Xóa lần bấm lặp lại: {{steps}}",
       "removeOpenApp": "Xóa bước “Mở” mà lần bấm tiếp theo đã cho thấy: {{steps}}",
+      "removeOpenBeforeOpen": "Xóa bước “Mở” mà ngay sau đó là một bước “Mở” khác: {{steps}}",
       "removeRedirect": "Xóa bước “Đi tới” mà liên kết chỉ đi ngang qua: {{steps}}"
     },
     "apply_other": "Áp dụng {{count}} thay đổi",
@@ -1261,6 +1288,7 @@
     "searching": "Đang đọc ảnh chụp màn hình: {{done}}/{{total}}",
     "found_other": "Tìm thấy {{count}} kết quả khớp trong {{steps}} bước.",
     "nothing": "Không tìm thấy gì.",
+    "matches_other": "{{count}} kết quả khớp",
     "unread_other": "Không đọc được {{count}} ảnh chụp màn hình nên chưa tìm trong đó. Hãy tự kiểm tra.",
     "notGuaranteed": "Gợi ý có thể bỏ sót. Hãy kiểm tra mọi ảnh chụp màn hình trước khi chia sẻ hướng dẫn.",
     "inText_other": "Nội dung này cũng có trong nội dung hoặc ghi chú của {{count}} bước ({{steps}}).",
@@ -1284,16 +1312,17 @@
       "term": "từ luôn làm mờ",
       "account": "tên tài khoản của bạn",
       "file": "tên tệp",
-      "path": "đường dẫn tệp"
+      "path": "đường dẫn tệp",
+      "notification": "thông báo"
     },
     "nextTo": "{{kind}} cạnh “{{label}}”"
   },
   "zoom": {
     "menu": "Phóng to vào từng lần bấm",
-    "menuNote": "Cắt ảnh chụp màn hình rất rộng quanh lần bấm để dễ xem trên trang",
+    "menuNote": "Cắt ảnh chụp màn hình rộng hơn {{width}} pixel về vùng quanh lần bấm, để chữ trên trang lớn hơn",
     "auto": "Tự động",
     "done_other": "Đã phóng to {{count}} ảnh chụp màn hình.",
-    "nothing": "Không có ảnh chụp màn hình nào cần phóng to: chúng đã dễ xem trên trang."
+    "nothing": "Không có gì để phóng to: lệnh này chỉ cắt ảnh chụp màn hình rộng hơn {{width}} pixel, có lần bấm và chưa được cắt."
   },
   "exportSettings": {
     "folder": "Lưu bản xuất vào",
@@ -1434,7 +1463,7 @@
       "eyebrow": "Đã hoàn tất tham quan",
       "title": "Bạn đã sẵn sàng",
       "body": "Chuyến tham quan đến đây là hết. Bạn có thể xem lại từ Cài đặt bất cứ lúc nào.",
-      "finish": "Hoàn tất"
+      "gotIt": "Đã hiểu"
     },
     "pill": {
       "label": "Tham quan",

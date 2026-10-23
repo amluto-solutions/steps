@@ -11,7 +11,7 @@ use std::time::{Duration, SystemTime};
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 
-use crate::recorder::CommandError;
+use crate::error::CommandError;
 
 mod closer;
 use closer::{Focus, Look};

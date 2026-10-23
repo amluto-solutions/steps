@@ -17,6 +17,7 @@
 //! pixel cap, JSON is re-serialised from typed structs, and everything is built in a staging
 //! folder that is renamed into the library only once it is all valid.
 
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::fs::{self, File};
 use std::io::{BufReader, BufWriter, Read, Seek, Write};
@@ -24,6 +25,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use zip::read::ZipFile;
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipArchive, ZipWriter};
 
@@ -423,7 +425,7 @@ fn plan_entries<R: Read + Seek>(
         let entry = archive
             .by_index_raw(index)
             .map_err(|error| LibraryError::rejected(format!("an entry is damaged ({error})")))?;
-        let name = entry.name().to_string();
+        let name = entry_name(&entry)?;
         check_entry_name(&name).map_err(LibraryError::rejected)?;
         if entry.is_symlink()
             || entry
@@ -481,6 +483,16 @@ fn place_entry(plan: &mut EntryPlan, name: &str, index: usize) -> Result<()> {
         )));
     }
     Ok(())
+}
+
+/// An entry's name as text. Since zip 9 it is decoded when asked for (UTF-8 if it is valid, or
+/// else code page 437), so it can fail; a name that can't be read breaks the same rule as an
+/// unprintable one.
+fn entry_name<R: Read + ?Sized>(entry: &ZipFile<'_, R>) -> Result<String> {
+    entry
+        .name()
+        .map(Cow::into_owned)
+        .map_err(|_| LibraryError::rejected("an entry has an empty or unprintable name"))
 }
 
 /// Windows device names, which open a device instead of a file whatever their extension.
@@ -579,7 +591,7 @@ impl<R: Read + Seek> EntryReader<'_, R> {
             .archive
             .by_index(index)
             .map_err(|error| LibraryError::rejected(format!("an entry can't be read ({error})")))?;
-        let name = entry.name().to_string();
+        let name = entry_name(&entry)?;
         let declared = entry.size();
         let compressed = entry.compressed_size();
         let cap = declared.min(limit);
@@ -587,12 +599,16 @@ impl<R: Read + Seek> EntryReader<'_, R> {
         entry
             .take(cap.saturating_add(1))
             .read_to_end(&mut bytes)
-            .map_err(|error| LibraryError::rejected(format!("{name} is damaged ({error})")))?;
+            .map_err(|error| {
+                if read_past_declared_size(&error) {
+                    larger_than_header(&name)
+                } else {
+                    LibraryError::rejected(format!("{name} is damaged ({error})"))
+                }
+            })?;
         let actual = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
         if actual > declared || actual > limit {
-            return Err(LibraryError::rejected(format!(
-                "{name} is larger than its header says"
-            )));
+            return Err(larger_than_header(&name));
         }
         check_ratio(&name, actual, compressed, self.limits)?;
         self.total = self.total.saturating_add(actual);
@@ -610,6 +626,21 @@ impl<R: Read + Seek> EntryReader<'_, R> {
         serde_json::from_slice(&bytes)
             .map_err(|error| LibraryError::rejected(format!("a JSON file is damaged ({error})")))
     }
+}
+
+fn larger_than_header(name: &str) -> LibraryError {
+    LibraryError::rejected(format!("{name} is larger than its header says"))
+}
+
+/// Since zip 9 the reader stops at an entry's declared size itself and fails the read with this
+/// error (zip's `Crc32Reader`), before the check after it can see the extra bytes. It is the
+/// same rule, so the person is told that rule rather than "damaged". The error has no type of its
+/// own, only this wording; a test pins it, so a zip update that changes it fails the gate.
+fn read_past_declared_size(error: &std::io::Error) -> bool {
+    error.kind() == std::io::ErrorKind::InvalidData
+        && error
+            .to_string()
+            .contains("larger than its declared uncompressed size")
 }
 
 fn check_manifest(value: &Value) -> Result<()> {

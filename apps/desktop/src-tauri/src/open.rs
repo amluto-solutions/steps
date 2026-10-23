@@ -3,7 +3,7 @@
 use std::path::Path;
 use std::process::Command;
 
-use crate::recorder::CommandError;
+use crate::error::CommandError;
 
 fn spawned(mut command: Command) -> Result<(), CommandError> {
     command

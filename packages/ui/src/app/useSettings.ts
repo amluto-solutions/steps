@@ -39,6 +39,11 @@ export function useSettings(
   const author = preferences?.displayName ?? "";
 
   useEffect(() => applyTheme(theme), [theme]);
+  // The title bar is the window's, not the page's: it's told too, or the light theme kept a dark
+  // one on a PC set to dark (P38).
+  useEffect(() => {
+    void recorder?.setWindowTheme(theme === "system" ? null : theme).catch(() => undefined);
+  }, [recorder, theme]);
 
   // The recorder bar's "Never record this app" saves to the same storage from its own window;
   // take it up here, or the next recording (which saves these choices) would write it away.

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { GuideStep } from "@amluto-steps/core";
 
 import { newGuide } from "../app/documents";
-import { blankStep, setStepText } from "./edits";
+import { blankStep, setStepText, updateGuide } from "./edits";
 import { useGuideEditor, type GuideStore } from "./useGuideEditor";
 
 const stamp = { at: 0, by: "Robin" };
@@ -97,6 +97,28 @@ describe("the editor's save queue", () => {
     await settle(calls, 1, true);
     await act(async () => void (await vi.advanceTimersByTimeAsync(0)));
     await expect(result.current.flush()).resolves.toBeUndefined();
+    expect(result.current.saveState).toBe("saved");
+  });
+
+  it("keeps saying a save is failing while a failed change waits, as new edits come", async () => {
+    const { store, calls } = controlledStore();
+    const { result } = renderHook(() => useGuideEditor(initial, store, "Robin"));
+
+    act(() => void result.current.apply((doc, at) => setStepText(doc, "s1", "Edit", at)));
+    await act(async () => void (await vi.advanceTimersByTimeAsync(500)));
+    await settle(calls, 0, false);
+    await act(async () => void (await vi.advanceTimersByTimeAsync(0)));
+    expect(result.current.saveState).toBe("error");
+
+    // A new edit elsewhere doesn't make it look as if saving had come right…
+    act(
+      () => void result.current.apply((doc, at) => updateGuide(doc, { title: "New" }, "Title", at)),
+    );
+    expect(result.current.saveState).toBe("error");
+    // …until the failed change is written.
+    await act(async () => void (await vi.advanceTimersByTimeAsync(500)));
+    await settle(calls, 1, true);
+    await act(async () => void (await vi.advanceTimersByTimeAsync(0)));
     expect(result.current.saveState).toBe("saved");
   });
 

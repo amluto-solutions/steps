@@ -12,6 +12,7 @@ import { fakeExportFiles } from "../bridge/export-files-fake";
 import { fakeScreenshot, fakeTextReader } from "../bridge/screen-words-fake";
 import type { ExportChoices } from "../settings/preferences";
 import { ExportDialog } from "./ExportDialog";
+import type { AmlstepsTarget } from "./job";
 
 // jsdom has no canvas: drawing a screenshot is stubbed, everything else is real.
 vi.mock("@amluto-steps/export", async (original) => ({
@@ -72,7 +73,7 @@ function open(options: {
   screens?: Record<string, OcrLine[] | "unavailable">;
   format?: "pdf" | "amlsteps";
   pickSaveLocation?: () => Promise<string | null>;
-  saveAmlsteps?: (path: string, includeOriginals: boolean) => Promise<void>;
+  saveAmlsteps?: (where: AmlstepsTarget, includeOriginals: boolean) => Promise<string>;
   onExported?: () => void;
   choices?: ExportChoices;
 }) {
@@ -173,11 +174,55 @@ describe("review before export", () => {
     // The one that was read is checked as usual.
     expect(await screen.findByText(/possible personal details? (isn|aren)/)).toBeTruthy();
   });
+
+  it("flags a step whose screenshot showed a notification toast, words read or not (P35)", async () => {
+    const plain = shot("a");
+    const toasted: GuideStep = {
+      ...shot("b"),
+      media: {
+        id: "m-b",
+        width: 10,
+        height: 10,
+        scale: 1,
+        captureRect: null,
+        notifications: [{ x: 80, y: 75, w: 19, h: 19 }],
+      },
+    };
+    render(
+      <ExportDialog
+        format="pdf"
+        doc={{ guide, steps: [plain, toasted] }}
+        preparedBy="Robin"
+        recorder={exportBridge()}
+        textReader={fakeTextReader({ "m-a": "unavailable", "m-b": "unavailable" })}
+        loadImage={screenshot}
+        pickSaveLocation={vi.fn()}
+        firstExport={false}
+        onClose={vi.fn()}
+        onExported={vi.fn()}
+        onShowStep={vi.fn()}
+        brands={[]}
+        blurTerms={[]}
+        choices={choices()}
+        edit={vi.fn()}
+      />,
+    );
+    await waitFor(() => expect(exportButton().disabled).toBe(false));
+    const line = screen.getByText("1 possible personal detail isn’t blurred.").closest("li");
+    const chips = within(line as HTMLElement).getAllByRole("button", { name: /^Step \d+$/ });
+    expect(chips.map((chip) => chip.textContent)).toEqual(["Step 2"]);
+    // Opened from the review, it's listed as a notification, with Blur and Not personal.
+    fireEvent.click(chips[0] as HTMLElement);
+    const dialog = await screen.findByRole("dialog", { name: "Step 2" });
+    expect(
+      within(dialog).getByText("1 possible personal detail here (notification)."),
+    ).toBeTruthy();
+  });
 });
 
 describe("Steps file export", () => {
   it("reviews first, keeps originals out unless asked, and warns when they are in", async () => {
-    const saveAmlsteps = vi.fn(() => Promise.resolve());
+    const saveAmlsteps = vi.fn(() => Promise.resolve("C:/Out/Add a supplier.amlsteps"));
     const onExported = vi.fn();
     const pickSaveLocation = vi.fn(() => Promise.resolve("C:/Out/Add a supplier.amlsteps"));
     open({
@@ -185,6 +230,8 @@ describe("Steps file export", () => {
       pickSaveLocation,
       saveAmlsteps,
       onExported,
+      // Asked, so the place chosen is used as given.
+      choices: choices({ askEveryTime: true }),
     });
     const exportIt = () =>
       screen.getByRole("button", { name: /^Export Steps file$/ }) as HTMLButtonElement;
@@ -198,10 +245,42 @@ describe("Steps file export", () => {
 
     fireEvent.click(exportIt());
     await waitFor(() =>
-      expect(saveAmlsteps).toHaveBeenCalledWith("C:/Out/Add a supplier.amlsteps", false),
+      expect(saveAmlsteps).toHaveBeenCalledWith({ path: "C:/Out/Add a supplier.amlsteps" }, false),
     );
     expect(pickSaveLocation).toHaveBeenCalledTimes(1);
-    expect(onExported).toHaveBeenCalledWith("amlsteps", expect.any(String), null);
+    expect(onExported).toHaveBeenCalledWith(
+      "amlsteps",
+      "Saved Add a supplier.amlsteps. Blurred areas are blurred for good in the file.",
+      "C:/Out/Add a supplier.amlsteps",
+    );
+  });
+
+  it("saves to the export folder without asking, as the other exports do (#88)", async () => {
+    const saveAmlsteps = vi.fn((where: AmlstepsTarget) =>
+      Promise.resolve("folder" in where ? `${where.folder}\\${where.name}` : where.path),
+    );
+    const onExported = vi.fn();
+    const pickSaveLocation = vi.fn(() => Promise.resolve(null));
+    open({ format: "amlsteps", pickSaveLocation, saveAmlsteps, onExported });
+    const exportIt = () =>
+      screen.getByRole("button", { name: /^Export Steps file$/ }) as HTMLButtonElement;
+    await waitFor(() => expect(exportIt().disabled).toBe(false));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Include unblurred originals/ }));
+    fireEvent.click(exportIt());
+
+    await waitFor(() => expect(onExported).toHaveBeenCalled());
+    expect(pickSaveLocation).not.toHaveBeenCalled();
+    const name = expect.stringMatching(/^Add a supplier - \d\d-\d\d-\d{4}\.amlsteps$/);
+    expect(saveAmlsteps).toHaveBeenCalledWith(
+      { folder: String.raw`C:\Users\Robin\Downloads`, name },
+      true,
+    );
+    // With the originals in, nothing is blurred for good, so the message doesn't say so.
+    expect(onExported).toHaveBeenCalledWith(
+      "amlsteps",
+      expect.stringMatching(/^Saved Add a supplier - \d\d-\d\d-\d{4}\.amlsteps\.$/),
+      expect.stringMatching(/^C:\\Users\\Robin\\Downloads\\Add a supplier - .*\.amlsteps$/),
+    );
   });
 
   it("keeps originals out when the organisation locks them", async () => {
@@ -402,6 +481,50 @@ describe("the review's checklist", () => {
     expect(lastLook?.primary.toLowerCase()).toBe("#113355");
     expect(reader.reads.length).toBe(reads);
   });
+
+  it("lists the steps of each line in step order, whichever screenshot finished first", async () => {
+    // Screenshots are drawn and read several at once, so the first steps finishing last made
+    // the chips read "Step 3, Step 4, Step 2…" (1.0.0, 10/10/2026).
+    const ids = ["a", "b", "c", "d", "e", "f", "g"];
+    const delays: Record<string, number> = { a: 40, b: 30, c: 25, d: 5, e: 0, f: 20, g: 0 };
+    const unloadable = new Set(["m-b", "m-g"]);
+    render(
+      <ExportDialog
+        format="pdf"
+        doc={{ guide, steps: ids.map(shot) }}
+        preparedBy="Robin"
+        recorder={exportBridge()}
+        textReader={fakeTextReader({}, email)}
+        loadImage={async (id) => {
+          await new Promise((done) => setTimeout(done, delays[id.slice(2)] ?? 0));
+          if (unloadable.has(id)) throw new Error("not synced yet");
+          return screenshot(id);
+        }}
+        pickSaveLocation={vi.fn()}
+        firstExport={false}
+        onClose={vi.fn()}
+        onExported={vi.fn()}
+        onShowStep={vi.fn()}
+        brands={[]}
+        blurTerms={[]}
+        choices={choices()}
+        edit={vi.fn()}
+      />,
+    );
+    await waitFor(() => expect(exportButton().disabled).toBe(false));
+    const chips = (line: RegExp) =>
+      within(screen.getByText(line).closest("li") as HTMLElement)
+        .getAllByRole("button", { name: /^Step \d+$/ })
+        .map((chip) => chip.textContent);
+    expect(chips(/possible personal details aren/)).toEqual([
+      "Step 1",
+      "Step 3",
+      "Step 4",
+      "Step 5",
+      "Step 6",
+    ]);
+    expect(chips(/couldn’t be loaded/)).toEqual(["Step 2", "Step 7"]);
+  });
 });
 
 describe("languages", () => {
@@ -507,6 +630,40 @@ describe("the export's choices (read once, as the export starts)", () => {
     await waitFor(() => expect(button().disabled).toBe(false));
     fireEvent.click(button());
   };
+
+  it("says the export couldn't be made, and notes why in the app's log", async () => {
+    const logExportFailure = vi.fn(() => Promise.resolve());
+    const recorder = {
+      capabilities: fakeCapabilities(),
+      ...fakeExportFiles({ downloads: String.raw`C:\Users\Robin\Downloads` }),
+      ...fakeFonts(),
+      writeExportTo: () => Promise.reject(new RangeError("Offset is outside the bounds")),
+      logExportFailure,
+    };
+    render(
+      <ExportDialog
+        format="docx"
+        doc={{ guide, steps: [shot("a")] }}
+        preparedBy="Robin"
+        recorder={recorder}
+        textReader={fakeTextReader({})}
+        loadImage={screenshot}
+        pickSaveLocation={vi.fn()}
+        firstExport={false}
+        onClose={vi.fn()}
+        onExported={vi.fn()}
+        brands={[]}
+        blurTerms={[]}
+        choices={choices()}
+      />,
+    );
+    await exportIt();
+    expect(await screen.findByText("The export couldn’t be made. Please try again.")).toBeTruthy();
+    expect(logExportFailure).toHaveBeenCalledWith(
+      "docx",
+      "RangeError: Offset is outside the bounds",
+    );
+  });
 
   it("saves to the folder the choices name, without asking", async () => {
     const { recorder, pickSaveLocation, onExported } = exportWord(

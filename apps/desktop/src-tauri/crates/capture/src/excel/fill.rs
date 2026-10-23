@@ -8,15 +8,28 @@
 //! `Click "I9"`. Here the press is matched against the corners of the cell UI Automation found,
 //! and the handle's cell is worked out from the cell's reference.
 
+use super::cells::{cell_of, cell_ref, split_cell};
 use crate::coords::PxRect;
 use crate::facts::ElementFacts;
-use crate::typing::cell_name;
 
-/// How near a cell's bottom-right corner, either side, a press is on its fill handle, in pixels
-/// at 100% scale. Excel draws the handle as a square about 6 px across centred on the corner, and
-/// shows its thin cross pointer a pixel or two beyond it. Presses 7–8 px from the corner were
-/// ordinary clicks in the recording this was measured on.
-const HANDLE_REACH_PX: f32 = 4.0;
+/// How far into a cell from its bottom-right corner a press is on its fill handle, in pixels at
+/// 100% scale; [`HANDLE_REACH_OUT_PX`] is how far past the corner, into the cells right of and
+/// below it.
+///
+/// Measured in two recordings at 100% (08/10 and 10/10/2026), with UI Automation's corner (a
+/// cell's box takes in its left and top edges, not its right and bottom ones) at 0: Excel draws
+/// the handle as a 5 px square from 3 px inside the corner to 1 px past it, ringed by a 1 px white
+/// line (−4 to +2), on the selection's 2 px border (−1 to 0). Excel takes presses round that ring
+/// too, further out than in: a press of 10/10 more than 4 px from the corner, in the next column,
+/// started a fill (it had been recorded as `Select "G2:G9"`), and the tester put Excel's grip at
+/// 6–7 px, more on the outer side. Inside, presses 7–8 px from the corner were ordinary clicks, and
+/// text sits near a cell's bottom (numbers at its right too), where a double-click to edit must
+/// stay a click. Excel scales its grid with the display (a 15 pt row is 20 px at 100%, 25 at 125%,
+/// 30 at 150%) and its handle with it (not yet measured above 100%), so both reaches grow with the
+/// scale: 5 and 6 px at 100%, 6 and 8 at 125%, 8 and 9 at 150%.
+const HANDLE_REACH_IN_PX: f32 = 5.0;
+/// How far past a cell's bottom-right corner a press is on its fill handle, at 100% scale.
+const HANDLE_REACH_OUT_PX: f32 = 6.0;
 
 /// A press on a cell's fill handle.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -27,24 +40,6 @@ pub(crate) struct FillHandle {
     pub bounds: Option<PxRect>,
     /// The handle: the cell's bottom-right corner on the screen.
     pub corner: (i32, i32),
-}
-
-/// The spreadsheet cell an element is or sits in: Excel puts a link in a cell as an element of
-/// its own, a `Hyperlink` whose parent is the cell and whose box is the cell's (a column of
-/// datasheet links, 08/10/2026).
-pub(crate) fn cell_of(facts: &ElementFacts) -> Option<String> {
-    cell_name(facts).or_else(|| {
-        let parent = facts.ancestors.first()?;
-        (facts.control_type == "Hyperlink")
-            .then(|| {
-                cell_name(&ElementFacts {
-                    control_type: parent.control_type.clone(),
-                    name: parent.name.clone(),
-                    ..ElementFacts::default()
-                })
-            })
-            .flatten()
-    })
 }
 
 /// The fill handle a press at (`x`, `y`) is on, if any, given the element UI Automation found
@@ -64,7 +59,10 @@ pub(crate) fn fill_handle_at(
         clippy::cast_possible_truncation,
         reason = "a few pixels: scales run from 1 to about 5"
     )]
-    let reach = (HANDLE_REACH_PX * scale.max(1.0)).round() as i32;
+    let reach = |px: f32| (px * scale.max(1.0)).round() as i32;
+    let (reach_in, reach_out) = (reach(HANDLE_REACH_IN_PX), reach(HANDLE_REACH_OUT_PX));
+    // The handle's cell lies up and left of its corner: a press there is inside it.
+    let near = |offset: i32| (-reach_in..=reach_out).contains(&offset);
     // Each corner of the cell found, with how many columns left and rows up the cell is whose
     // bottom-right corner that is.
     let corners = [
@@ -75,7 +73,7 @@ pub(crate) fn fill_handle_at(
     ];
     let (corner_x, corner_y, left, up) = corners
         .into_iter()
-        .filter(|&(cx, cy, ..)| (x - cx).abs() <= reach && (y - cy).abs() <= reach)
+        .filter(|&(cx, cy, ..)| near(x - cx) && near(y - cy))
         .min_by_key(|&(cx, cy, ..)| (x - cx).abs().max((y - cy).abs()))?;
     let handle_column = column.checked_sub(left).filter(|column| *column >= 1)?;
     let handle_row = row.checked_sub(up).filter(|row| *row >= 1)?;
@@ -106,7 +104,12 @@ pub(crate) fn drag_end(start: &str, fill: bool, moved: bool, release: Option<Str
     if !moved {
         return DragEnd::Click;
     }
-    match (fill, release) {
+    let to = if fill {
+        release.map(|release| filled_to(start, &release).unwrap_or(release))
+    } else {
+        release
+    };
+    match (fill, to) {
         (_, Some(to)) if to == start => DragEnd::Click,
         (true, to) => DragEnd::Fill { to },
         (false, Some(to)) => DragEnd::Select { to },
@@ -114,30 +117,42 @@ pub(crate) fn drag_end(start: &str, fill: bool, moved: bool, release: Option<Str
     }
 }
 
-/// A cell reference as its column and row numbers, from 1 ("H8" → 8, 8; "AA1" → 27, 1).
-fn split_cell(name: &str) -> Option<(u32, u32)> {
-    let letters = name.chars().take_while(char::is_ascii_uppercase).count();
-    let (column_letters, row) = name.split_at(letters);
-    let column = column_letters
-        .bytes()
-        .try_fold(0_u32, |sum, letter| {
-            sum.checked_mul(26)?
-                .checked_add(u32::from(letter - b'A') + 1)
-        })
-        .filter(|column| *column >= 1)?;
-    let row = row.parse::<u32>().ok().filter(|row| *row >= 1)?;
-    Some((column, row))
+/// The last cell a fill from `from` reached, with the button up over `release`. Excel fills along
+/// one axis only, down or up `from`'s column or along its row, whichever way the pointer went
+/// further (the column, when it went as far each way), so the end is in that column or row. The
+/// handle is often pressed just past its corner, in the next column or row, and the pointer stays
+/// there: F2's handle pressed in G2 and dragged down came up over G9, with F2:F9 filled.
+fn filled_to(from: &str, release: &str) -> Option<String> {
+    let (from_column, from_row) = split_cell(from)?;
+    let (column, row) = split_cell(release)?;
+    Some(if column.abs_diff(from_column) > row.abs_diff(from_row) {
+        cell_ref(column, from_row)
+    } else {
+        cell_ref(from_column, row)
+    })
 }
 
-/// The reference of a cell by column and row numbers, from 1.
-fn cell_ref(mut column: u32, row: u32) -> String {
-    let mut letters = Vec::new();
-    while column > 0 {
-        let letter = u8::try_from((column - 1) % 26).unwrap_or(0);
-        letters.push(char::from(b'A' + letter));
-        column = (column - 1) / 26;
+/// The cells a fill from `from` to `to` covered on the screen: the handle's cell's box,
+/// `from_box`, stretched down (or up) to the row of `release_box`, the cell the button came up
+/// over, or along to its column. The release may be in the next column or row (see
+/// [`drag_end`]), which isn't filled.
+pub(crate) fn filled_box(from_box: PxRect, release_box: PxRect, from: &str, to: &str) -> PxRect {
+    let along_column = split_cell(from)
+        .zip(split_cell(to))
+        .is_some_and(|((from_column, _), (to_column, _))| from_column == to_column);
+    if along_column {
+        PxRect {
+            top: from_box.top.min(release_box.top),
+            bottom: from_box.bottom.max(release_box.bottom),
+            ..from_box
+        }
+    } else {
+        PxRect {
+            left: from_box.left.min(release_box.left),
+            right: from_box.right.max(release_box.right),
+            ..from_box
+        }
     }
-    letters.iter().rev().collect::<String>() + &row.to_string()
 }
 
 #[cfg(test)]
@@ -242,16 +257,50 @@ mod tests {
         );
     }
 
+    /// The handle's cell for a press at (`x`, `y`) on `facts` at `scale`.
+    fn handle_of(x: i32, y: i32, facts: &ElementFacts, scale: f32) -> Option<String> {
+        fill_handle_at(x, y, facts, scale).map(|handle| handle.cell)
+    }
+
     #[test]
-    fn the_reach_grows_with_the_screens_scale() {
-        let i9 = cell("I9", -342, 935, -292, 950);
-        assert_eq!(fill_handle_at(-336, 941, &i9, 1.0), None);
-        assert_eq!(
-            fill_handle_at(-336, 941, &i9, 1.5)
-                .map(|h| h.cell)
-                .as_deref(),
-            Some("H8")
-        );
+    fn at_100_percent_the_handle_reaches_5_px_into_the_cell_and_6_px_out() {
+        // F2 and G2 as Excel draws them at 100% (64 × 20 px cells, the test of 10/10/2026): F2's
+        // corner is at (496, 398). The press of 10/10 that Excel took for F2's handle was read as
+        // G2, more than 4 px from the corner.
+        let f2 = cell("F2", 432, 378, 496, 398);
+        let g2 = cell("G2", 496, 378, 560, 398);
+        assert_eq!(handle_of(502, 395, &g2, 1.0).as_deref(), Some("F2"));
+        assert_eq!(handle_of(503, 395, &g2, 1.0), None);
+        assert_eq!(handle_of(491, 393, &f2, 1.0).as_deref(), Some("F2"));
+        assert_eq!(handle_of(490, 393, &f2, 1.0), None);
+        // Below the corner, in F3 and G3.
+        let f3 = cell("F3", 432, 398, 496, 418);
+        let g3 = cell("G3", 496, 398, 560, 418);
+        assert_eq!(handle_of(494, 404, &f3, 1.0).as_deref(), Some("F2"));
+        assert_eq!(handle_of(494, 405, &f3, 1.0), None);
+        assert_eq!(handle_of(502, 404, &g3, 1.0).as_deref(), Some("F2"));
+    }
+
+    #[test]
+    fn at_125_percent_the_handle_reaches_6_px_in_and_8_px_out() {
+        // 80 × 25 px cells; F2's corner at (620, 498).
+        let f2 = cell("F2", 540, 473, 620, 498);
+        let g2 = cell("G2", 620, 473, 700, 498);
+        assert_eq!(handle_of(628, 492, &g2, 1.25).as_deref(), Some("F2"));
+        assert_eq!(handle_of(629, 492, &g2, 1.25), None);
+        assert_eq!(handle_of(614, 492, &f2, 1.25).as_deref(), Some("F2"));
+        assert_eq!(handle_of(613, 492, &f2, 1.25), None);
+    }
+
+    #[test]
+    fn at_150_percent_the_handle_reaches_8_px_in_and_9_px_out() {
+        // 96 × 30 px cells; F2's corner at (744, 597).
+        let f2 = cell("F2", 648, 567, 744, 597);
+        let g2 = cell("G2", 744, 567, 840, 597);
+        assert_eq!(handle_of(753, 590, &g2, 1.5).as_deref(), Some("F2"));
+        assert_eq!(handle_of(754, 590, &g2, 1.5), None);
+        assert_eq!(handle_of(736, 589, &f2, 1.5).as_deref(), Some("F2"));
+        assert_eq!(handle_of(735, 589, &f2, 1.5), None);
     }
 
     #[test]
@@ -319,6 +368,92 @@ mod tests {
     }
 
     #[test]
+    fn a_fill_names_the_cells_excel_filled_in_the_handles_column_or_row() {
+        // The test of 10/10/2026: F2's handle, pressed just inside G2 and dragged down to row 9,
+        // came up over G9. Excel fills along one axis, so it filled down column F.
+        assert_eq!(
+            drag_end("F2", true, true, Some("G9".into())),
+            DragEnd::Fill {
+                to: Some("F9".into())
+            }
+        );
+        // Pressed just below the corner, in F3, and dragged right along row 3: row 2 filled.
+        assert_eq!(
+            drag_end("F2", true, true, Some("K3".into())),
+            DragEnd::Fill {
+                to: Some("K2".into())
+            }
+        );
+        // Up a column and left along a row too.
+        assert_eq!(
+            drag_end("F9", true, true, Some("G2".into())),
+            DragEnd::Fill {
+                to: Some("F2".into())
+            }
+        );
+        assert_eq!(
+            drag_end("F9", true, true, Some("B10".into())),
+            DragEnd::Fill {
+                to: Some("B9".into())
+            }
+        );
+        // Pressed beside the handle and let go in the next cell along: that cell filled.
+        assert_eq!(
+            drag_end("F2", true, true, Some("G2".into())),
+            DragEnd::Fill {
+                to: Some("G2".into())
+            }
+        );
+    }
+
+    fn rect(left: i32, top: i32, right: i32, bottom: i32) -> PxRect {
+        PxRect {
+            left,
+            top,
+            right,
+            bottom,
+        }
+    }
+
+    #[test]
+    fn the_cells_filled_are_boxed_in_the_handles_column_or_row() {
+        // F2's box, and G9's, where the button came up: F2:F9 is boxed, not column G.
+        let f2 = rect(432, 378, 496, 398);
+        assert_eq!(
+            filled_box(f2, rect(496, 518, 560, 538), "F2", "F9"),
+            rect(432, 378, 496, 538)
+        );
+        // Along row 2 to K2, the button up over K3.
+        assert_eq!(
+            filled_box(f2, rect(752, 398, 816, 418), "F2", "K2"),
+            rect(432, 378, 816, 398)
+        );
+        // Up column F from F9, the button up over G2.
+        assert_eq!(
+            filled_box(
+                rect(432, 518, 496, 538),
+                rect(496, 378, 560, 398),
+                "F9",
+                "F2"
+            ),
+            rect(432, 378, 496, 538)
+        );
+    }
+
+    #[test]
+    fn a_selection_drag_ends_where_the_button_came_up() {
+        // Only a fill keeps to a column or row: a selection drag selects to the cell it ended on.
+        assert_eq!(
+            drag_end("G2", false, true, Some("G9".into())),
+            DragEnd::Select { to: "G9".into() }
+        );
+        assert_eq!(
+            drag_end("D2", false, true, Some("F9".into())),
+            DragEnd::Select { to: "F9".into() }
+        );
+    }
+
+    #[test]
     fn a_selection_drag_needs_another_cell() {
         assert_eq!(
             drag_end("D38", false, true, Some("F42".into())),
@@ -333,27 +468,6 @@ mod tests {
             drag_end("D38", false, true, Some("D38".into())),
             DragEnd::Click
         );
-    }
-
-    #[test]
-    fn a_link_in_a_cell_names_the_cell() {
-        let link = ElementFacts {
-            control_type: "Hyperlink".into(),
-            name: "Hyperlink https://example.test".into(),
-            ancestors: vec![AncestorFacts {
-                control_type: "DataItem".into(),
-                name: "G9".into(),
-            }],
-            ..ElementFacts::default()
-        };
-        assert_eq!(cell_of(&link).as_deref(), Some("G9"));
-        let text = ElementFacts {
-            control_type: "Text".into(),
-            name: "Total".into(),
-            ancestors: link.ancestors.clone(),
-            ..ElementFacts::default()
-        };
-        assert_eq!(cell_of(&text), None);
     }
 
     #[test]
@@ -377,6 +491,9 @@ mod tests {
                     elevation: "notElevated",
                     remote_session: false,
                     app_name: None,
+                    hosted_app: None,
+                    hosted_exe: None,
+                    owner_title: None,
                     shell: false,
                 },
                 capture: None,

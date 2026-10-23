@@ -24,7 +24,8 @@ use tauri::utils::config::BundleType;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_updater::{Update, UpdaterExt};
 
-use crate::recorder::{CommandError, RecorderService};
+use crate::error::CommandError;
+use crate::recorder::RecorderService;
 
 /// Where this copy gets its updates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]

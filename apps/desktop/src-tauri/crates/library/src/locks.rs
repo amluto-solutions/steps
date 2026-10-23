@@ -276,6 +276,28 @@ mod tests {
     }
 
     #[test]
+    fn a_guide_moved_while_open_for_editing_leaves_no_edit_lock_in_either_library() {
+        // Move to from the editor (#94): the editor holds the lock while the guide moves.
+        let (dir, from, id) = library_with_guide();
+        let elsewhere = tempfile::tempdir().unwrap();
+        let to = Library::new(elsewhere.path());
+        let a = holder("a");
+        from.open_for_editing(&id, &a, false).unwrap();
+        let moved = from.move_guide_to(&id, &to).unwrap();
+
+        // It arrives free to edit, and nothing in the Bin it left behind holds a lock.
+        assert_eq!(to.read_lock(&moved.id).unwrap(), None);
+        assert!(!to.guides_dir().join(&moved.id).join(LOCK_FILE).exists());
+        for entry in fs::read_dir(dir.path().join(".trash")).unwrap() {
+            assert!(!entry.unwrap().path().join(LOCK_FILE).exists());
+        }
+        // Letting go where it was, and the heartbeat there, write nothing: the guide has gone.
+        assert!(from.release_lock(&id, "a").is_err());
+        assert!(from.heartbeat(&id, &a).is_err());
+        assert!(!from.guides_dir().join(&id).exists());
+    }
+
+    #[test]
     fn releasing_frees_the_guide() {
         let (_dir, library, id) = library_with_guide();
         let a = holder("a");

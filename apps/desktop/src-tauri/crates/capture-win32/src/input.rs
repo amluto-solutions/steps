@@ -15,11 +15,16 @@
 //!   registered when that recording starts or resumes and removed at Pause and Stop. There is no
 //!   keyboard hook, even as a fallback (docs/spec/02-capture.md#keys). Key events carry no text:
 //!   they are turned into characters, and dropped for excluded apps and our own windows, later,
-//!   off this thread.
+//!   off this thread. A Unicode packet (`VK_PACKET`, text another program typed) is copied
+//!   without its character and counted as it arrives, so a field typed into that way keeps no
+//!   value (#91).
 //!
 //! The callbacks copy the event into a bounded lock-free queue, bump a counter and return. No
 //! UIA, file access, logging or screenshots happen here, because Windows silently removes a
-//! low-level hook that exceeds `LowLevelHooksTimeout`. Every callback catches panics.
+//! low-level hook that exceeds `LowLevelHooksTimeout`. The one thing read as a button goes down,
+//! before the app reacts, is what's under the pointer ([`Press`]): the windows showing, the window
+//! clicked, and for the left button that window's hit test (a title-bar button), which a busy
+//! window is given at most 30 ms to answer. Every callback catches panics.
 //!
 //! **Raw Input is one registration per device type per process.** Anything else in the process
 //! that registers the mouse (Tauri's windowing library does by default) replaces ours without
@@ -27,6 +32,10 @@
 //!
 //! Loss is never silent: a full queue increments `dropped`, and every mouse movement increments
 //! `moves`, so the recorder can notice movement with no events (Degraded).
+//!
+//! The times of the latest button press, mouse input of any kind, and key press (only while keys
+//! are read) are kept too, never what they were: an app that came to the front with none of them
+//! just before may have come forward by itself (`capture::switches`, #67).
 
 use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
@@ -52,12 +61,13 @@ use windows::Win32::UI::Input::{
 use windows::Win32::UI::WindowsAndMessaging::{
     CallNextHookEx, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW,
     EVENT_SYSTEM_FOREGROUND, GetForegroundWindow, GetMessagePos, GetMessageTime, GetMessageW,
-    HC_ACTION, HHOOK, HWND_MESSAGE, LLMHF_INJECTED, MSG, MSLLHOOKSTRUCT, PostThreadMessageW,
-    RI_MOUSE_LEFT_BUTTON_DOWN, RI_MOUSE_LEFT_BUTTON_UP, RI_MOUSE_MIDDLE_BUTTON_DOWN,
-    RI_MOUSE_RIGHT_BUTTON_DOWN, RegisterClassExW, SetWindowsHookExW, UnhookWindowsHookEx,
-    WH_MOUSE_LL, WINDOW_EX_STYLE, WINDOW_STYLE, WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS,
-    WM_APP, WM_INPUT, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MOUSEMOVE, WM_QUIT,
-    WM_RBUTTONDOWN, WNDCLASSEXW,
+    GetSystemMetrics, HC_ACTION, HHOOK, HWND_MESSAGE, LLMHF_INJECTED, MSG, MSLLHOOKSTRUCT,
+    PostThreadMessageW, RI_MOUSE_LEFT_BUTTON_DOWN, RI_MOUSE_LEFT_BUTTON_UP,
+    RI_MOUSE_MIDDLE_BUTTON_DOWN, RI_MOUSE_RIGHT_BUTTON_DOWN, RI_MOUSE_RIGHT_BUTTON_UP,
+    RegisterClassExW, SM_SWAPBUTTON, SetWindowsHookExW, UnhookWindowsHookEx, WH_MOUSE_LL,
+    WINDOW_EX_STYLE, WINDOW_STYLE, WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS, WM_APP,
+    WM_INPUT, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MOUSEMOVE, WM_QUIT, WM_RBUTTONDOWN,
+    WNDCLASSEXW,
 };
 use windows::core::w;
 
@@ -174,17 +184,195 @@ pub struct InputShared {
     /// Button-downs are queued only while this is true (Recording).
     pub enabled: AtomicBool,
     source: AtomicU8,
-    /// The windows showing, front to back, as each recent click went down, by click id. By the
-    /// time the click is handled the window clicked has come to the front, but the screenshot
-    /// can still show what lay over it: those windows are greyed out by this (F014).
-    stacks: Mutex<VecDeque<(u64, Vec<crate::window::ShownWindow>)>>,
-    /// The left button's latest release (time, position), for telling a drag from a click: a
-    /// selection of cells dragged in Excel (04/10/2026).
-    left_up: Mutex<Option<(u32, i32, i32)>>,
+    /// When a mouse button last went down, any mouse input last arrived, and a key last went down
+    /// (only while keys are read), for telling whether an app came to the front because of what
+    /// the person did ([`Seen`]).
+    last_press: Seen,
+    last_mouse: Seen,
+    last_key: Seen,
+    /// Keys typed straight after the latest press (#97).
+    press_typed: PressTyped,
+    /// Unicode packets (`VK_PACKET`) seen while keys are read, and when the latest came: a field
+    /// another program typed into keeps no value (#91). Never what they typed.
+    packets: AtomicU64,
+    last_packet: Seen,
+    /// What was under the pointer as each recent click went down, by click id ([`Press`]).
+    presses: Mutex<VecDeque<(u64, Press)>>,
+    /// The left button's recent releases, each with the press it followed, for telling a drag
+    /// from a click: a selection of cells dragged in Excel (04/10/2026).
+    left_ups: Mutex<LeftUps>,
 }
 
-/// How many clicks' window stacks are kept: more than can be waiting to be handled.
-const STACKS_KEPT: usize = 16;
+/// What the input thread read as a click went down, before the app could react to it.
+#[derive(Debug, Clone)]
+pub struct Press {
+    /// The windows showing, front to back. By the time the click is handled the window clicked
+    /// has come to the front, but the screenshot can still show what lay over it: those windows
+    /// are greyed out by this (F014).
+    pub stack: Vec<crate::window::ShownWindow>,
+    /// The window clicked and, for the left button, its title-bar button under the pointer. A
+    /// click on a window's Close button can close it before the click is handled, and then the
+    /// point shows the window behind (#48).
+    pub pressed: Option<crate::window::Pressed>,
+}
+
+/// The message time something was last seen at, or nothing yet.
+#[derive(Debug, Default)]
+struct Seen(AtomicU64);
+
+impl Seen {
+    /// The time in the low half, with a bit above it so that a time of 0 still counts.
+    fn note(&self, tick_ms: u32) {
+        self.0
+            .store((1 << 32) | u64::from(tick_ms), Ordering::Relaxed);
+    }
+
+    fn get(&self) -> Option<u32> {
+        let value = self.0.load(Ordering::Relaxed);
+        (value != 0).then(|| u32::try_from(value & u64::from(u32::MAX)).unwrap_or(0))
+    }
+}
+
+/// The latest press of the left button and where it was, and whether keys that type text went
+/// down after it with nothing between that could have moved focus by key. A click moves focus as
+/// the button goes down, and keys typed straight after it can be in the field it focused before
+/// the focus news is read: the value read then isn't what the field held before (#97). Never
+/// which keys.
+///
+/// Only text counts as typed: letters, digits, punctuation, space, the number pad's and an input
+/// method's keys, `AltGr`'s characters included. Any other key that isn't Shift, a lock key or an
+/// input method's own (Tab, Enter, Escape, the arrows, Home, End, the function keys, Backspace)
+/// may move focus or change the field without typing, and so may a key with Ctrl, Alt or the
+/// Windows key held, or a press of another button (a right click's menu takes the keys typed
+/// after it): then the latest press isn't where focus came from (#97 second review).
+#[derive(Debug, Default)]
+struct PressTyped(Mutex<PressTypedState>);
+
+#[derive(Debug, Default)]
+struct PressTypedState {
+    press: Option<(u32, (i32, i32))>,
+    /// No key that could move focus has gone down since the press.
+    open: bool,
+    typed: bool,
+    /// Ctrl, the left Alt, the Windows key and the right Alt held, a bit each.
+    held: u8,
+}
+
+const HELD_CTRL: u8 = 1;
+const HELD_LEFT_ALT: u8 = 2;
+const HELD_WIN: u8 = 4;
+const HELD_RIGHT_ALT: u8 = 8;
+
+/// What a key, by its Windows virtual-key code, is to [`PressTyped`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum KeyKind {
+    /// Ctrl, Alt or the Windows key: held with others.
+    Held(u8),
+    /// A key that types text, unless a combination's.
+    Text,
+    /// Types nothing and moves no focus: Shift, the lock keys, an input method's mode keys.
+    Neutral,
+    /// Anything else.
+    Other,
+}
+
+/// What `vkey` is to [`PressTyped`]; `extended` (Windows' E0 prefix) tells the right Alt from
+/// the left when Raw Input gives both as `VK_MENU`.
+fn key_kind(vkey: u16, extended: bool) -> KeyKind {
+    match vkey {
+        0x11 | 0xA2 | 0xA3 => KeyKind::Held(HELD_CTRL),
+        0x12 if extended => KeyKind::Held(HELD_RIGHT_ALT),
+        0xA5 => KeyKind::Held(HELD_RIGHT_ALT),
+        0x12 | 0xA4 => KeyKind::Held(HELD_LEFT_ALT),
+        0x5B | 0x5C => KeyKind::Held(HELD_WIN),
+        0x10 | 0xA0 | 0xA1 | 0x14 | 0x90 | 0x91 | 0x15..=0x1A | 0x1C..=0x1F => KeyKind::Neutral,
+        // Space, digits, letters, the number pad's digits and signs, the OEM punctuation keys,
+        // an input method's processed key (0xE5) and a Unicode packet (0xE7).
+        0x20
+        | 0x30..=0x39
+        | 0x41..=0x5A
+        | 0x60..=0x6F
+        | 0x92..=0x96
+        | 0xBA..=0xC2
+        | 0xDB..=0xDF
+        | 0xE1..=0xE7 => KeyKind::Text,
+        _ => KeyKind::Other,
+    }
+}
+
+impl PressTyped {
+    fn state(&self) -> std::sync::MutexGuard<'_, PressTypedState> {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// A mouse button went down at `point`: the left one is where focus may come from.
+    fn pressed(&self, tick_ms: u32, point: (i32, i32), left: bool) {
+        let mut state = self.state();
+        state.typed = false;
+        state.open = left;
+        if left {
+            state.press = Some((tick_ms, point));
+        }
+    }
+
+    /// A key read while a recording reads keys, by its Windows virtual-key code.
+    fn key(&self, vkey: u16, extended: bool, up: bool) {
+        let mut state = self.state();
+        match key_kind(vkey, extended) {
+            KeyKind::Held(bit) if up => state.held &= !bit,
+            KeyKind::Held(bit) => state.held |= bit,
+            _ if up => {}
+            KeyKind::Neutral => {}
+            // AltGr is Ctrl with the right Alt to Windows, which sends both: it types characters.
+            KeyKind::Text if state.held == 0 || state.held == HELD_CTRL | HELD_RIGHT_ALT => {
+                state.typed = true;
+            }
+            KeyKind::Text | KeyKind::Other => state.open = false,
+        }
+    }
+
+    fn get(&self) -> Option<(u32, (i32, i32))> {
+        let state = self.state();
+        (state.open && state.typed).then_some(state.press).flatten()
+    }
+
+    /// A new recording: keys held as the last one ended are let go.
+    fn clear(&self) {
+        let mut state = self.state();
+        state.held = 0;
+        state.open = false;
+    }
+}
+
+/// How many clicks' presses are kept: more than can be waiting to be handled.
+const PRESSES_KEPT: usize = 16;
+/// How many left releases are kept: more than can come while one click is handled.
+const LEFT_UPS_KEPT: usize = 16;
+
+/// The left button's releases, paired with presses by order, never by time: a release belongs to
+/// the left press just before it. Times can't pair them: a touchpad tap or an automated click
+/// goes down and up within one tick of the message clock (about 15.6 ms), so its release looked
+/// no later than its press and wasn't taken, and the next click's release made the first click a
+/// drag (`Select "A1:B1"`, #64; the stray `Select "D2:E2"` before a fill-handle double-click, #66).
+#[derive(Debug, Default)]
+struct LeftUps {
+    /// The latest left press: its id when it was queued, `None` when it wasn't (recording off, or
+    /// the mouse copy of a touch tap). A release after it is its, and no earlier press's.
+    press: Option<u64>,
+    /// Recent releases, oldest first: the press each followed, then when and where.
+    released: VecDeque<(Option<u64>, (u32, i32, i32))>,
+}
+
+/// What became of a left press's button.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LeftRelease {
+    /// Still down, as far as is known: no release and no other left press since.
+    Down,
+    /// Released (time, x, y), before any other left press.
+    Up(u32, i32, i32),
+    /// Its release will never be known: another left press came first.
+    Missed,
+}
 
 impl InputShared {
     fn new(capacity: usize) -> Self {
@@ -200,29 +388,99 @@ impl InputShared {
             last_touch_tick: AtomicU32::new(0),
             enabled: AtomicBool::new(false),
             source: AtomicU8::new(InputSource::RawInput.to_u8()),
-            stacks: Mutex::new(VecDeque::new()),
-            left_up: Mutex::new(None),
+            presses: Mutex::new(VecDeque::new()),
+            left_ups: Mutex::new(LeftUps::default()),
+            last_press: Seen::default(),
+            last_mouse: Seen::default(),
+            last_key: Seen::default(),
+            press_typed: PressTyped::default(),
+            packets: AtomicU64::new(0),
+            last_packet: Seen::default(),
         }
     }
 
-    /// The left button's latest release while recording: time, and where.
+    /// How many Unicode packets have come while keys were read, and the message time of the
+    /// latest (#91).
     #[must_use]
-    pub fn last_left_up(&self) -> Option<(u32, i32, i32)> {
-        *self.left_up.lock().unwrap_or_else(PoisonError::into_inner)
+    pub fn packets(&self) -> (u64, Option<u32>) {
+        (self.packets.load(Ordering::Relaxed), self.last_packet.get())
+    }
+
+    /// When a mouse button last went down (message time), whether or not it was recorded.
+    #[must_use]
+    pub fn last_press(&self) -> Option<u32> {
+        self.last_press.get()
+    }
+
+    /// When any mouse input (movement, a button, the wheel) last arrived.
+    #[must_use]
+    pub fn last_mouse(&self) -> Option<u32> {
+        self.last_mouse.get()
+    }
+
+    /// When a touch screen or pen last reported.
+    #[must_use]
+    pub fn last_touch(&self) -> Option<u32> {
+        (self.touch_reports.load(Ordering::Relaxed) > 0)
+            .then(|| self.last_touch_tick.load(Ordering::Relaxed))
+    }
+
+    /// When a key last went down; only known while a recording reads keys. Never which key.
+    #[must_use]
+    pub fn last_key(&self) -> Option<u32> {
+        self.last_key.get()
+    }
+
+    /// The latest press of the left button, when and where, when keys that type text went down
+    /// after it and none that could move focus by key ([`PressTyped`], #97).
+    #[must_use]
+    pub fn typed_after_press(&self) -> Option<(u32, (i32, i32))> {
+        self.press_typed.get()
+    }
+
+    fn note_mouse(&self, tick_ms: u32) {
+        self.last_mouse.note(tick_ms);
+    }
+
+    /// What became of left press `press`'s button while recording: released (when, where) before
+    /// any other left press, still down, or never to be known.
+    #[must_use]
+    pub fn left_release(&self, press: u64) -> LeftRelease {
+        let ups = self.left_ups.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some((_, up)) = ups.released.iter().find(|(of, _)| *of == Some(press)) {
+            LeftRelease::Up(up.0, up.1, up.2)
+        } else if ups.press == Some(press) {
+            LeftRelease::Down
+        } else {
+            LeftRelease::Missed
+        }
     }
 
     fn record_left_up(&self, tick_ms: u32, x: i32, y: i32) {
         if self.enabled.load(Ordering::Relaxed) {
-            *self.left_up.lock().unwrap_or_else(PoisonError::into_inner) = Some((tick_ms, x, y));
+            let mut ups = self.left_ups.lock().unwrap_or_else(PoisonError::into_inner);
+            if ups.released.len() >= LEFT_UPS_KEPT {
+                ups.released.pop_front();
+            }
+            let press = ups.press;
+            ups.released.push_back((press, (tick_ms, x, y)));
         }
     }
 
-    /// The windows that were showing, front to back, when click `id` went down.
+    /// The left button went down: `press` is its id when it was queued.
+    fn note_left_press(&self, press: Option<u64>) {
+        self.left_ups
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .press = press;
+    }
+
+    /// What was under the pointer when click `id` went down. Taken once.
     #[must_use]
-    pub fn take_stack(&self, id: u64) -> Option<Vec<crate::window::ShownWindow>> {
-        let mut stacks = self.stacks.lock().unwrap_or_else(PoisonError::into_inner);
-        let at = stacks.iter().position(|(click, _)| *click == id)?;
-        stacks.remove(at).map(|(_, stack)| stack)
+    pub fn take_press(&self, id: u64) -> Option<Press> {
+        let mut presses = self.presses.lock().unwrap_or_else(PoisonError::into_inner);
+        let at = presses.iter().position(|(click, _)| *click == id)?;
+        presses.remove(at).map(|(_, press)| press)
     }
 
     /// Next queued button-down, if any.
@@ -262,17 +520,25 @@ impl InputShared {
 
     /// Empties the queues, e.g. before a new recording starts.
     pub fn clear(&self) {
-        self.stacks
+        self.presses
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .clear();
+        *self.left_ups.lock().unwrap_or_else(PoisonError::into_inner) = LeftUps::default();
         while self.queue.pop().is_some() {}
         while self.foreground.pop().is_some() {}
         while self.keys.pop().is_some() {}
+        self.press_typed.clear();
     }
 
     fn record_down(&self, tick_ms: u32, x: i32, y: i32, button: MouseButton, injected: bool) {
+        self.last_press.note(tick_ms);
+        self.press_typed
+            .pressed(tick_ms, (x, y), button == MouseButton::Left);
         if !self.enabled.load(Ordering::Relaxed) {
+            if button == MouseButton::Left {
+                self.note_left_press(None);
+            }
             return;
         }
         let event = MouseDown {
@@ -283,14 +549,24 @@ impl InputShared {
             button,
             injected,
         };
-        // Read now, before the window clicked comes to the front. A millisecond or two.
-        let stack = crate::window::shown_windows();
+        // Noted before what's under the pointer is read: its release can't be handled on this
+        // thread until this press is done, so it pairs with this press by order.
+        if button == MouseButton::Left {
+            self.note_left_press(Some(event.id));
+        }
+        // Read now, before the window clicked comes to the front or reacts to the click: a
+        // millisecond or two, and never more than the hit test's budget (30 ms) for a busy window.
+        // Only the left button presses a title-bar button.
+        let press = Press {
+            stack: crate::window::shown_windows(),
+            pressed: crate::window::pressed_at(x, y, button == MouseButton::Left),
+        };
         {
-            let mut stacks = self.stacks.lock().unwrap_or_else(PoisonError::into_inner);
-            if stacks.len() >= STACKS_KEPT {
-                stacks.pop_front();
+            let mut presses = self.presses.lock().unwrap_or_else(PoisonError::into_inner);
+            if presses.len() >= PRESSES_KEPT {
+                presses.pop_front();
             }
-            stacks.push_back((event.id, stack));
+            presses.push_back((event.id, press));
         }
         if self.queue.push(event).is_err() {
             self.dropped.fetch_add(1, Ordering::Relaxed);
@@ -302,6 +578,16 @@ impl InputShared {
         // Stop) and the registration being removed, keys are dropped here.
         if !self.enabled.load(Ordering::Relaxed) {
             return;
+        }
+        self.press_typed.key(event.vkey, event.extended, event.up);
+        if !event.up {
+            self.last_key.note(event.tick_ms);
+            // Counted here, as it arrives: the focus handler reads a field's value the moment
+            // focus leaves it, and the key worker handles keys 150 ms later.
+            if event.vkey == VK_PACKET {
+                self.packets.fetch_add(1, Ordering::Relaxed);
+                self.last_packet.note(event.tick_ms);
+            }
         }
         if self.keys.push(event).is_err() {
             self.keys_dropped.fetch_add(1, Ordering::Relaxed);
@@ -347,6 +633,34 @@ pub fn set_queue_capacity_before_start(capacity: usize) -> bool {
 
 fn shared() -> &'static Arc<InputShared> {
     SHARED.get_or_init(|| Arc::new(InputShared::new(CAPACITY.load(Ordering::SeqCst))))
+}
+
+/// How many times the mouse has reported moving since input was first registered, whether or not
+/// the pointer moved a pixel: what tells the pointer moving from other input (a key, a button,
+/// the wheel) where only the time of the last input is known. `None` before then.
+#[must_use]
+pub fn mouse_moves() -> Option<u64> {
+    SHARED
+        .get()
+        .map(|shared| shared.moves.load(Ordering::Relaxed))
+}
+
+/// How many Unicode packets (`VK_PACKET`) have come while a recording read keys, and the message
+/// time of the latest: `(0, None)` before input was first registered (#91). Never what they typed.
+#[must_use]
+pub fn unicode_packets() -> (u64, Option<u32>) {
+    SHARED.get().map_or((0, None), |shared| shared.packets())
+}
+
+/// The message time of the latest press of the left button, and where it was, when keys that type
+/// text went down after it (only while a recording reads keys) and none that could move focus by
+/// key: any other key but Shift, a lock key or an input method's, or one with Ctrl, Alt or the
+/// Windows key held (`AltGr`'s characters aside), and no press of another button. Keys typed
+/// straight after a click can be in a field before its focus news is read (#97). Never which
+/// button or key.
+#[must_use]
+pub fn typed_after_press() -> Option<(u32, (i32, i32))> {
+    SHARED.get().and_then(|shared| shared.typed_after_press())
 }
 
 /// A thread message that tells the input thread a command is waiting.
@@ -783,6 +1097,7 @@ unsafe extern "system" fn mouse_hook_proc(code: i32, wparam: WPARAM, lparam: LPA
                 _ => None,
             };
             let shared = shared();
+            shared.note_mouse(info.time);
             if let Some(button) = button {
                 mouse_down(info.time, info.pt.x, info.pt.y, button, injected);
             } else if message == WM_LBUTTONUP {
@@ -912,23 +1227,53 @@ const RI_KEY_E0: u16 = 2;
 /// The `VKey` of the fake key Windows sends around some keys (Pause, the E1 sequences).
 const VK_FAKE: u16 = 0xFF;
 
+/// A character another program sent as a key (`SendInput` with `KEYEVENTF_UNICODE`): a password
+/// manager's auto-type, or voice typing and the touch keyboard in an app that can't take text
+/// any other way. One UTF-16 unit per packet.
+pub const VK_PACKET: u16 = 0xE7;
+
 fn read_raw_keyboard(raw: &RAWINPUT, tick: u32) {
     // SAFETY: the caller checked dwType is RIM_TYPEKEYBOARD, so `keyboard` is the active member.
     let keyboard = unsafe { raw.data.keyboard };
-    if keyboard.VKey == VK_FAKE || keyboard.VKey == 0 {
-        return;
-    }
     // SAFETY: no arguments; the window in front now, which is where this key is going.
     let foreground = unsafe { GetForegroundWindow() };
-    shared().record_key(KeyEvent {
+    if let Some(event) = raw_key(
+        keyboard.VKey,
+        keyboard.MakeCode,
+        keyboard.Flags,
+        raw.header.hDevice.is_invalid(),
+        tick,
+        foreground.0 as isize,
+    ) {
+        shared().record_key(event);
+    }
+}
+
+/// A key event from Raw Input's fields. `injected`: it came with no device (`SendInput`). A
+/// Unicode packet's character is never copied: text another program typed keeps no value
+/// (decision of 11/10/2026), so it doesn't leave this thread. An injected key with no virtual
+/// key is taken as a packet too, in case Windows reports packets that way.
+fn raw_key(
+    vkey: u16,
+    make_code: u16,
+    flags: u16,
+    injected: bool,
+    tick: u32,
+    foreground: isize,
+) -> Option<KeyEvent> {
+    if vkey == VK_FAKE || (vkey == 0 && !injected) {
+        return None;
+    }
+    let packet = vkey == VK_PACKET || vkey == 0;
+    Some(KeyEvent {
         tick_ms: tick,
-        vkey: keyboard.VKey,
-        scan: keyboard.MakeCode,
-        extended: keyboard.Flags & RI_KEY_E0 != 0,
-        up: keyboard.Flags & RI_KEY_BREAK != 0,
-        injected: raw.header.hDevice.is_invalid(),
-        foreground: foreground.0 as isize,
-    });
+        vkey: if packet { VK_PACKET } else { vkey },
+        scan: if packet { 0 } else { make_code },
+        extended: flags & RI_KEY_E0 != 0,
+        up: flags & RI_KEY_BREAK != 0,
+        injected,
+        foreground,
+    })
 }
 
 fn read_raw_mouse(raw: &RAWINPUT, tick: u32) {
@@ -937,24 +1282,20 @@ fn read_raw_mouse(raw: &RAWINPUT, tick: u32) {
     // SAFETY: RAWMOUSE's button fields are a plain-integer union; reading the struct view is always valid.
     let flags = u32::from(unsafe { mouse.Anonymous.Anonymous.usButtonFlags });
     let shared = shared();
+    shared.note_mouse(tick);
 
     if mouse.lLastX != 0 || mouse.lLastY != 0 {
         shared.record_move();
     }
-    if flags & RI_MOUSE_LEFT_BUTTON_UP != 0 {
+    if flags & BUTTON_FLAGS == 0 {
+        return;
+    }
+    let (left_up, button) = logical_buttons(flags, buttons_swapped());
+    if left_up {
         // SAFETY: no arguments; describes the message currently being processed.
         let (x, y) = unpack_message_pos(unsafe { GetMessagePos() });
         shared.record_left_up(tick, x, y);
     }
-    let button = if flags & RI_MOUSE_LEFT_BUTTON_DOWN != 0 {
-        Some(MouseButton::Left)
-    } else if flags & RI_MOUSE_RIGHT_BUTTON_DOWN != 0 {
-        Some(MouseButton::Right)
-    } else if flags & RI_MOUSE_MIDDLE_BUTTON_DOWN != 0 {
-        Some(MouseButton::Middle)
-    } else {
-        None
-    };
     let Some(button) = button else {
         return;
     };
@@ -966,6 +1307,51 @@ fn read_raw_mouse(raw: &RAWINPUT, tick: u32) {
     // Injected input (SendInput) arrives with no device handle.
     let injected = raw.header.hDevice.is_invalid();
     mouse_down(tick, x, y, button, injected);
+}
+
+/// The Raw Input flags of the buttons [`logical_buttons`] reads.
+const BUTTON_FLAGS: u32 = RI_MOUSE_LEFT_BUTTON_DOWN
+    | RI_MOUSE_LEFT_BUTTON_UP
+    | RI_MOUSE_RIGHT_BUTTON_DOWN
+    | RI_MOUSE_RIGHT_BUTTON_UP
+    | RI_MOUSE_MIDDLE_BUTTON_DOWN;
+
+/// Whether the person has swapped the mouse's buttons (Settings > Bluetooth & devices > Mouse >
+/// Primary mouse button: Right), as many left-handed people do.
+fn buttons_swapped() -> bool {
+    // SAFETY: no pointers; GetSystemMetrics only reads a system setting.
+    unsafe { GetSystemMetrics(SM_SWAPBUTTON) != 0 }
+}
+
+/// What Raw Input's button `flags` are as Windows' messages have them: whether the primary
+/// ("left") button came up, and which button went down. Raw Input reports the buttons where they
+/// are on the mouse; with the buttons `swapped`, the right one is the primary button, which apps
+/// get as `WM_LBUTTONDOWN`, and the left one shows the context menu (the #97 third review: for a
+/// left-handed person the rules for a right click worked backwards).
+fn logical_buttons(flags: u32, swapped: bool) -> (bool, Option<MouseButton>) {
+    let (primary_down, primary_up, secondary_down) = if swapped {
+        (
+            RI_MOUSE_RIGHT_BUTTON_DOWN,
+            RI_MOUSE_RIGHT_BUTTON_UP,
+            RI_MOUSE_LEFT_BUTTON_DOWN,
+        )
+    } else {
+        (
+            RI_MOUSE_LEFT_BUTTON_DOWN,
+            RI_MOUSE_LEFT_BUTTON_UP,
+            RI_MOUSE_RIGHT_BUTTON_DOWN,
+        )
+    };
+    let button = if flags & primary_down != 0 {
+        Some(MouseButton::Left)
+    } else if flags & secondary_down != 0 {
+        Some(MouseButton::Right)
+    } else if flags & RI_MOUSE_MIDDLE_BUTTON_DOWN != 0 {
+        Some(MouseButton::Middle)
+    } else {
+        None
+    };
+    (flags & primary_up != 0, button)
 }
 
 // ---------- touch screens and pens ----------
@@ -1022,6 +1408,9 @@ fn mouse_down(tick: u32, x: i32, y: i32, button: MouseButton, injected: bool) {
     });
     if !duplicate {
         shared().record_down(tick, x, y, button, injected);
+    } else if button == MouseButton::Left {
+        // The tap is the click; the release of its mouse copy is no earlier press's.
+        shared().note_left_press(None);
     }
 }
 
@@ -1164,10 +1553,270 @@ mod tests {
     }
 
     #[test]
+    fn unicode_packets_are_counted_never_read() {
+        // Auto-type sends each UTF-16 unit as a packet, down then up: an emoji is two.
+        let shared = InputShared::new(2);
+        let packet = |tick_ms, up| KeyEvent {
+            tick_ms,
+            vkey: VK_PACKET,
+            scan: 0,
+            extended: false,
+            up,
+            injected: true,
+            foreground: 1,
+        };
+        shared.record_key(packet(10, false));
+        assert_eq!(shared.packets(), (0, None), "not while keys aren't read");
+        shared.enabled.store(true, Ordering::Relaxed);
+        for (tick, up) in [(20, false), (21, true), (30, false), (31, true)] {
+            shared.record_key(packet(tick, up));
+        }
+        shared.record_key(KeyEvent {
+            vkey: 0x41,
+            ..packet(40, false)
+        });
+        assert_eq!(shared.packets(), (2, Some(30)));
+    }
+
+    /// A key going down or up at `tick_ms`, as the keyboard sends it.
+    fn key(tick_ms: u32, vkey: u16, up: bool) -> KeyEvent {
+        KeyEvent {
+            tick_ms,
+            vkey,
+            scan: 0,
+            extended: false,
+            up,
+            injected: false,
+            foreground: 1,
+        }
+    }
+
+    /// `button` going down at `tick` at (40, 50). Noted whether or not the press is recorded; with
+    /// recording off, nothing under it is read, so the test reads no windows.
+    fn press_button(shared: &InputShared, tick: u32, button: MouseButton) {
+        shared.enabled.store(false, Ordering::Relaxed);
+        shared.record_down(tick, 40, 50, button, false);
+        shared.enabled.store(true, Ordering::Relaxed);
+    }
+
+    #[test]
+    fn swapped_buttons_are_read_as_windows_has_them() {
+        // Right-handed: the buttons are where they are.
+        assert_eq!(
+            logical_buttons(RI_MOUSE_LEFT_BUTTON_DOWN, false),
+            (false, Some(MouseButton::Left))
+        );
+        assert_eq!(
+            logical_buttons(RI_MOUSE_RIGHT_BUTTON_DOWN, false),
+            (false, Some(MouseButton::Right))
+        );
+        assert_eq!(
+            logical_buttons(RI_MOUSE_LEFT_BUTTON_UP, false),
+            (true, None)
+        );
+        assert_eq!(
+            logical_buttons(RI_MOUSE_RIGHT_BUTTON_UP, false),
+            (false, None)
+        );
+        // Swapped: the right button is the primary one, a left click to every app; the left
+        // shows the context menu.
+        assert_eq!(
+            logical_buttons(RI_MOUSE_RIGHT_BUTTON_DOWN, true),
+            (false, Some(MouseButton::Left))
+        );
+        assert_eq!(
+            logical_buttons(RI_MOUSE_LEFT_BUTTON_DOWN, true),
+            (false, Some(MouseButton::Right))
+        );
+        assert_eq!(
+            logical_buttons(RI_MOUSE_RIGHT_BUTTON_UP, true),
+            (true, None)
+        );
+        assert_eq!(
+            logical_buttons(RI_MOUSE_LEFT_BUTTON_UP, true),
+            (false, None)
+        );
+        // The middle button is where it is either way.
+        for swapped in [false, true] {
+            assert_eq!(
+                logical_buttons(RI_MOUSE_MIDDLE_BUTTON_DOWN, swapped),
+                (false, Some(MouseButton::Middle))
+            );
+        }
+    }
+
+    #[test]
+    fn keys_typed_after_a_press_are_told_until_a_key_could_move_focus() {
+        // A click, then keys that type: they may be in the field the click focused before its
+        // focus news is read (#97). Tab, Enter, Escape, a navigation, editing or function key, or
+        // a key with Ctrl, Alt or the Windows key held may have moved focus on: the press is then
+        // not where focus came from (#97 second review).
+        let shared = InputShared::new(2);
+        let press = |tick| press_button(&shared, tick, MouseButton::Left);
+        assert_eq!(shared.typed_after_press(), None);
+        press(100);
+        shared.record_key(key(102, 0x10, false));
+        assert_eq!(shared.typed_after_press(), None, "Shift types nothing");
+        for (tick, vkey, up) in [(105, 0x48, false), (107, 0x48, true), (108, 0x10, true)] {
+            shared.record_key(key(tick, vkey, up));
+        }
+        assert_eq!(shared.typed_after_press(), Some((100, (40, 50))));
+        shared.record_key(key(115, 0x09, false));
+        assert_eq!(shared.typed_after_press(), None, "Tab");
+        shared.record_key(key(125, 0x49, false));
+        assert_eq!(shared.typed_after_press(), None, "keys after Tab");
+        // Enter, Escape, the arrows, Home, End, Page Down, Backspace, Delete, F6 and the
+        // context-menu key: none types text, and any may move focus or change the field.
+        for vkey in [
+            0x0D, 0x1B, 0x25, 0x28, 0x24, 0x23, 0x22, 0x08, 0x2E, 0x75, 0x5D,
+        ] {
+            press(130);
+            shared.record_key(key(131, vkey, false));
+            shared.record_key(key(132, 0x41, false));
+            assert_eq!(shared.typed_after_press(), None, "{vkey:#x}");
+        }
+        // Nor do they count as typing on their own.
+        press(135);
+        shared.record_key(key(136, 0x24, false));
+        assert_eq!(shared.typed_after_press(), None, "Home alone");
+        // Caps Lock and Num Lock type nothing and move nothing: the keys after them still count.
+        press(138);
+        for vkey in [0x14, 0x90] {
+            shared.record_key(key(139, vkey, false));
+            shared.record_key(key(139, vkey, true));
+        }
+        assert_eq!(shared.typed_after_press(), None, "a lock key types nothing");
+        shared.record_key(key(140, 0x31, false));
+        assert_eq!(
+            shared.typed_after_press(),
+            Some((138, (40, 50))),
+            "Caps Lock, then 1"
+        );
+        // Punctuation, the number pad and space type.
+        for vkey in [0xBE, 0x61, 0x20] {
+            press(141);
+            shared.record_key(key(142, vkey, false));
+            assert_eq!(
+                shared.typed_after_press(),
+                Some((141, (40, 50))),
+                "{vkey:#x}"
+            );
+        }
+        press(140);
+        shared.record_key(key(141, 0x11, false));
+        shared.record_key(key(142, 0x46, false));
+        shared.record_key(key(143, 0x11, true));
+        shared.record_key(key(144, 0x41, false));
+        assert_eq!(shared.typed_after_press(), None, "Ctrl+F");
+        press(150);
+        shared.record_key(key(151, 0x41, false));
+        assert_eq!(
+            shared.typed_after_press(),
+            Some((150, (40, 50))),
+            "Ctrl let go"
+        );
+        // Keys aren't read while recording is off.
+        press(190);
+        shared.enabled.store(false, Ordering::Relaxed);
+        shared.record_key(key(191, 0x41, false));
+        assert_eq!(shared.typed_after_press(), None);
+    }
+
+    #[test]
+    fn altgr_types_and_a_right_click_ends_what_a_press_says() {
+        let shared = InputShared::new(2);
+        let press = |tick| press_button(&shared, tick, MouseButton::Left);
+        // AltGr+E types "€" on a European layout: Windows sends the left Ctrl, then the right Alt
+        // (VK_MENU with E0 from Raw Input, VK_RMENU from the hook).
+        for right_alt in [
+            KeyEvent {
+                extended: true,
+                ..key(161, 0x12, false)
+            },
+            key(161, 0xA5, false),
+        ] {
+            press(160);
+            shared.record_key(key(161, 0x11, false));
+            shared.record_key(right_alt);
+            shared.record_key(key(162, 0x45, false));
+            assert_eq!(
+                shared.typed_after_press(),
+                Some((160, (40, 50))),
+                "AltGr+E, the right Alt as {:#x}",
+                right_alt.vkey
+            );
+            shared.record_key(KeyEvent {
+                up: true,
+                ..right_alt
+            });
+            shared.record_key(key(163, 0x11, true));
+        }
+        // The left Alt with a letter is a menu's access key, and the right Alt alone (a US
+        // layout's) is the same.
+        for alt in [
+            key(171, 0x12, false),
+            key(171, 0xA4, false),
+            key(171, 0xA5, false),
+        ] {
+            press(170);
+            shared.record_key(alt);
+            shared.record_key(key(172, 0x46, false));
+            shared.record_key(KeyEvent { up: true, ..alt });
+            shared.record_key(key(173, 0x41, false));
+            assert_eq!(shared.typed_after_press(), None, "Alt as {:#x}", alt.vkey);
+        }
+        // A right click's menu takes the keys typed after it (its access keys): it's never where
+        // focus came from, and it ends what the left press before it said.
+        press(180);
+        shared.record_key(key(181, 0x41, false));
+        press_button(&shared, 182, MouseButton::Right);
+        assert_eq!(shared.typed_after_press(), None, "a right click");
+        shared.record_key(key(183, 0x50, false));
+        assert_eq!(shared.typed_after_press(), None, "P, after a right click");
+    }
+
+    #[test]
+    fn raw_keyboard_input_keeps_no_packets_character() {
+        // Raw Input's packet carries its character in place of a scan code; it's dropped here, on
+        // the input thread. An injected key with no virtual key at all is taken as a packet too.
+        let raw = |vkey, make_code, injected| raw_key(vkey, make_code, 0, injected, 5, 1);
+        let packet = raw(VK_PACKET, u16::from(b'x'), true).expect("a packet");
+        assert_eq!((packet.vkey, packet.scan), (VK_PACKET, 0));
+        let unnamed = raw(0, 0xD83D, true).expect("an injected key with no virtual key");
+        assert_eq!((unnamed.vkey, unnamed.scan), (VK_PACKET, 0));
+        assert_eq!(raw(0, 0x1E, false), None, "a real key with no virtual key");
+        assert_eq!(raw(VK_FAKE, 0x1D, false), None);
+        let a = raw(0x41, 0x1E, false).expect("a key");
+        assert_eq!(
+            (a.vkey, a.scan, a.up, a.extended),
+            (0x41, 0x1E, false, false)
+        );
+        let up = raw_key(0x25, 0x4B, RI_KEY_BREAK | RI_KEY_E0, false, 5, 1).expect("Left, up");
+        assert!(up.up && up.extended);
+    }
+
+    #[test]
     fn message_positions_unpack_signed() {
         assert_eq!(unpack_message_pos(0x0064_00C8), (200, 100));
         // x = -1280 (0xFB00), y = -200 (0xFF38): a monitor left of and above the primary.
         assert_eq!(unpack_message_pos(0xFF38_FB00), (-1280, -200));
+    }
+
+    #[test]
+    fn what_was_under_each_press_is_kept_until_its_click_is_handled() {
+        let shared = InputShared::new(QUEUE_CAPACITY);
+        shared.enabled.store(true, Ordering::Relaxed);
+        for _ in 0..(PRESSES_KEPT + 4) {
+            shared.record_down(0, 1, 1, MouseButton::Left, false);
+        }
+        // Only the latest are kept: more than can be waiting to be handled.
+        assert!(shared.take_press(1).is_none());
+        let last = u64::try_from(PRESSES_KEPT + 4).unwrap();
+        assert!(shared.take_press(last).is_some());
+        // Taken once.
+        assert!(shared.take_press(last).is_none());
+        shared.clear();
+        assert!(shared.take_press(last - 1).is_none());
     }
 
     #[test]
@@ -1176,6 +1825,79 @@ mod tests {
         shared.record_down(0, 1, 1, MouseButton::Left, false);
         assert_eq!(shared.queued(), 0);
         assert_eq!(shared.dropped.load(Ordering::Relaxed), 0);
+    }
+
+    /// A recording's input thread, taking clicks.
+    fn recording() -> InputShared {
+        let shared = InputShared::new(8);
+        shared.enabled.store(true, Ordering::Relaxed);
+        shared
+    }
+
+    /// Presses the left button at `tick`, returning the press's id.
+    fn press(shared: &InputShared, tick: u32, x: i32, y: i32) -> u64 {
+        shared.record_down(tick, x, y, MouseButton::Left, false);
+        let mut last = 0;
+        while let Some(event) = shared.pop() {
+            last = event.id;
+        }
+        last
+    }
+
+    #[test]
+    fn a_release_pairs_with_the_press_just_before_it_even_in_the_same_tick() {
+        // A touchpad tap or an automated click goes down and up within one tick of the message
+        // clock (about 15.6 ms), so both carry the same time: still that press's release (#64).
+        let shared = recording();
+        let click = press(&shared, 5_000, 166, 388);
+        assert_eq!(shared.left_release(click), LeftRelease::Down);
+        // A right-click meanwhile doesn't come between a left press and its release.
+        shared.record_down(5_000, 300, 300, MouseButton::Right, false);
+        shared.record_left_up(5_000, 167, 388);
+        assert_eq!(shared.left_release(click), LeftRelease::Up(5_000, 167, 388));
+    }
+
+    #[test]
+    fn a_release_after_another_press_is_never_an_earlier_presss() {
+        // The test of 10/10/2026: a click on D2 whose release went unseen, then a double-click on
+        // D2's fill handle, whose first release ended D2's "drag": Select "D2:E2".
+        let shared = recording();
+        let click = press(&shared, 1_000, 334, 386);
+        let handle = press(&shared, 2_000, 369, 396);
+        shared.record_left_up(2_000, 369, 396);
+        assert_eq!(shared.left_release(click), LeftRelease::Missed);
+        assert_eq!(
+            shared.left_release(handle),
+            LeftRelease::Up(2_000, 369, 396)
+        );
+        // The double-click's second press: the first press keeps its own release.
+        let second = press(&shared, 2_100, 369, 396);
+        shared.record_left_up(2_100, 369, 396);
+        assert_eq!(
+            shared.left_release(handle),
+            LeftRelease::Up(2_000, 369, 396)
+        );
+        assert_eq!(
+            shared.left_release(second),
+            LeftRelease::Up(2_100, 369, 396)
+        );
+    }
+
+    #[test]
+    fn a_press_that_isnt_recorded_still_comes_between() {
+        // Pressed again while paused: the release that follows is that press's, not the first's.
+        let shared = recording();
+        let click = press(&shared, 1_000, 10, 10);
+        shared.enabled.store(false, Ordering::Relaxed);
+        shared.record_down(1_100, 50, 50, MouseButton::Left, false);
+        shared.enabled.store(true, Ordering::Relaxed);
+        shared.record_left_up(1_150, 50, 50);
+        assert_eq!(shared.left_release(click), LeftRelease::Missed);
+        // A new recording starts with none.
+        let next = press(&shared, 2_000, 10, 10);
+        shared.record_left_up(2_010, 10, 10);
+        shared.clear();
+        assert_eq!(shared.left_release(next), LeftRelease::Missed);
     }
 
     #[test]

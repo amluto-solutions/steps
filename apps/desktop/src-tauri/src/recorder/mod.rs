@@ -21,6 +21,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::{AppHandle, Emitter};
 
+use crate::error::CommandError;
+use crate::user::User;
+
 // The recorder in parts: the Tauri commands; recording itself (start, pause, stop, "Start
 // again"); manual captures; the crash-safe journal; stopped recordings (drafts, recovery,
 // publishing); the recorder's files on disk; and its preferences. The types and small helpers
@@ -33,6 +36,9 @@ mod preferences;
 mod recording;
 mod retake;
 mod sessions;
+
+pub use recording::DefaultLibraryFolder;
+pub use retake::RetakenMedia;
 #[cfg(test)]
 mod tests;
 
@@ -56,28 +62,6 @@ pub struct RecorderPreferences {
     library_folder: PathBuf,
 }
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CommandError {
-    code: &'static str,
-    message: String,
-}
-
-impl CommandError {
-    pub(crate) fn new(code: &'static str, message: impl Into<String>) -> Self {
-        Self {
-            code,
-            message: message.into(),
-        }
-    }
-
-    /// The error code, for tests in other modules.
-    #[cfg(test)]
-    pub(crate) fn code(&self) -> &str {
-        self.code
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RecorderSnapshot {
@@ -91,6 +75,8 @@ pub struct RecorderSnapshot {
     input_source: &'static str,
     /// The recording reads the keyboard ("Record what's typed"): the bar and tray say so.
     keys_recorded: bool,
+    /// "Show a keyboard shortcut" is waiting for the keys in its popup: the bar says so.
+    waiting_for_keys: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -174,8 +160,6 @@ struct Inner {
     worker: Option<JoinHandle<()>>,
     stop: Option<Arc<AtomicBool>>,
     library: Option<PathBuf>,
-    display_name: String,
-    app_data: Option<PathBuf>,
     session: Option<Session>,
     discard_after_stop: bool,
     input_source: InputSource,
@@ -191,10 +175,16 @@ pub struct RecorderService {
     inner: Arc<Mutex<Inner>>,
     /// When the recorder bar last said it is alive (ms since 1970).
     heartbeat: Arc<AtomicU64>,
+    /// The app-data folder and the name, which the library reads too. `initialize` sets it up and
+    /// saved preferences change the name. The recorder's lock is always taken before it, never
+    /// while it's held.
+    user: User,
 }
 
-impl Default for RecorderService {
-    fn default() -> Self {
+impl RecorderService {
+    /// A recorder keeping its recordings and settings file in `user`'s app-data folder, and
+    /// setting `user` up when it's initialized.
+    pub fn new(user: User) -> Self {
         Self {
             inner: Arc::new(Mutex::new(Inner {
                 input: None,
@@ -202,8 +192,6 @@ impl Default for RecorderService {
                 worker: None,
                 stop: None,
                 library: None,
-                display_name: String::new(),
-                app_data: None,
                 session: None,
                 discard_after_stop: false,
                 input_source: InputSource::RawInput,
@@ -212,6 +200,7 @@ impl Default for RecorderService {
                 keys: false,
             })),
             heartbeat: Arc::new(AtomicU64::new(0)),
+            user,
         }
     }
 }
@@ -222,33 +211,39 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
         .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
-fn session_directory(inner: &Inner, session_id: &str) -> Result<PathBuf, CommandError> {
-    if !safe_segment(session_id) {
-        return Err(CommandError::new(
-            "invalidSession",
-            "The recording id is invalid.",
-        ));
+impl RecorderService {
+    /// Where the recordings are kept: `recordings` in the app-data folder, once set up.
+    fn recordings_root(&self) -> Result<PathBuf, CommandError> {
+        Ok(self
+            .user
+            .app_data()
+            .ok_or_else(|| CommandError::new("notReady", "The recorder is not initialized."))?
+            .join("recordings"))
     }
-    if let Some(session) = inner
-        .session
-        .as_ref()
-        .filter(|session| session.id == session_id)
-    {
-        return Ok(session.directory.clone());
+
+    fn session_directory(&self, inner: &Inner, session_id: &str) -> Result<PathBuf, CommandError> {
+        if !safe_segment(session_id) {
+            return Err(CommandError::new(
+                "invalidSession",
+                "The recording id is invalid.",
+            ));
+        }
+        if let Some(session) = inner
+            .session
+            .as_ref()
+            .filter(|session| session.id == session_id)
+        {
+            return Ok(session.directory.clone());
+        }
+        let directory = self.recordings_root()?.join(session_id);
+        if !directory.is_dir() {
+            return Err(CommandError::new(
+                "sessionNotFound",
+                "The recording session was not found.",
+            ));
+        }
+        Ok(directory)
     }
-    let directory = inner
-        .app_data
-        .as_ref()
-        .ok_or_else(|| CommandError::new("notReady", "The recorder is not initialized."))?
-        .join("recordings")
-        .join(session_id);
-    if !directory.is_dir() {
-        return Err(CommandError::new(
-            "sessionNotFound",
-            "The recording session was not found.",
-        ));
-    }
-    Ok(directory)
 }
 
 fn snapshot_locked(inner: &Inner) -> RecorderSnapshot {
@@ -296,6 +291,7 @@ fn snapshot_from(
             InputSource::Hook => "hook",
         },
         keys_recorded: machine.keys_recorded(),
+        waiting_for_keys: session_id.is_some() && machine.waiting_for_shortcut(),
     }
 }
 
@@ -484,10 +480,6 @@ fn manual_media_id() -> u64 {
         .duration_since(UNIX_EPOCH)
         .map_or(0, |duration| duration.as_micros());
     u64::try_from(micros.min(u128::from(MAX_JS_SAFE_INTEGER))).unwrap_or(MAX_JS_SAFE_INTEGER)
-}
-
-fn storage_error(error: impl std::fmt::Display) -> CommandError {
-    CommandError::new("storageError", error.to_string())
 }
 
 fn not_recording() -> CommandError {

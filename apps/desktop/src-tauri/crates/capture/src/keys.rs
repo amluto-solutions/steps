@@ -22,6 +22,40 @@ pub enum KeyAction {
     Combo(Combo),
     /// A key that means nothing here (a function key alone, Caps Lock, a media key).
     Other,
+    /// A Unicode packet (`VK_PACKET`): a character another program typed as if it were a key,
+    /// such as a password manager's auto-type. Its character is never read: text typed this way
+    /// keeps no value (decision of 11/10/2026, #91).
+    Packet,
+}
+
+impl KeyAction {
+    /// Whether the key can put text into a text box or take it out, so what changed in the box
+    /// is the keys' and not dictation's (#91): every key but the caret moving, Escape, and a
+    /// combination with the Windows key (Win+H starts and stops voice typing). A key that means
+    /// nothing here counts: an input method's keys and Shift+Insert are among them.
+    #[must_use]
+    pub fn may_type(&self) -> bool {
+        match self {
+            Self::Move | Self::Escape => false,
+            Self::Combo(combo) => !combo.win,
+            _ => true,
+        }
+    }
+}
+
+/// Whether a virtual key is a modifier or Caps Lock, which type nothing on their own.
+#[must_use]
+pub fn is_modifier(vkey: u16) -> bool {
+    matches!(
+        vkey,
+        VK_SHIFT | VK_CONTROL | VK_MENU | VK_CAPITAL | VK_LWIN | VK_RWIN | VK_LSHIFT..=VK_RMENU
+    )
+}
+
+/// Whether a key can move focus whatever is held with it: Tab, Enter or Escape.
+#[must_use]
+pub fn moves_focus(vkey: u16) -> bool {
+    matches!(vkey, VK_TAB | VK_RETURN | VK_ESCAPE)
 }
 
 /// A key combination. The wording ("Press Ctrl+Shift+N") is made in TypeScript from these.
@@ -51,6 +85,12 @@ impl Combo {
             || (self.alt && !self.ctrl && !self.win && self.vkey == VK_TAB)
             || (self.win && !self.ctrl && !self.alt && self.vkey == VK_TAB)
     }
+
+    /// Win+H, which starts and stops Windows voice typing (#91).
+    #[must_use]
+    pub fn is_voice_typing(&self) -> bool {
+        self.win && !self.ctrl && !self.alt && !self.shift && self.vkey == u16::from(b'H')
+    }
 }
 
 const VK_BACK: u16 = 0x08;
@@ -68,9 +108,12 @@ const VK_LWIN: u16 = 0x5B;
 const VK_RWIN: u16 = 0x5C;
 const VK_LSHIFT: u16 = 0xA0;
 const VK_RMENU: u16 = 0xA5;
+/// A character sent as a key with `KEYEVENTF_UNICODE`, one UTF-16 unit per packet.
+pub const VK_PACKET: u16 = 0xE7;
 
-/// Follows the modifiers and turns each key press into a [`KeyAction`].
-#[derive(Debug, Default)]
+/// Follows the modifiers and turns each key press into a [`KeyAction`]. A copy reads keys still
+/// to be handled without changing what the original holds (#114).
+#[derive(Debug, Default, Clone)]
 pub struct KeyReader {
     modifiers: Modifiers,
 }
@@ -113,6 +156,10 @@ impl KeyReader {
         }
         if event.up {
             return None;
+        }
+        // Whatever is held, a packet is a character another program sent, never a combination.
+        if event.vkey == VK_PACKET {
+            return Some(KeyAction::Packet);
         }
         let held = self.modifiers;
         let ctrl = held.left_ctrl || held.right_ctrl;
@@ -364,6 +411,60 @@ mod tests {
         ] {
             assert!(!step.is_noise(), "{step:?}");
         }
+    }
+
+    #[test]
+    fn unicode_packets_are_text_another_program_typed() {
+        // Each UTF-16 unit is a packet of its own: an emoji is two, its surrogate pair. Whatever
+        // modifiers are held, a packet is neither typing nor a combination, and keeps no text.
+        let mut reader = KeyReader::new(false);
+        let packet = |up| KeyEvent {
+            scan: 0,
+            ..key(VK_PACKET, up)
+        };
+        let actions = read_all(
+            &mut reader,
+            &[
+                packet(false),
+                packet(true),
+                key(VK_CONTROL, false),
+                packet(false),
+                packet(true),
+                key(VK_CONTROL, true),
+            ],
+        );
+        assert_eq!(actions, [KeyAction::Packet, KeyAction::Packet]);
+        assert!(KeyAction::Packet.may_type());
+    }
+
+    #[test]
+    fn keys_that_may_type_and_keys_that_dont() {
+        let combo = |ctrl, win, vkey: u8| {
+            KeyAction::Combo(Combo {
+                ctrl,
+                alt: false,
+                shift: false,
+                win,
+                vkey: u16::from(vkey),
+            })
+        };
+        let (ctrl_v, win_h) = (combo(true, false, b'V'), combo(false, true, b'H'));
+        for action in [
+            KeyAction::Text("a".into()),
+            KeyAction::Enter,
+            KeyAction::Backspace,
+            KeyAction::Delete,
+            KeyAction::Tab,
+            KeyAction::Other,
+            ctrl_v,
+        ] {
+            assert!(action.may_type(), "{action:?}");
+        }
+        for action in [KeyAction::Move, KeyAction::Escape, win_h] {
+            assert!(!action.may_type(), "{action:?}");
+        }
+        assert!(is_modifier(VK_SHIFT) && is_modifier(VK_RMENU) && is_modifier(VK_LWIN));
+        assert!(!is_modifier(u16::from(b'H')) && !is_modifier(VK_PACKET));
     }
 
     #[test]

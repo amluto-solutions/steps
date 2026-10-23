@@ -15,4 +15,9 @@ export interface ExportFiles {
   defaultExportFolder(): Promise<string | null>;
   /** Opens a walkthrough page in the default browser (saved in app data, replaced each time). */
   previewWalkthrough(html: Uint8Array): Promise<void>;
+  /**
+   * Notes in the app's log why an export failed (`failureReason`), since files are drawn here in
+   * the window and the log would never hear of it. Absent where the edition keeps no log.
+   */
+  logExportFailure?(format: string, reason: string): Promise<void>;
 }

@@ -3,13 +3,24 @@ import {
   AnimatePresence,
   motion,
   useInView,
+  useIsPresent,
   useMotionValue,
   useReducedMotion,
   useScroll,
   useSpring,
   useTransform,
+  type HTMLMotionProps,
 } from "motion/react";
-import { useEffect, useRef, useState, type PointerEvent } from "react";
+import {
+  Component,
+  useEffect,
+  useInsertionEffect,
+  useRef,
+  useState,
+  type PointerEvent,
+  type ReactNode,
+  type RefObject,
+} from "react";
 
 import logoColour from "../assets/logo/logo-horizontal-colour.svg";
 import logoWhite from "../assets/logo/logo-horizontal-white.svg";
@@ -89,6 +100,75 @@ export function Nav() {
   );
 }
 
+/** Where a leaving item sat, in its feed. */
+interface Box {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Measures the item as it starts to leave, before React changes the page: by the time any effect
+ * runs, the items arriving in the same change have moved it. Only a class can do that.
+ */
+class MeasureLeaving extends Component<{
+  present: boolean;
+  item: RefObject<HTMLDivElement | null>;
+  box: RefObject<Box | null>;
+  children: ReactNode;
+}> {
+  override getSnapshotBeforeUpdate(before: { present: boolean }) {
+    const element = this.props.item.current;
+    if (element && before.present && !this.props.present) {
+      const style = getComputedStyle(element);
+      this.props.box.current = {
+        top: element.offsetTop,
+        left: element.offsetLeft,
+        width: parseFloat(style.width),
+        height: parseFloat(style.height),
+      };
+    }
+    return null;
+  }
+
+  // React wants this beside getSnapshotBeforeUpdate.
+  override componentDidUpdate() {}
+
+  override render() {
+    return this.props.children;
+  }
+}
+
+/**
+ * An item of the step feed. One that is leaving comes out of the layout where it sat, so the rest
+ * close up at once while it fades, as AnimatePresence's popLayout mode does. That mode adds a style
+ * element, which the site's CSP blocks (#126); this sets the item's own style from script, which
+ * the CSP allows. It does so before any layout effect, so the closing up animates from the start.
+ */
+function FeedItem(props: HTMLMotionProps<"div">) {
+  const present = useIsPresent();
+  const item = useRef<HTMLDivElement>(null);
+  const box = useRef<Box>(null);
+  useInsertionEffect(() => {
+    const element = item.current;
+    const sat = box.current;
+    if (present || !element || !sat?.width || !sat.height) return;
+    Object.assign(element.style, {
+      position: "absolute",
+      top: `${sat.top}px`,
+      left: `${sat.left}px`,
+      width: `${sat.width}px`,
+      height: `${sat.height}px`,
+    });
+  }, [present]);
+  return (
+    <MeasureLeaving present={present} item={item} box={box}>
+      <motion.div ref={item} {...props} />
+    </MeasureLeaving>
+  );
+}
+
 /**
  * Steps arriving as the recording runs, rising from the recording bar: what the page is about,
  * shown rather than said. Each run of the guide is in the next language, worded as Steps words it
@@ -128,8 +208,9 @@ function StepFeed() {
       aria-hidden="true"
       className="pointer-events-none absolute bottom-12 -left-8 z-[1] hidden w-[min(330px,62%)] flex-col gap-1.5 sm:flex"
     >
-      <AnimatePresence initial={false} mode="popLayout">
-        <motion.span
+      {/* Each item takes itself out of the layout as it leaves: see FeedItem. */}
+      <AnimatePresence initial={false}>
+        <FeedItem
           key={language.code}
           layout
           initial={{ opacity: 0, y: 8 }}
@@ -140,9 +221,9 @@ function StepFeed() {
         >
           <Translate size={13} weight="bold" />
           {language.name}
-        </motion.span>
+        </FeedItem>
         {shown.map((step) => (
-          <motion.div
+          <FeedItem
             key={`${language.code}-${step.n}`}
             layout
             initial={{ opacity: 0, y: 18, scale: 0.94 }}
@@ -157,7 +238,7 @@ function StepFeed() {
             </span>
             <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{step.text}</span>
             <Camera size={15} weight="duotone" className="shrink-0 text-accent" />
-          </motion.div>
+          </FeedItem>
         ))}
       </AnimatePresence>
     </div>

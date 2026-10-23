@@ -76,6 +76,21 @@ describe("an export's first pass", () => {
     expect(progress.count).toBe(3);
   });
 
+  it("flags a screenshot that showed a notification toast, even one it couldn't read (P35)", async () => {
+    const message = { x: 80, y: 75, w: 19, h: 19 };
+    const toasted = (id: string): GuideStep => {
+      const step = shot(id);
+      return step.media ? { ...step, media: { ...step.media, notifications: [message] } } : step;
+    };
+    const { preparation } = preparing({ screens: { "m-a": [], "m-b": "unavailable" } });
+    await preparation.prepare([toasted("a"), toasted("b")], AMLUTO_PROFILE);
+    const { findings, unchecked } = preparation.state;
+    expect(findings.get("a")).toEqual([{ kind: "notification", text: "", rect: message }]);
+    expect(findings.get("b")).toEqual([{ kind: "notification", text: "", rect: message }]);
+    // Its words still weren't checked, and the review still says so.
+    expect(unchecked).toEqual(["b"]);
+  });
+
   it("is ready at once for a guide with no screenshots", async () => {
     const { preparation } = preparing();
     const block: GuideStep = { ...blankStep("x", { at: 0, by: "Robin" }), kind: "block" };

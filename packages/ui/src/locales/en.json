@@ -1,7 +1,5 @@
 {
   "app": {
-    "alreadyOpenTitle": "Steps is already open",
-    "alreadyOpenBody": "Only one Steps runs at a time, so we've brought this one to the front for you.",
     "name": "Steps",
     "by": "by",
     "logoAlt": "Amluto"
@@ -75,6 +73,8 @@
     "heading": "Your guides",
     "count_one": "{{count}} guide",
     "count_other": "{{count}} guides",
+    "countOf_one": "{{shown}} of {{count}} guide",
+    "countOf_other": "{{shown}} of {{count}} guides",
     "steps_one": "{{count}} step",
     "steps_other": "{{count}} steps",
     "search": "Search guides",
@@ -204,7 +204,7 @@
       "note": "For another Steps user",
       "pickTitle": "Save the guide as a Steps file",
       "filter": "Steps guide",
-      "done": "Guide exported. Blurred areas are blurred for good in the file.",
+      "blurredForGood": "Blurred areas are blurred for good in the file.",
       "originals": "Include unblurred originals (for internal handover)",
       "originalsWarning": "The file will contain every screenshot without its blur. Anyone who gets it can see what was blurred. Only use this to hand a guide to a colleague who needs to edit the blur.",
       "burnedIn": "Blurred areas are blurred for good in the file. Hidden typed values, comments and versions are left out."
@@ -472,6 +472,14 @@
       "error": "Couldn't save, retrying",
       "saved": "All changes saved"
     },
+    "leave": {
+      "title": "Leave without your latest changes?",
+      "body": "Steps couldn't save your latest changes and is still trying. If you leave now, they may be lost.",
+      "leave": "Leave anyway",
+      "close": "Close anyway",
+      "quit": "Quit anyway",
+      "stay": "Stay"
+    },
     "stepsList": "Steps",
     "stepCount_one": "{{count}} step",
     "stepCount_other": "{{count}} steps",
@@ -519,6 +527,7 @@
       "typing": "Check this step: what was typed may not match exactly.",
       "code": "Check this step: a secret in it couldn’t be found in the screenshot to blur, or the text may not match exactly.",
       "fillEnd": "Check this step: the recording couldn’t tell which cell the fill ended at. Write where it went, or choose Looks right.",
+      "appSwitch": "Check this step: no click or key brought this app to the front, so it may have come forward by itself. Delete the step if the guide didn’t go there, or choose Looks right.",
       "looksRight": "Looks right"
     },
     "stepText": "Step text",
@@ -917,6 +926,20 @@
       "inUse": "Already used for {{name}}.",
       "unavailable": "Another app already uses this, so it doesn't work right now.",
       "heldBySteps": "Another copy of Steps is open and using this. Close it, then restart this one.",
+      "commonUse": "Other apps use {{keys}} for “{{use}}”. While Steps has it, it won’t do that there.",
+      "commonMany": "Many apps use {{keys}} themselves. While Steps has it, it won’t work in them.",
+      "uses": {
+        "reloadNoCache": "Reload without cache",
+        "reopenTab": "Reopen closed tab",
+        "privateWindow": "New private window",
+        "closeWindow": "Close window",
+        "closeTab": "Close tab",
+        "devTools": "Developer tools",
+        "pastePlain": "Paste as plain text",
+        "redo": "Redo",
+        "saveAs": "Save as",
+        "bookmarksBar": "Show bookmarks bar"
+      },
       "failed": "That shortcut couldn't be saved.",
       "reset": "Reset to defaults",
       "resetDone": "Shortcuts reset.",
@@ -1029,6 +1052,9 @@
     "excludeApp": "Never record {{app}}",
     "excludeAppEmpty": "Never record this app",
     "appExcluded": "{{app}} is never recorded",
+    "excludeAppsLike": "Never record Windows apps like {{app}}",
+    "appsLikeExcluded": "Windows apps like {{app}} are never recorded",
+    "waitingForKeys": "Waiting for the keys",
     "startAgain": "Start again",
     "startAgainHelp_one": "Clears this {{count}} step and keeps recording",
     "startAgainHelp_other": "Clears these {{count}} steps and keeps recording",
@@ -1052,6 +1078,7 @@
     "into": "Recording into “{{title}}”",
     "intoFallback": "The new steps couldn't go into “{{title}}”: it was closed, or someone else is editing it. They're in a recording of their own instead.",
     "intoNothing": "Nothing was recorded, so “{{title}}” is as it was.",
+    "nothingRecorded": "Nothing was recorded, so no guide was made.",
     "startRecording": "Start recording",
     "startTitle": "Start a recording",
     "keysChoice": "Record what's typed",
@@ -1107,6 +1134,7 @@
       "mergeClickIntoTyping": "Merge the click into the typing that follows it: {{steps}}",
       "removeDoubleClick": "Remove a repeated click: {{steps}}",
       "removeOpenApp": "Remove an “Open” step the next click already shows: {{steps}}",
+      "removeOpenBeforeOpen": "Remove an “Open” step followed straight away by another “Open”: {{steps}}",
       "removeRedirect": "Remove a “Go to” step the link only passed through: {{steps}}"
     },
     "apply_one": "Apply {{count}} change",
@@ -1327,6 +1355,8 @@
     "found_one": "Found {{count}} match in {{steps}} steps.",
     "found_other": "Found {{count}} matches in {{steps}} steps.",
     "nothing": "Nothing found.",
+    "matches_one": "{{count}} match",
+    "matches_other": "{{count}} matches",
     "unread_one": "{{count}} screenshot couldn’t be read, so it wasn’t searched. Check it yourself.",
     "unread_other": "{{count}} screenshots couldn’t be read, so they weren’t searched. Check them yourself.",
     "notGuaranteed": "Suggestions can miss things. Check every screenshot before you share the guide.",
@@ -1355,17 +1385,18 @@
       "term": "always-blur word",
       "account": "your account name",
       "file": "file name",
-      "path": "file path"
+      "path": "file path",
+      "notification": "notification"
     },
     "nextTo": "{{kind}} next to “{{label}}”"
   },
   "zoom": {
     "menu": "Zoom in on each click",
-    "menuNote": "Crops very wide screenshots around the click so they read well on a page",
+    "menuNote": "Crops screenshots wider than {{width}} pixels to the area around the click, for bigger text on the page",
     "auto": "Auto",
     "done_one": "Zoomed in on {{count}} screenshot.",
     "done_other": "Zoomed in on {{count}} screenshots.",
-    "nothing": "No screenshots need zooming: they already read well on a page."
+    "nothing": "Nothing to zoom: it only crops screenshots wider than {{width}} pixels that have a click and no crop yet."
   },
   "exportSettings": {
     "folder": "Save exports to",
@@ -1506,7 +1537,7 @@
       "eyebrow": "Tour complete",
       "title": "You’re all set",
       "body": "That’s the tour. You can run it again from Settings whenever you like.",
-      "finish": "Finish"
+      "gotIt": "Got it"
     },
     "pill": {
       "label": "Tour",

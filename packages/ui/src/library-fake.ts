@@ -714,6 +714,16 @@ export function fakeStepsFiles(data: FakeLibraryData): StepsFiles {
     async exportAmlsteps(libraryId, guideId, destination) {
       data.files.set(destination, documentOf(await guideIn(data, libraryId, guideId)));
     },
+    async exportAmlstepsTo(libraryId, guideId, folder, name) {
+      const document = documentOf(await guideIn(data, libraryId, guideId));
+      const dot = name.lastIndexOf(".");
+      const [stem, extension] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ""];
+      let path = `${folder}\\${name}`;
+      for (let copy = 2; data.files.has(path); copy += 1)
+        path = `${folder}\\${stem} (${copy})${extension}`;
+      data.files.set(path, document);
+      return path;
+    },
     async importAmlsteps(libraryId, source) {
       const library = await libraryIn(data, libraryId);
       const document = data.files.get(source);

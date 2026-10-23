@@ -18,6 +18,13 @@ ignore = [
   # Linux only (30/09/2026): a build-time macro crate under gtk-rs 0.18, which Tauri's Linux
   # windows, menus and tray use. Not in the program; goes when Tauri moves to a newer gtk-rs.
   { id = "RUSTSEC-2024-0370", reason = "proc-macro-error, unmaintained, via gtk-rs 0.18 (Tauri on Linux)" },
+  # Linux only (21/10/2026, #124): zbus 6 took these in, and they're no longer kept up on their
+  # own. zbus 5 has to stay while tauri-plugin-single-instance needs it on Linux (every release
+  # to 2.5.4 and 3.0.0-alpha.3 asks for ^5.9); our AT-SPI code (crates/capture) moving to zbus 6
+  # alone would build both. Unmaintained, not vulnerable. Remove when that plugin moves to zbus 6.
+  { id = "RUSTSEC-2026-0370", reason = "zvariant, unmaintained (now part of zbus 6), via zbus 5: tauri-plugin-single-instance and AT-SPI on Linux" },
+  { id = "RUSTSEC-2026-0371", reason = "zbus_names, unmaintained (now part of zbus 6), via zbus 5: tauri-plugin-single-instance and AT-SPI on Linux" },
+  { id = "RUSTSEC-2026-0372", reason = "zvariant_derive, unmaintained (now part of zbus 6), via zbus 5: tauri-plugin-single-instance and AT-SPI on Linux" },
 ]
 
 [licenses]

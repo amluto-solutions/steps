@@ -9,6 +9,8 @@ import { useTranslation } from "react-i18next";
 export function TypedValueField(props: {
   value: string;
   disabled?: boolean;
+  /** A read-only or locked guide: readable and selectable, not changed. */
+  readOnly?: boolean;
   onChange: (value: string) => void;
 }) {
   const { t } = useTranslation();
@@ -33,6 +35,7 @@ export function TypedValueField(props: {
         maxLength={2000}
         placeholder={t("editor.typedValuePlaceholder")}
         disabled={props.disabled}
+        readOnly={props.readOnly}
         spellCheck={false}
         onChange={(event) => setDraft(event.currentTarget.value)}
         onBlur={commit}

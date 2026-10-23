@@ -47,6 +47,17 @@ impl PxRect {
         };
         (!rect.is_empty()).then_some(rect)
     }
+
+    /// The smallest rectangle holding both.
+    #[must_use]
+    pub fn union(&self, other: &Self) -> Self {
+        Self {
+            left: self.left.min(other.left),
+            top: self.top.min(other.top),
+            right: self.right.max(other.right),
+            bottom: self.bottom.max(other.bottom),
+        }
+    }
 }
 
 impl From<crate::platform::Rect> for PxRect {

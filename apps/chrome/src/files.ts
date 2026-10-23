@@ -20,6 +20,11 @@ export interface FileAccess {
   read(token: string): Promise<Uint8Array>;
   /** Saves to where the token was chosen; answers the file's name. */
   write(token: string, bytes: Uint8Array, type: string): Promise<string>;
+  /**
+   * Saves as a download, where the browser's own setting puts them, as exports Steps isn't set
+   * to ask about go (a Steps file too, 12/10/2026, #88); answers the file's name.
+   */
+  download(name: string, bytes: Uint8Array, type: string): Promise<string>;
   /** A folder to save several files into, asked for once; null when cancelled or unavailable. */
   pickFolder?(title: string): Promise<string | null>;
   /**
@@ -211,6 +216,8 @@ export function browserFiles(): FileAccess {
       if (!sameBytes(back, bytes)) throw new Error(`${saved} didn't save whole.`);
       return saved;
     },
+
+    download: (name, bytes, type) => Promise.resolve(download(name, bytes, type)),
 
     async write(id, bytes, type) {
       const target = targets.get(id);

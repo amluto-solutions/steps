@@ -11,6 +11,8 @@ export interface RecorderSnapshot {
   inputSource: "rawInput" | "hook";
   /** The recording reads the keyboard ("Record what's typed"). */
   keysRecorded: boolean;
+  /** "Show a keyboard shortcut" is waiting for the keys in its popup (desktop only). */
+  waitingForKeys?: boolean;
 }
 
 export interface CaptureMonitor {
@@ -99,9 +101,12 @@ export interface Recording {
   /** Leaves the recording bar out of screenshots (and all screen capture), or puts it back. */
   setBarHidden(hidden: boolean): Promise<void>;
   captureNow(): Promise<unknown>;
-  /** Opens the Add shortcut popup, and closes it. */
+  /**
+   * Opens the Add shortcut popup, which the recorder then waits on (`waitingForKeys`), and closes
+   * it, `added` when its keys were saved as a step (which then counts).
+   */
   addShortcut(): Promise<unknown>;
-  closeShortcutPopup(): Promise<unknown>;
+  closeShortcutPopup(added: boolean): Promise<unknown>;
   /** The recorder bar says it is still showing; recording pauses if it goes quiet. */
   heartbeat(): Promise<unknown>;
 }

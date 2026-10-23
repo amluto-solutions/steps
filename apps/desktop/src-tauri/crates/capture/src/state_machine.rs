@@ -152,6 +152,8 @@ pub struct RecorderStateMachine {
     /// The last "Start again", as a tick: events at or before it are discarded.
     restarted_at: Option<u32>,
     choices: RecordingChoices,
+    /// "Show a keyboard shortcut" took its screenshot and its popup is waiting for the keys.
+    shortcut_waiting: bool,
 }
 
 impl RecorderStateMachine {
@@ -176,6 +178,7 @@ impl RecorderStateMachine {
             open_pause: None,
             restarted_at: None,
             choices: RecordingChoices::DEFAULT,
+            shortcut_waiting: false,
         }
     }
 
@@ -305,6 +308,7 @@ impl RecorderStateMachine {
         self.open_pause = None;
         self.restarted_at = None;
         self.choices = RecordingChoices::DEFAULT;
+        self.shortcut_waiting = false;
         Ok(())
     }
 
@@ -533,6 +537,31 @@ impl RecorderStateMachine {
         self.step_count = self.step_count.saturating_add(1);
     }
 
+    /// "Show a keyboard shortcut" took its screenshot: the step waits for its keys, and the bar
+    /// says so (P40, 10/10/2026: nothing showed it was waiting).
+    pub fn wait_for_shortcut(&mut self) {
+        self.shortcut_waiting = true;
+    }
+
+    /// The shortcut popup closed: with its keys (`added`), which makes the step, or cancelled.
+    /// Only a step this recording waited for is counted.
+    pub fn shortcut_done(&mut self, added: bool) {
+        if self.waiting_for_shortcut() && added {
+            self.note_auxiliary_step();
+        }
+        self.shortcut_waiting = false;
+    }
+
+    /// Whether a shortcut step is waiting for its keys in this recording.
+    #[must_use]
+    pub fn waiting_for_shortcut(&self) -> bool {
+        self.shortcut_waiting
+            && !matches!(
+                self.state,
+                RecorderState::Idle | RecorderState::Stopping { .. }
+            )
+    }
+
     /// Takes back a step noted with `note_auxiliary_step` that was then never written.
     pub fn forget_auxiliary_step(&mut self) {
         self.step_count = self.step_count.saturating_sub(1);
@@ -752,6 +781,36 @@ impl RecorderStateMachine {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_shortcut_step_is_waited_for_until_its_keys_come_and_then_counted() {
+        let mut sm = RecorderStateMachine::new(vec![]);
+        sm.start().unwrap();
+        assert!(!sm.waiting_for_shortcut());
+        sm.wait_for_shortcut();
+        assert!(sm.waiting_for_shortcut());
+        assert_eq!(sm.step_count(), 0);
+        sm.shortcut_done(true);
+        assert!(!sm.waiting_for_shortcut());
+        assert_eq!(sm.step_count(), 1);
+
+        // Cancelled: no step.
+        sm.wait_for_shortcut();
+        sm.shortcut_done(false);
+        assert!(!sm.waiting_for_shortcut());
+        assert_eq!(sm.step_count(), 1);
+
+        // Left waiting when the recording stops: the next one doesn't start waiting.
+        sm.wait_for_shortcut();
+        sm.stop(1).unwrap();
+        sm.finish_stopping().unwrap();
+        assert!(!sm.waiting_for_shortcut());
+        sm.start().unwrap();
+        assert!(!sm.waiting_for_shortcut());
+        // A popup closed after its recording ended adds nothing to the next.
+        sm.shortcut_done(true);
+        assert_eq!(sm.step_count(), 0);
+    }
 
     #[test]
     fn clicks_on_a_screen_left_out_are_counted_for_each_recording() {

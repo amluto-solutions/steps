@@ -4,6 +4,8 @@ export * from "./geometry";
 export { optimiseForSharing, renderStepImage } from "./render-image";
 export { CAMERA_MARGIN, cameraFrame, cameraOf, withCameraFrame, type CameraBox } from "./camera";
 export { pdfDefinition, renderPdf, richTextToPdf, type PdfFonts, type PdfOptions } from "./pdf";
+export { isEmojiPoint } from "./emoji";
+export { sfntCodePoints } from "./font-coverage";
 export { imageSize, renderDocx, richTextToDocx } from "./docx";
 export { escapeHtml, renderClipboardHtml, renderClipboardText, richTextToHtml } from "./html";
 export {

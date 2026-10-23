@@ -1,7 +1,5 @@
 {
   "app": {
-    "alreadyOpenTitle": "Steps je už otvorený",
-    "alreadyOpenBody": "Naraz môže bežať len jeden Steps, preto sme tento preniesli do popredia.",
     "name": "Steps",
     "by": "by",
     "logoAlt": "Amluto"
@@ -91,6 +89,10 @@
     "count_few": "{{count}} návody",
     "count_many": "{{count}} návodov",
     "count_other": "{{count}} návodov",
+    "countOf_one": "{{shown}} z {{count}} návodu",
+    "countOf_few": "{{shown}} z {{count}} návodov",
+    "countOf_many": "{{shown}} z {{count}} návodov",
+    "countOf_other": "{{shown}} z {{count}} návodov",
     "steps_one": "{{count}} krok",
     "steps_few": "{{count}} kroky",
     "steps_many": "{{count}} krokov",
@@ -240,7 +242,7 @@
       "note": "Pre iného používateľa Steps",
       "pickTitle": "Uložiť návod ako súbor Steps",
       "filter": "Návod Steps",
-      "done": "Návod bol exportovaný. Rozmazané oblasti sú v súbore rozmazané natrvalo.",
+      "blurredForGood": "Rozmazané oblasti sú v súbore rozmazané natrvalo.",
       "originals": "Zahrnúť nerozmazané originály (na interné odovzdanie)",
       "originalsWarning": "Súbor bude obsahovať všetky snímky obrazovky bez rozmazania. Ktokoľvek ho dostane, uvidí, čo bolo rozmazané. Túto možnosť použite len na odovzdanie návodu kolegovi, ktorý potrebuje rozmazanie upraviť.",
       "burnedIn": "Rozmazané oblasti sú v súbore rozmazané natrvalo. Skryté zadané hodnoty, komentáre a verzie sa nezahrnú."
@@ -554,6 +556,14 @@
       "error": "Nepodarilo sa uložiť, skúša sa to znova",
       "saved": "Všetky zmeny sú uložené"
     },
+    "leave": {
+      "title": "Odísť bez uloženia najnovších zmien?",
+      "body": "Najnovšie zmeny sa nepodarilo uložiť a Steps to stále skúša. Ak teraz odídete, môžu sa stratiť.",
+      "leave": "Napriek tomu odísť",
+      "close": "Napriek tomu zavrieť",
+      "quit": "Napriek tomu ukončiť",
+      "stay": "Zostať"
+    },
     "stepsList": "Kroky",
     "stepCount_one": "{{count}} krok",
     "stepCount_few": "{{count}} kroky",
@@ -611,6 +621,7 @@
       "typing": "Skontrolujte tento krok: písanie nemusí presne sedieť.",
       "code": "Skontrolujte tento krok: na snímke obrazovky sa nepodarilo nájsť tajný údaj na rozmazanie, alebo text nemusí presne sedieť.",
       "fillEnd": "Skontrolujte tento krok: záznam nedokázal určiť, v ktorej bunke sa vyplnenie skončilo. Napíšte, kam sa dostalo, alebo zvoľte V poriadku.",
+      "appSwitch": "Skontrolujte tento krok: žiadne kliknutie ani stlačenie klávesu neprenieslo túto aplikáciu do popredia, takže sa mohla objaviť sama. Odstráňte krok, ak sa návod do tejto aplikácie nedostal, alebo zvoľte V poriadku.",
       "looksRight": "V poriadku"
     },
     "stepText": "Text kroku",
@@ -1019,6 +1030,20 @@
       "inUse": "Už sa používa pre: {{name}}.",
       "unavailable": "Túto skratku už používa iná aplikácia, takže teraz nefunguje.",
       "heldBySteps": "Iná kópia Steps je otvorená a používa túto skratku. Zatvorte ju a potom túto kópiu reštartujte.",
+      "commonUse": "Iné aplikácie používajú {{keys}} na príkaz „{{use}}“. Kým ju má Steps, v nich to nebude fungovať.",
+      "commonMany": "Mnohé aplikácie používajú {{keys}} samy. Kým ju má Steps, v nich nebude fungovať.",
+      "uses": {
+        "reloadNoCache": "Znova načítať bez vyrovnávacej pamäte",
+        "reopenTab": "Znova otvoriť zatvorenú kartu",
+        "privateWindow": "Nové súkromné okno",
+        "closeWindow": "Zavrieť okno",
+        "closeTab": "Zavrieť kartu",
+        "devTools": "Nástroje pre vývojárov",
+        "pastePlain": "Prilepiť ako obyčajný text",
+        "redo": "Znova",
+        "saveAs": "Uložiť ako",
+        "bookmarksBar": "Zobraziť panel so záložkami"
+      },
       "failed": "Skratku sa nepodarilo uložiť.",
       "reset": "Obnoviť predvolené",
       "resetDone": "Skratky boli obnovené.",
@@ -1131,6 +1156,9 @@
     "excludeApp": "Nikdy nenahrávať {{app}}",
     "excludeAppEmpty": "Nikdy nenahrávať túto aplikáciu",
     "appExcluded": "{{app}} sa nikdy nenahráva",
+    "excludeAppsLike": "Nikdy nenahrávať aplikácie Windows ako {{app}}",
+    "appsLikeExcluded": "Aplikácie Windows ako {{app}} sa nikdy nenahrávajú",
+    "waitingForKeys": "Čaká sa na klávesy",
     "startAgain": "Začať znova",
     "startAgainHelp_one": "Vymaže tento {{count}} krok a pokračuje v nahrávaní",
     "startAgainHelp_few": "Vymaže tieto {{count}} kroky a pokračuje v nahrávaní",
@@ -1162,6 +1190,7 @@
     "into": "Nahrávanie do „{{title}}“",
     "intoFallback": "Nové kroky sa nepodarilo vložiť do „{{title}}“: návod bol zatvorený alebo ho upravuje niekto iný. Namiesto toho sú vo vlastnom zázname.",
     "intoNothing": "Nič sa nenahralo, takže „{{title}}“ zostáva bez zmeny.",
+    "nothingRecorded": "Nič sa nenahralo, takže sa nevytvoril žiadny návod.",
     "startRecording": "Spustiť nahrávanie",
     "startTitle": "Spustiť nahrávanie",
     "keysChoice": "Nahrávať písaný text",
@@ -1219,6 +1248,7 @@
       "mergeClickIntoTyping": "Zlúčiť kliknutie s písaním, ktoré po ňom nasleduje: {{steps}}",
       "removeDoubleClick": "Odstrániť opakované kliknutie: {{steps}}",
       "removeOpenApp": "Odstrániť krok „Otvoriť“, ktorý už ukazuje nasledujúce kliknutie: {{steps}}",
+      "removeOpenBeforeOpen": "Odstrániť krok „Otvoriť“, po ktorom hneď nasleduje ďalší „Otvoriť“: {{steps}}",
       "removeRedirect": "Odstrániť krok „Prejsť na“, cez ktorý odkaz len prechádzal: {{steps}}"
     },
     "apply_one": "Použiť {{count}} zmenu",
@@ -1459,6 +1489,10 @@
     "found_many": "Nájdených {{count}} zhôd v {{steps}} krokoch.",
     "found_other": "Nájdených {{count}} zhôd v {{steps}} krokoch.",
     "nothing": "Nič sa nenašlo.",
+    "matches_one": "{{count}} zhoda",
+    "matches_few": "{{count}} zhody",
+    "matches_many": "{{count}} zhody",
+    "matches_other": "{{count}} zhôd",
     "unread_one": "{{count}} snímku obrazovky sa nepodarilo prečítať, preto sa neprehľadala. Skontrolujte ju sami.",
     "unread_few": "{{count}} snímky obrazovky sa nepodarilo prečítať, preto sa neprehľadali. Skontrolujte ich sami.",
     "unread_many": "{{count}} snímok obrazovky sa nepodarilo prečítať, preto sa neprehľadali. Skontrolujte ich sami.",
@@ -1497,19 +1531,20 @@
       "term": "slovo na vždy rozmazanie",
       "account": "názov vášho účtu",
       "file": "názov súboru",
-      "path": "cesta k súboru"
+      "path": "cesta k súboru",
+      "notification": "oznámenie"
     },
     "nextTo": "{{kind}} vedľa popisku „{{label}}“"
   },
   "zoom": {
     "menu": "Priblížiť každé kliknutie",
-    "menuNote": "Orezaním veľmi širokých snímok obrazovky okolo kliknutia sa lepšie čítajú na stránke",
+    "menuNote": "Orezáva snímky obrazovky širšie ako {{width}} pixelov na oblasť okolo kliknutia, aby bol text na stránke väčší",
     "auto": "Automaticky",
     "done_one": "Priblížená {{count}} snímka obrazovky.",
     "done_few": "Priblížené {{count}} snímky obrazovky.",
     "done_many": "Priblížených {{count}} snímok obrazovky.",
     "done_other": "Priblížených {{count}} snímok obrazovky.",
-    "nothing": "Žiadna snímka obrazovky sa nemusí približovať: na stránke sa už dobre čítajú."
+    "nothing": "Nie je čo priblížiť: orezávajú sa len snímky obrazovky širšie ako {{width}} pixelov, ktoré majú kliknutie a ešte nie sú orezané."
   },
   "exportSettings": {
     "folder": "Ukladať exporty do",
@@ -1650,7 +1685,7 @@
       "eyebrow": "Prehliadka je hotová",
       "title": "Všetko je pripravené",
       "body": "To je celá prehliadka. Môžete ju kedykoľvek spustiť znova v časti Nastavenie.",
-      "finish": "Dokončiť"
+      "gotIt": "Rozumiem"
     },
     "pill": {
       "label": "Prehliadka",

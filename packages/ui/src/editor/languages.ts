@@ -152,19 +152,24 @@ export interface Rewording {
   after: string;
   /**
    * `change`: worked out afresh; `same`: already reads that way; `edited`: changed by hand, so
-   * left alone unless chosen; `none`: nothing to reword (a block, a picture, a blank step).
+   * left alone unless chosen; `none`: nothing to reword (a picture, a blank step).
    */
   status: "change" | "same" | "edited" | "none";
 }
 
-/** Every step's words in `language` and `tone`, for the Language and tone preview. */
+/**
+ * Every step's words in `language` and `tone`, for the Language and tone preview. Blocks (a merged
+ * guide's headings, tips) have no recorded words, so they're left out: the preview counts and
+ * numbers the steps as the steps list does (#84).
+ */
 export function rewordings(doc: EditorDoc, language: string, tone: Tone): Rewording[] {
-  return doc.steps.map((step) => {
+  return doc.steps.flatMap((step): Rewording[] => {
+    if (step.kind === "block") return [];
     const before = step.actionText;
-    const worded = step.kind === "block" ? null : wordStepIn(step, language, tone);
-    if (worded === null) return { step, before, after: before, status: "none" };
-    if (step.textEdited) return { step, before, after: worded, status: "edited" };
-    return { step, before, after: worded, status: worded === before ? "same" : "change" };
+    const worded = wordStepIn(step, language, tone);
+    if (worded === null) return [{ step, before, after: before, status: "none" }];
+    if (step.textEdited) return [{ step, before, after: worded, status: "edited" }];
+    return [{ step, before, after: worded, status: worded === before ? "same" : "change" }];
   });
 }
 

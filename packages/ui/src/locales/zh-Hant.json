@@ -1,7 +1,5 @@
 {
   "app": {
-    "alreadyOpenTitle": "Steps 已經開啟",
-    "alreadyOpenBody": "Steps 一次只能執行一個，所以我們已將已開啟的這個視窗切換到前景。",
     "name": "Steps",
     "by": "by",
     "logoAlt": "Amluto"
@@ -67,6 +65,7 @@
   "library": {
     "heading": "您的指南",
     "count_other": "{{count}} 份指南",
+    "countOf_other": "{{shown}} / {{count}} 份指南",
     "steps_other": "{{count}} 個步驟",
     "search": "搜尋指南",
     "searchPlaceholder": "搜尋標題、步驟和附註",
@@ -186,7 +185,7 @@
       "note": "給其他 Steps 使用者",
       "pickTitle": "將指南另存為 Steps 檔案",
       "filter": "Steps 指南",
-      "done": "已匯出指南。檔案中的模糊區域已永久模糊處理。",
+      "blurredForGood": "檔案中的模糊區域已永久模糊處理。",
       "originals": "包含未模糊的原始圖片（用於內部交接）",
       "originalsWarning": "檔案將包含每張未經模糊處理的螢幕擷取畫面。任何取得此檔案的人都能看到被模糊處理的內容。只有在將指南交給需要編輯模糊處理的同事時才使用此選項。",
       "burnedIn": "檔案中的模糊區域已永久模糊處理。隱藏的輸入值、註解和版本不會包含在內。"
@@ -431,6 +430,14 @@
       "error": "無法儲存，正在重試",
       "saved": "所有變更皆已儲存"
     },
+    "leave": {
+      "title": "要在不儲存最新變更的情況下離開嗎？",
+      "body": "Steps 無法儲存您的最新變更，正在重試。如果現在離開，這些變更可能會遺失。",
+      "leave": "仍要離開",
+      "close": "仍要關閉",
+      "quit": "仍要結束",
+      "stay": "留下"
+    },
     "stepsList": "步驟",
     "stepCount_other": "{{count}} 個步驟",
     "add": "新增",
@@ -473,6 +480,7 @@
       "typing": "請檢查此步驟：輸入的內容可能不完全一致。",
       "code": "請檢查此步驟：其中的機密資訊無法在螢幕擷取畫面中找到，因此未能模糊處理，或是文字可能不完全一致。",
       "fillEnd": "請檢查此步驟：錄製時無法辨識填滿在哪個儲存格結束。請寫下填滿到了哪裡，或選取「看起來沒問題」。",
+      "appSwitch": "請檢查此步驟：沒有任何點按或按鍵將此應用程式切換到前景，因此它可能是自行彈出的。如果指南並未切換到該應用程式，請刪除此步驟，或選取「看起來沒問題」。",
       "looksRight": "看起來沒問題"
     },
     "stepText": "步驟文字",
@@ -866,6 +874,20 @@
       "inUse": "已用於「{{name}}」。",
       "unavailable": "另一個應用程式已在使用此快速鍵，因此目前無法使用。",
       "heldBySteps": "另一個 Steps 複本已開啟並在使用此快速鍵。請先關閉它，然後重新啟動此複本。",
+      "commonUse": "其他應用程式將 {{keys}} 用於「{{use}}」。Steps 佔用此快速鍵期間，它在那些應用程式中不會執行該操作。",
+      "commonMany": "許多應用程式自己會使用 {{keys}}。Steps 佔用此快速鍵期間，它在那些應用程式中將無法使用。",
+      "uses": {
+        "reloadNoCache": "略過快取重新載入",
+        "reopenTab": "重新開啟關閉的分頁",
+        "privateWindow": "新增無痕視窗",
+        "closeWindow": "關閉視窗",
+        "closeTab": "關閉分頁",
+        "devTools": "開發人員工具",
+        "pastePlain": "貼上為純文字",
+        "redo": "重做",
+        "saveAs": "另存新檔",
+        "bookmarksBar": "顯示書籤列"
+      },
       "failed": "無法儲存該快速鍵。",
       "reset": "重設為預設值",
       "resetDone": "已重設快速鍵。",
@@ -978,6 +1000,9 @@
     "excludeApp": "永不錄製 {{app}}",
     "excludeAppEmpty": "永不錄製此應用程式",
     "appExcluded": "不會再錄製 {{app}}",
+    "excludeAppsLike": "永不錄製 {{app}} 這類 Windows 應用程式",
+    "appsLikeExcluded": "不會再錄製 {{app}} 這類 Windows 應用程式",
+    "waitingForKeys": "正在等待按鍵",
     "startAgain": "重新開始",
     "startAgainHelp_other": "清除這 {{count}} 個步驟並繼續錄製",
     "startedAgain_other": "已重新開始。先前的 {{count}} 個步驟已清除。",
@@ -997,6 +1022,7 @@
     "into": "正在錄製到「{{title}}」",
     "intoFallback": "新步驟無法放入「{{title}}」：它已被關閉，或有其他人正在編輯。這些步驟已改為單獨的一份錄製。",
     "intoNothing": "未錄製任何內容，因此「{{title}}」維持不變。",
+    "nothingRecorded": "未錄製任何內容，因此未建立指南。",
     "startRecording": "開始錄製",
     "startTitle": "開始錄製",
     "keysChoice": "記錄輸入內容",
@@ -1051,6 +1077,7 @@
       "mergeClickIntoTyping": "將點按合併到之後的輸入：{{steps}}",
       "removeDoubleClick": "移除重複的點按：{{steps}}",
       "removeOpenApp": "移除下一次點按已能看出的「開啟」步驟：{{steps}}",
+      "removeOpenBeforeOpen": "移除後面緊接著另一個「開啟」步驟的「開啟」步驟：{{steps}}",
       "removeRedirect": "移除連結只是途經的「前往」步驟：{{steps}}"
     },
     "apply_other": "套用 {{count}} 項變更",
@@ -1261,6 +1288,7 @@
     "searching": "正在讀取螢幕擷取畫面：{{done}}/{{total}}",
     "found_other": "在 {{steps}} 個步驟中找到 {{count}} 個相符項目。",
     "nothing": "找不到任何內容。",
+    "matches_other": "{{count}} 處相符",
     "unread_other": "{{count}} 張螢幕擷取畫面無法讀取，因此未搜尋。請自行檢查。",
     "notGuaranteed": "建議可能會有遺漏。分享指南前，請檢查每張螢幕擷取畫面。",
     "inText_other": "它也出現在 {{count}} 個步驟（{{steps}}）的措辭或附註中。",
@@ -1284,16 +1312,17 @@
       "term": "一律模糊處理字詞",
       "account": "您的帳戶名稱",
       "file": "檔案名稱",
-      "path": "檔案路徑"
+      "path": "檔案路徑",
+      "notification": "通知"
     },
     "nextTo": "「{{label}}」旁的{{kind}}"
   },
   "zoom": {
     "menu": "放大每次點按的位置",
-    "menuNote": "圍繞點按位置裁剪很寬的螢幕擷取畫面，讓它們在頁面上清晰易讀",
+    "menuNote": "將寬於 {{width}} 像素的螢幕擷取畫面裁剪到點按位置周圍的區域，讓頁面上的文字更大",
     "auto": "自動",
     "done_other": "已放大 {{count}} 張螢幕擷取畫面。",
-    "nothing": "沒有需要放大的螢幕擷取畫面：它們在頁面上已經清晰易讀。"
+    "nothing": "沒有可放大的內容：只會裁剪寬於 {{width}} 像素、有點按且尚未裁剪的螢幕擷取畫面。"
   },
   "exportSettings": {
     "folder": "匯出儲存位置",
@@ -1434,7 +1463,7 @@
       "eyebrow": "導覽完成",
       "title": "一切就緒",
       "body": "導覽到此結束。您隨時可以從「設定」再執行一次。",
-      "finish": "完成"
+      "gotIt": "知道了"
     },
     "pill": {
       "label": "導覽",

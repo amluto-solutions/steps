@@ -1,6 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 
-import { changelogNotes, latestJson, UPDATE_HTACCESS } from "./update.mjs";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { loadRelease } from "../../apps/website/src/release.ts";
+import { changelogDate, changelogNotes, latestJson, UPDATE_HTACCESS } from "./update.mjs";
 
 const release = {
   version: "0.2.0",
@@ -103,6 +106,57 @@ describe("release notes from CHANGELOG.md", () => {
   it("are null for a version that isn't there, or only a prefix of one", () => {
     expect(changelogNotes(changelog, "0.4.0")).toBeNull();
     expect(changelogNotes("## 0.2.10\n- x\n", "0.2.1")).toBeNull();
+  });
+});
+
+describe("a version's release date from CHANGELOG.md", () => {
+  const changelog = "# Changelog\r\n\r\n## 1.0.1 (12/10/2026)\r\n\r\n- Fixes.\r\n\r\n## 1.0.0\r\n";
+
+  it("is the dd/mm/yyyy in that version's heading, at midday UTC", () => {
+    expect(changelogDate(changelog, "1.0.1")?.toISOString()).toBe("2026-10-12T12:00:00.000Z");
+  });
+
+  it("is null for an undated heading, a missing version or a date that doesn't exist", () => {
+    expect(changelogDate(changelog, "1.0.0")).toBeNull();
+    expect(changelogDate(changelog, "1.0.2")).toBeNull();
+    expect(changelogDate("## 1.0.1 (31/02/2026)\n", "1.0.1")).toBeNull();
+    expect(changelogDate("## 1.0.10 (01/10/2026)\n", "1.0.1")).toBeNull();
+  });
+});
+
+describe("the website's release date (#90)", () => {
+  const changelog = readFileSync(new URL("../../CHANGELOG.md", import.meta.url), "utf8");
+  const { version } = JSON.parse(
+    readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
+  );
+  const zone = process.env.TZ;
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    if (zone === undefined) delete process.env.TZ;
+    else process.env.TZ = zone;
+  });
+
+  it("is the current version's date in CHANGELOG.md, wherever the visitor is", async () => {
+    // The date as written, "## 1.0.0 (dd/mm/yyyy)", read without the code under test.
+    const heading = changelog.split(/\r?\n/).find((line) => line.startsWith(`## ${version} (`));
+    const written = heading?.slice(`## ${version} (`.length, -1);
+    expect(written, `CHANGELOG.md has no dated entry for ${version}`).toMatch(
+      /^\d\d\/\d\d\/\d{4}$/,
+    );
+    // The release.json npm run release writes for this version, as the download page reads it.
+    const manifest = latestJson({
+      ...release,
+      version,
+      published: changelogDate(changelog, version),
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url) => Promise.resolve(new Response(url.includes("release.json") ? manifest : ""))),
+    );
+    for (const place of ["Europe/London", "Pacific/Kiritimati", "Pacific/Honolulu"]) {
+      process.env.TZ = place;
+      expect((await loadRelease()).published, place).toBe(written);
+    }
   });
 });
 

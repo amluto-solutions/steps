@@ -1,35 +1,50 @@
 //! UI Automation on its own thread (docs/spec/02-capture.md#on-each-click). What happens to the
 //! element it finds, and how the pipeline waits for it, is shared with Linux (`lookup.rs`).
 //!
-//! Browser address-bar reads run on a second thread, so a slow tree search in a browser window
-//! never delays the next click's lookup.
+//! Browser address-bar reads run on a second thread (`uia/address_bar.rs`), so a slow tree search
+//! in a browser window never delays the next click's lookup, and the element under a resting
+//! pointer is read on a third (`pre_read.rs`), so a click never waits behind that read either. A
+//! menu's items are read as it opens, on UI Automation's event thread (`menus.rs`). How the
+//! element at a point is read and checked is `uia/element_at.rs`.
 
-use std::collections::HashMap;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
+use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use uiautomation::core::UICacheRequest;
-use uiautomation::events::{CustomFocusChangedEventHandlerFn, UIFocusChangedEventHandler};
-use uiautomation::patterns::{UIGridItemPattern, UIGridPattern, UIValuePattern};
-use uiautomation::types::{Handle, Point, TreeScope, UIProperty};
+use uiautomation::events::{
+    CustomEventHandlerFn, CustomFocusChangedEventHandlerFn, UIEventHandler, UIEventType,
+    UIFocusChangedEventHandler,
+};
+use uiautomation::patterns::UIValuePattern;
+use uiautomation::types::{ControlType, Handle, Point, TreeScope, UIProperty};
 use uiautomation::variants::Variant;
 use uiautomation::{UIAutomation, UIElement};
 
 use crate::platform::window::WindowInfo;
 
 use crate::coords::PxRect;
-use crate::facts::{AncestorFacts, ElementFacts, InputRecord};
-pub use crate::lookup::{FocusOptions, Lookup};
+use crate::facts::{ElementFacts, InputRecord};
 use crate::lookup::{
-    Replies, Reply, await_worker_ready, fingerprint, fit_value, is_editable, origin_from_address,
-    reading_blocked,
+    Answer, LookupError, PacketsAtFocus, Replies, Reply, StartError, await_worker_ready,
+    fingerprint, is_editable, reading_blocked, typed_before_focus, value_before_typing,
+    value_on_leave,
 };
+pub use crate::lookup::{FocusOptions, Lookup};
+use crate::menus::{self, ClickedMenu, Look, MenuItem, MenuSource, OpenMenu, OpenMenus};
 use crate::navigation::BarRead;
-use crate::sensitive::{looks_sensitive, mask_value};
+use crate::pre_read::{self, ClickAt, PreReads, Under};
+use crate::sensitive::looks_sensitive;
+use crate::state_machine::RecorderStateMachine;
+
+mod address_bar;
+mod element_at;
+
+use address_bar::{is_address_bar, origin_worker};
+use element_at::{element_at, px_rect};
 
 enum Request {
     At {
@@ -37,6 +52,8 @@ enum Request {
         x: i32,
         y: i32,
         hwnd: isize,
+        /// For a click, when its button went down (input clock): a pre-read may name it.
+        pressed: Option<u32>,
     },
     Stop,
 }
@@ -61,16 +78,28 @@ pub struct UiaClient {
     thread: Option<JoinHandle<()>>,
     origin_thread: Option<JoinHandle<()>>,
     entered: crate::lookup::FieldSlot,
+    /// Tells the pre-read thread to stop. It isn't waited for: a read stuck in an app that has
+    /// stopped responding mustn't hold up the end of a recording.
+    pre_read_stop: Arc<AtomicBool>,
+    /// The menus read as they opened, while recording (#56).
+    menus: Arc<OpenMenus>,
+    /// Watches for XAML's pop-up hosts showing while recording, for their menus to be read
+    /// (#106). Dropping it ends the watch, and with it the thread reading their menus.
+    pop_ups: Option<crate::platform::pop_ups::PopUpHosts>,
 }
 
 const STARTUP_TIMEOUT: Duration = Duration::from_secs(5);
 
 impl UiaClient {
-    /// Starts the worker. If `focus` is given, field values are reported through it on focus-leave.
+    /// Starts the worker. If `focus` is given (a recording), field values are reported through it
+    /// on focus-leave, the element under a resting pointer is read before each click
+    /// (`pre_read.rs`), and a menu's items as it opens (`menus.rs`), in the windows its recording
+    /// records clicks in.
     ///
     /// # Errors
-    /// If COM or UI Automation can't be initialised on the worker thread.
-    pub fn start(focus: Option<(Sender<InputRecord>, FocusOptions)>) -> Result<Self, String> {
+    /// If the worker thread can't be started, COM or UI Automation can't be initialised on it, or
+    /// it isn't ready within five seconds.
+    pub fn start(focus: Option<(Sender<InputRecord>, FocusOptions)>) -> Result<Self, StartError> {
         let entered = focus
             .as_ref()
             .map_or_else(crate::lookup::FieldSlot::default, |(_, options)| {
@@ -83,18 +112,36 @@ impl UiaClient {
         let (ready_tx, ready_rx) = mpsc::channel();
         let cancelled = Arc::new(AtomicBool::new(false));
         let worker_cancelled = Arc::clone(&cancelled);
+        let pre_reads = Arc::new(PreReads::default());
+        let worker_pre_reads = Arc::clone(&pre_reads);
+        let menus = Arc::new(OpenMenus::default());
+        let worker_menus = Arc::clone(&menus);
+        let recording = focus.as_ref().map(|(_, options)| options.machine.clone());
         let thread = std::thread::Builder::new()
             .name("amluto-uia".into())
             .spawn(move || {
-                worker(&request_rx, &reply_tx, focus, &ready_tx, &worker_cancelled);
-            })
-            .map_err(|error| error.to_string())?;
-        await_worker_ready(
-            &ready_rx,
-            &cancelled,
-            STARTUP_TIMEOUT,
-            "UI Automation did not become ready within five seconds",
-        )?;
+                worker(
+                    &request_rx,
+                    &reply_tx,
+                    focus,
+                    &ready_tx,
+                    &worker_cancelled,
+                    &worker_pre_reads,
+                    worker_menus,
+                );
+            })?;
+        await_worker_ready(&ready_rx, &cancelled, STARTUP_TIMEOUT, "UI Automation")?;
+        let pre_read_stop = Arc::new(AtomicBool::new(false));
+        let mut pop_ups = None;
+        if let Some(machine) = recording {
+            let stop = Arc::clone(&pre_read_stop);
+            let pre_read_machine = machine.clone();
+            // Without it, every click is read after it, as before the pre-read (#92).
+            let _ = std::thread::Builder::new()
+                .name("amluto-uia-pre-read".into())
+                .spawn(move || pre_read_worker(pre_read_machine, &pre_reads, &stop));
+            pop_ups = watch_pop_up_menus(&menus, machine, &pre_read_stop);
+        }
         // Without it, navigation steps are simply not recorded; clicks still are.
         let origin_thread = std::thread::Builder::new()
             .name("amluto-uia-origin".into())
@@ -109,13 +156,44 @@ impl UiaClient {
             cancelled,
             thread: Some(thread),
             origin_thread,
+            pre_read_stop,
+            menus,
+            pop_ups,
         })
     }
 
-    /// Asks for the element at a physical point in the top-level window `hwnd` that was there when
-    /// the click was taken. Returns immediately.
+    /// Asks for the element at a physical point in the top-level window `hwnd`, read now: for
+    /// anything but a click (a drag's end, the test driver). Returns immediately.
     pub fn request(&self, id: u64, x: i32, y: i32, hwnd: isize) {
-        let _ = self.requests.send(Request::At { id, x, y, hwnd });
+        let _ = self.requests.send(Request::At {
+            id,
+            x,
+            y,
+            hwnd,
+            pressed: None,
+        });
+    }
+
+    /// Asks for the element a click names, at a physical point in `hwnd`, the top-level window
+    /// under it as the button went down at `pressed` (input clock): its pre-read when one fits
+    /// (`pre_read::names_click`), else what's there now. Returns immediately.
+    pub fn request_click(&self, id: u64, x: i32, y: i32, hwnd: isize, pressed: u32) {
+        let _ = self.requests.send(Request::At {
+            id,
+            x,
+            y,
+            hwnd,
+            pressed: Some(pressed),
+        });
+    }
+
+    /// The open menu a click landed in, at a physical point in `hwnd`, the top-level window under
+    /// it as the button went down at `pressed` (input clock): its items as UI Automation read
+    /// them when the menu opened, and whether it still showed then (`OpenMenus::for_click`).
+    /// `None` off a menu, and outside a recording.
+    #[must_use]
+    pub fn menu_for_click(&self, x: i32, y: i32, hwnd: isize, pressed: u32) -> Option<ClickedMenu> {
+        self.menus.for_click(x, y, hwnd, pressed)
     }
 
     /// Requests the current address-bar origin from a known Chrome or Edge top-level window.
@@ -154,6 +232,9 @@ impl UiaClient {
 
 impl Drop for UiaClient {
     fn drop(&mut self) {
+        self.pre_read_stop.store(true, Ordering::SeqCst);
+        // Ends the watch; the thread reading pop-ups' menus ends with it, and isn't waited for.
+        self.pop_ups = None;
         self.cancelled.store(true, Ordering::SeqCst);
         let _ = self.requests.send(Request::Stop);
         let _ = self.origin_requests.send(OriginRequest::Stop);
@@ -170,20 +251,22 @@ fn worker(
     requests: &Receiver<Request>,
     replies: &Sender<Reply>,
     focus: Option<(Sender<InputRecord>, FocusOptions)>,
-    ready: &Sender<Result<(), String>>,
+    ready: &Sender<Result<(), StartError>>,
     cancelled: &Arc<AtomicBool>,
+    pre_reads: &PreReads,
+    menus: Arc<OpenMenus>,
 ) {
     let automation = match UIAutomation::new() {
         Ok(automation) => automation,
         Err(error) => {
-            let _ = ready.send(Err(format!("UI Automation unavailable: {error}")));
+            let _ = ready.send(Err(StartError::Unavailable(error.to_string())));
             return;
         }
     };
     let cache = match element_cache(&automation) {
         Ok(cache) => cache,
         Err(error) => {
-            let _ = ready.send(Err(format!("UIA cache request failed: {error}")));
+            let _ = ready.send(Err(StartError::CacheRequest(error.to_string())));
             return;
         }
     };
@@ -191,52 +274,87 @@ fn worker(
     if cancelled.load(Ordering::SeqCst) {
         return;
     }
+    // Only while recording, menus are read as they open (#56) and tooltips' windows noted as they
+    // open (#105). If listening fails, a click on a menu item that closed before it could be read
+    // keeps the words on its screenshot, unmatched, and a click through XAML's tooltip is taken
+    // for one in it.
+    let events: Vec<(UIEventType, UIElement, UIEventHandler)> = focus
+        .as_ref()
+        .map(|(_, options)| {
+            let machine = options.machine.clone();
+            let menu = register_menu_handler(&automation, menus, machine, Arc::clone(cancelled))
+                .map(|(root, handler)| (UIEventType::MenuOpened, root, handler));
+            let tooltip = register_tooltip_handler(&automation, Arc::clone(cancelled))
+                .map(|(root, handler)| (UIEventType::ToolTipOpened, root, handler));
+            menu.into_iter().chain(tooltip).collect()
+        })
+        .unwrap_or_default();
     let focus_handler = focus.and_then(|(sender, options)| {
         register_focus_handler(&automation, &cache, sender, options, Arc::clone(cancelled))
     });
-    if cancelled.load(Ordering::SeqCst) {
-        if let Some(handler) = focus_handler {
-            let _ = automation.remove_focus_changed_event_handler(&handler);
+    let remove_handlers = || {
+        if let Some(handler) = &focus_handler {
+            let _ = automation.remove_focus_changed_event_handler(handler);
         }
+        for (event, root, handler) in &events {
+            let _ = automation.remove_automation_event_handler(*event, root, handler);
+        }
+    };
+    if cancelled.load(Ordering::SeqCst) {
+        remove_handlers();
         return;
     }
     let _ = ready.send(Ok(()));
 
-    let mut warmth = Warmth::default();
-    loop {
-        let request = match requests.recv_timeout(CHROME_WARM_EVERY) {
-            Ok(request) => request,
-            Err(RecvTimeoutError::Timeout) => {
-                warm_chrome(&automation, &cache, &mut warmth);
-                continue;
-            }
-            Err(RecvTimeoutError::Disconnected) => break,
-        };
+    while let Ok(request) = requests.recv() {
         match request {
-            Request::At { id, x, y, hwnd } => {
+            Request::At {
+                id,
+                x,
+                y,
+                hwnd,
+                pressed,
+            } => {
                 let started = Instant::now();
                 // A click that closed its own window (OK on a dialog) can be read only after the
                 // window has gone, when the point shows what was behind it: Steps named a
-                // spreadsheet cell instead of OK (F019). Unnamed is better than wrong.
+                // spreadsheet cell instead of OK (F019). Unnamed is better than wrong. `hwnd` is
+                // the window under the pointer as the button went down: read when the click was
+                // handled, it was already the window behind a quickly clicked X, so this never
+                // caught one (#48).
                 let still_there = || {
                     crate::platform::window::root_window_at(x, y).map(|window| window.hwnd)
                         == Some(hwnd)
                 };
-                let warmed = warmth.answer_for(x, y);
-                let result = if let Some(facts) = warmed
-                    && still_there()
-                {
-                    Ok((facts, false))
-                } else if still_there() {
-                    element_at(&automation, &cache, x, y).and_then(|found| {
-                        if still_there() {
-                            Ok(found)
-                        } else {
-                            Err("the window clicked in closed before it could be read".into())
-                        }
-                    })
-                } else {
-                    Err("the window clicked in closed before it could be read".into())
+                let read_now = || {
+                    if !still_there() {
+                        return Err(LookupError::WindowClosed);
+                    }
+                    let found = element_at(&automation, &cache, x, y)?;
+                    if still_there() {
+                        Ok(found)
+                    } else {
+                        Err(LookupError::WindowClosed)
+                    }
+                };
+                // A pre-read was made in this very window before the click, so it names the click
+                // even when the click has closed the window since: never the window behind.
+                let result = match pressed {
+                    Some(pressed) => pre_read::element_for_click(
+                        pre_reads,
+                        &ClickAt {
+                            x,
+                            y,
+                            window: hwnd,
+                            pressed,
+                        },
+                        read_now,
+                    ),
+                    None => read_now().map(|(facts, retried)| Answer {
+                        facts,
+                        retried,
+                        pre_read: false,
+                    }),
                 };
                 let _ = replies.send(Reply {
                     id,
@@ -248,217 +366,10 @@ fn worker(
         }
     }
 
-    if let Some(handler) = focus_handler {
-        let _ = automation.remove_focus_changed_event_handler(&handler);
-    }
+    remove_handlers();
 }
 
-/// How long a window without an address bar (an installed web app) is left before it is searched
-/// again: the search walks the whole page tree.
-const NO_OMNIBOX_RETRY: Duration = Duration::from_secs(30);
-
-/// What the origin thread knows about a browser window's address bar.
-enum Omnibox {
-    Found(UIElement),
-    Missing(Instant),
-}
-
-fn origin_worker(requests: &Receiver<OriginRequest>, replies: &Sender<OriginReply>) {
-    let automation = UIAutomation::new().ok();
-    let mut known: HashMap<isize, Omnibox> = HashMap::new();
-    while let Ok(OriginRequest::Read { id, hwnd }) = requests.recv() {
-        let read = automation
-            .as_ref()
-            .and_then(|automation| {
-                // A panic inside UI Automation loses this reading, not the thread.
-                catch_unwind(AssertUnwindSafe(|| {
-                    cached_origin(automation, &mut known, hwnd)
-                }))
-                .ok()
-            })
-            .unwrap_or_default();
-        let _ = replies.send(OriginReply { id, read });
-    }
-}
-
-/// The address bar's origin, reusing the element found last time for this window. A stale
-/// element (the window closed or rebuilt its toolbar) is searched for again.
-fn cached_origin(
-    automation: &UIAutomation,
-    known: &mut HashMap<isize, Omnibox>,
-    hwnd: isize,
-) -> BarRead {
-    match known.get(&hwnd) {
-        Some(Omnibox::Found(element)) => {
-            let read = omnibox_read(element);
-            if read != BarRead::default() || element.get_bounding_rectangle().is_ok() {
-                // Still there, even when the address isn't a web page (a new tab).
-                return read;
-            }
-        }
-        Some(Omnibox::Missing(since)) if since.elapsed() < NO_OMNIBOX_RETRY => {
-            return BarRead::default();
-        }
-        _ => {}
-    }
-    if known.len() > 64 {
-        known.clear();
-    }
-    if let Some(element) = find_omnibox(automation, hwnd) {
-        let read = omnibox_read(&element);
-        known.insert(hwnd, Omnibox::Found(element));
-        read
-    } else {
-        known.insert(hwnd, Omnibox::Missing(Instant::now()));
-        BarRead::default()
-    }
-}
-
-/// Chromium's native address bar: an edit with this class. Its automation id is a generated
-/// `view_NNNN` value (`view_1021` in Edge), not its localized accessible name.
-const NATIVE_OMNIBOX: &str = "OmniboxViewViews";
-/// Chrome 155 draws the toolbar as a web page of its own inside this native view, and the address
-/// bar there is a combo box. Web pages can't make native views, so only Chrome's own toolbar has
-/// this class.
-const WEB_UI_TOOLBAR: &str = "WebUIToolbarWebView";
-/// Firefox's address bar: a combo box with this id in its own toolbar (checked in Firefox 143,
-/// 04/10/2026). A web page could give an element the same id, but a page's elements are always
-/// inside its document, which the browser's own toolbar isn't.
-const FIREFOX_URLBAR: &str = "urlbar-input";
-
-fn find_omnibox(automation: &UIAutomation, hwnd: isize) -> Option<UIElement> {
-    use uiautomation::types::ControlType;
-    let window = automation.element_from_handle(Handle::from(hwnd)).ok()?;
-    let window_bounds = window.get_bounding_rectangle().ok()?;
-    let class = |name: &str| {
-        automation.create_property_condition(UIProperty::ClassName, Variant::from(name), None)
-    };
-    // One walk of the window's tree finds whichever toolbar this browser has.
-    let firefox = automation
-        .create_property_condition(
-            UIProperty::AutomationId,
-            Variant::from(FIREFOX_URLBAR),
-            None,
-        )
-        .ok()?;
-    let condition = automation
-        .create_or_condition(
-            automation
-                .create_or_condition(class(NATIVE_OMNIBOX).ok()?, class(WEB_UI_TOOLBAR).ok()?)
-                .ok()?,
-            firefox,
-        )
-        .ok()?;
-    let found = window.find_first(TreeScope::Descendants, &condition).ok()?;
-    let element = if found.get_automation_id().ok().as_deref() == Some(FIREFOX_URLBAR) {
-        if !matches!(
-            found.get_control_type().ok()?,
-            ControlType::ComboBox | ControlType::Edit
-        ) || inside_document(automation, &found)
-        {
-            return None;
-        }
-        found
-    } else if found.get_classname().ok()? == WEB_UI_TOOLBAR {
-        let combo = automation
-            .create_property_condition(
-                UIProperty::ControlType,
-                Variant::from(ControlType::ComboBox as i32),
-                None,
-            )
-            .ok()?;
-        found.find_first(TreeScope::Descendants, &combo).ok()?
-    } else if found.get_control_type().ok()? == ControlType::Edit {
-        found
-    } else {
-        return None;
-    };
-    let bounds = element.get_bounding_rectangle().ok()?;
-    let window_width = window_bounds.get_right() - window_bounds.get_left();
-    let address_width = bounds.get_right() - bounds.get_left();
-    // A page field could mimic the class, so require a wide edit in the browser toolbar.
-    if bounds.get_top() < window_bounds.get_top()
-        || bounds.get_bottom()
-            > window_bounds.get_top() + (window_bounds.get_bottom() - window_bounds.get_top()) / 3
-        || address_width < window_width / 4
-        || !has_toolbar_ancestor(automation, &element)
-    {
-        return None;
-    }
-    Some(element)
-}
-
-fn omnibox_read(element: &UIElement) -> BarRead {
-    // While the address bar has the keyboard, what it holds may be a search being typed, not
-    // the page's address; that it has the keyboard is what makes the next address a "Go to".
-    let focused = element
-        .get_property_value(UIProperty::HasKeyboardFocus)
-        .ok()
-        .and_then(|value| TryInto::<bool>::try_into(value).ok());
-    match focused {
-        Some(false) => BarRead {
-            origin: omnibox_origin(element),
-            focused: false,
-        },
-        Some(true) => BarRead {
-            origin: None,
-            focused: true,
-        },
-        None => BarRead::default(),
-    }
-}
-
-fn omnibox_origin(element: &UIElement) -> Option<String> {
-    let is_password = element
-        .get_property_value(UIProperty::IsPassword)
-        .ok()
-        .and_then(|value| TryInto::<bool>::try_into(value).ok())
-        .unwrap_or(true);
-    if is_password {
-        return None;
-    }
-    origin_from_address(&read_value(element)?)
-}
-
-/// Whether an element is part of a web page (has a document above it), not the browser's own UI.
-fn inside_document(automation: &UIAutomation, element: &UIElement) -> bool {
-    let Ok(walker) = automation.get_control_view_walker() else {
-        return true;
-    };
-    let mut current = element.clone();
-    for _ in 0..32 {
-        let Ok(parent) = walker.get_parent(&current) else {
-            return false;
-        };
-        if parent.get_control_type().ok() == Some(uiautomation::types::ControlType::Document) {
-            return true;
-        }
-        current = parent;
-    }
-    true
-}
-
-fn has_toolbar_ancestor(automation: &UIAutomation, element: &UIElement) -> bool {
-    let Ok(walker) = automation.get_control_view_walker() else {
-        return false;
-    };
-    let mut current = element.clone();
-    for _ in 0..16 {
-        let Ok(parent) = walker.get_parent(&current) else {
-            return false;
-        };
-        if parent.get_control_type().ok() == Some(uiautomation::types::ControlType::ToolBar) {
-            return true;
-        }
-        current = parent;
-    }
-    false
-}
-
-/// The site an address bar shows. A full address gives its origin (`https://example.test:8443`).
-/// Edge and Chrome usually hide the scheme (`example.test/path`), and then the site is given as
-/// the browser shows it, host and any port, since the scheme isn't known. Anything that isn't
-/// plainly a site (a word, a search, another kind of address) gives nothing.
+/// What a lookup reads of an element in one call (`element_cache`), for `facts_from_cached`.
 const CACHED_PROPERTIES: &[UIProperty] = &[
     UIProperty::ControlType,
     UIProperty::LocalizedControlType,
@@ -475,7 +386,18 @@ const CACHED_PROPERTIES: &[UIProperty] = &[
     UIProperty::ProcessId,
 ];
 
-fn element_cache(automation: &UIAutomation) -> uiautomation::Result<UICacheRequest> {
+/// Whether one of an element's parents is a password box, as a click's lookup marks a part of one
+/// (`lookup::parents_marked`): the key worker's check of the element with focus (#97 fourth
+/// review). `cache` is [`element_cache`]'s.
+pub(crate) fn in_password_box(
+    automation: &UIAutomation,
+    cache: &UICacheRequest,
+    element: &UIElement,
+) -> bool {
+    element_at::parents_of(automation, cache, element).in_password
+}
+
+pub(crate) fn element_cache(automation: &UIAutomation) -> uiautomation::Result<UICacheRequest> {
     let cache = automation.create_cache_request()?;
     for property in CACHED_PROPERTIES {
         cache.add_property(*property)?;
@@ -492,7 +414,7 @@ fn cached_string(element: &UIElement, property: UIProperty) -> String {
         .unwrap_or_default()
 }
 
-fn facts_from_cached(element: &UIElement, extra_terms: &[String]) -> ElementFacts {
+pub(crate) fn facts_from_cached(element: &UIElement, extra_terms: &[String]) -> ElementFacts {
     let control_type = element
         .get_cached_control_type()
         .map(|control| format!("{control:?}"))
@@ -529,6 +451,8 @@ fn facts_from_cached(element: &UIElement, extra_terms: &[String]) -> ElementFact
         bounds,
         ancestors: Vec::new(),
         sensitive: false,
+        filter_header: None,
+        document_class: None,
     };
     facts.sensitive = is_password
         || looks_sensitive(
@@ -543,135 +467,16 @@ fn facts_from_cached(element: &UIElement, extra_terms: &[String]) -> ElementFact
     facts
 }
 
-/// Whether a physical point is inside an element's bounds.
-fn contains(bounds: Option<&PxRect>, x: i32, y: i32) -> bool {
-    bounds.is_some_and(|rect| {
-        rect.right > rect.left
-            && rect.bottom > rect.top
-            && x >= rect.left
-            && x < rect.right
-            && y >= rect.top
-            && y < rect.bottom
-    })
-}
-
-/// A window, pane or similar that only holds the thing clicked.
-fn is_container(facts: &ElementFacts) -> bool {
-    matches!(facts.control_type.as_str(), "Window" | "Pane")
-}
-
-/// The invisible layer a XAML menu or flyout lays over its window, so a click outside it closes
-/// it. A click that opens a menu is often read after the menu has opened, and then lands on this
-/// layer, named "Close": Notepad's Edit menu was recorded as `Click "Close"`.
-fn is_light_dismiss(automation_id: &str) -> bool {
-    LIGHT_DISMISS_IDS.contains(&automation_id)
-}
-
-/// The light-dismiss layer's automation ids. The TypeScript naming takes its "Close" off by the
-/// same list; `packages/core/test-vectors/click-naming.json` holds both to it.
-const LIGHT_DISMISS_IDS: &[&str] = &["Light Dismiss"];
-
-/// A UI framework's names for its own hosts, squashed as `framework_name` compares them. The
-/// TypeScript naming (`uia-adapter.ts`) takes the same names off an element; the shared test
-/// vector `click-naming.json` holds both lists to it, so they can't drift apart.
-const FRAMEWORK_NAMES: &[&str] = &[
-    "popuphost",
-    "desktopwindowxamlsource",
-    "xamlexplorerhostislandwindow",
-    "chrome_widgetwin_0",
-    "chrome_widgetwin_1",
-    "chromelegacywindow",
-    "intermediated3dwindow",
-    "windowsuicorecorewindow",
-];
-
-/// Names that are a UI framework's, not the app's: `PopupHost`, `Pop-upHost`,
-/// `DesktopWindowXamlSource`, `Chrome_WidgetWin_1`, or a name that is just the class name.
-fn framework_name(name: &str, class_name: &str) -> bool {
-    let squashed: String = name
-        .chars()
-        .filter(|c| c.is_alphanumeric() || *c == '_')
-        .collect::<String>()
-        .to_lowercase();
-    FRAMEWORK_NAMES.contains(&squashed.as_str())
-        || (!name.is_empty() && name == class_name && name.contains('_'))
-}
-
-/// The deepest element under a point, walking down from `element`'s top-level window: at each
-/// level the smallest child whose bounds hold the point. A few hundred elements at most.
-fn descend(
-    automation: &UIAutomation,
-    cache: &UICacheRequest,
-    element: &UIElement,
-    x: i32,
-    y: i32,
-) -> Option<UIElement> {
-    let walker = automation.get_control_view_walker().ok()?;
-    let root = automation.get_root_element().ok()?;
-    let mut top = element.clone();
-    for _ in 0..40 {
-        let parent = walker.get_parent(&top).ok()?;
-        if automation.compare_elements(&parent, &root).unwrap_or(true) {
-            break;
-        }
-        top = parent;
-    }
-    let area = |found: &UIElement| -> Option<i64> {
-        let rect = found.get_bounding_rectangle().ok()?;
-        let inside = x >= rect.get_left()
-            && x < rect.get_right()
-            && y >= rect.get_top()
-            && y < rect.get_bottom();
-        inside.then(|| {
-            i64::from(rect.get_right() - rect.get_left())
-                * i64::from(rect.get_bottom() - rect.get_top())
-        })
-    };
-    let mut current = top;
-    for _ in 0..40 {
-        let mut best: Option<(i64, UIElement)> = None;
-        let mut child = walker.get_first_child(&current).ok();
-        let mut seen = 0;
-        while let Some(candidate) = child {
-            seen += 1;
-            if seen > 400 {
-                break;
-            }
-            if let Some(size) = area(&candidate)
-                && size > 0
-                && !is_light_dismiss(&candidate.get_automation_id().unwrap_or_default())
-                && best.as_ref().is_none_or(|(smallest, _)| size <= *smallest)
-            {
-                best = Some((size, candidate.clone()));
-            }
-            child = walker.get_next_sibling(&candidate).ok();
-        }
-        match best {
-            Some((_, next)) => current = next,
-            None => break,
-        }
-    }
-    current.build_updated_cache(cache).ok()
-}
-
 /// Chrome (and Edge, Brave, Opera, Vivaldi) answers a hit test at once from what it already has:
 /// the element its previous hit test found, when the point is inside that one's bounds, or else a
 /// guess from the boxes in its tree that knows nothing of what's on top. It asks the page for the
 /// real answer in the background. So a click got the previous click's button, the whole page, or
 /// a tile under an open drop-down list (a hosting control panel, 05/10/2026). Asking after the
 /// click is no cure: pages change as the button goes down, and the answer was the loading screen
-/// the click brought up (the overlay test page, 06/10/2026). So the element is worked out before
-/// the click: while the pointer rests over a Chromium window the worker asks twice (the first
-/// question starts Chrome's real hit test, the second gets its answer), and a click on that very
-/// pixel soon after is named from it (`Warmth`).
-const CHROME_WARM_EVERY: Duration = Duration::from_millis(40);
-/// A resting pointer's element is worked out again this often, for a page that changes under it
-/// (a menu opening).
-const CHROME_REWARM: Duration = Duration::from_millis(250);
-/// How old the answer for a resting pointer may be and still name a click there.
-const CHROME_WARM_KEPT: Duration = Duration::from_secs(3);
-
-/// The browsers built on Chromium, whose hit test works this way.
+/// the click brought up (the overlay test page, 06/10/2026). So the element is read before the
+/// click, as in every app since #92 (`pre_read.rs`), but a Chromium window is asked twice (the
+/// first question starts Chrome's real hit test, the second gets its answer), and a click is named
+/// from the answer only on that very pixel.
 fn is_chromium(exe_name: Option<&str>) -> bool {
     exe_name.is_some_and(|name| {
         [
@@ -687,266 +492,95 @@ fn is_chromium(exe_name: Option<&str>) -> bool {
     })
 }
 
-/// What the worker knows about the element under a resting pointer in a Chromium window.
-#[derive(Default)]
-struct Warmth {
-    /// Where the pointer was last asked about, and when.
-    at: Option<(i32, i32)>,
-    when: Option<Instant>,
-    /// Chrome's settled answer there, once asked twice.
-    facts: Option<(ElementFacts, Instant)>,
+/// The pre-reads' own UI Automation, on their thread, and the recording whose clicks they name.
+struct UiaDesk {
+    automation: UIAutomation,
+    cache: UICacheRequest,
+    machine: Option<Arc<Mutex<RecorderStateMachine>>>,
 }
 
-impl Warmth {
-    /// The element under `(x, y)` worked out before a click there, while it's recent.
-    fn answer_for(&self, x: i32, y: i32) -> Option<ElementFacts> {
-        let (facts, when) = self.facts.as_ref()?;
-        (self.at == Some((x, y)) && when.elapsed() < CHROME_WARM_KEPT).then(|| facts.clone())
+impl pre_read::Desk for UiaDesk {
+    fn pointer(&self) -> Option<(i32, i32)> {
+        crate::platform::display::cursor_pos()
     }
-}
 
-/// Works out the element under a resting pointer in a Chromium window, so a click there is named
-/// from what it was before the click. Other apps are left alone: their hit test answers truly.
-fn warm_chrome(automation: &UIAutomation, cache: &UICacheRequest, warmth: &mut Warmth) {
-    let Some(point) = crate::platform::display::cursor_pos() else {
-        return;
-    };
-    let moved = warmth.at != Some(point);
-    if moved {
-        warmth.facts = None;
-    } else if warmth.facts.is_some()
-        && warmth
-            .when
-            .is_some_and(|when| when.elapsed() < CHROME_REWARM)
-    {
-        return;
+    fn last_input(&self) -> Option<u32> {
+        crate::platform::display::last_input_tick()
     }
-    warmth.at = Some(point);
-    warmth.when = Some(Instant::now());
-    let chromium = crate::platform::window::root_window_at(point.0, point.1)
-        .is_some_and(|window| is_chromium(window.exe_name()));
-    if !chromium {
-        return;
-    }
-    if moved {
-        // The first question only starts Chrome's real hit test; its answer is a guess.
-        let _ = automation.element_from_point(Point::new(point.0, point.1));
-        return;
-    }
-    if let Ok((facts, _)) = element_at(automation, cache, point.0, point.1)
-        && !chrome_guess(&facts, point.0, point.1)
-    {
-        warmth.facts = Some((facts, Instant::now()));
-    }
-}
 
-/// A first answer from Chrome that is only its guess: the page, a pane, or nothing under the click.
-fn chrome_guess(facts: &ElementFacts, x: i32, y: i32) -> bool {
-    facts.framework_id == "Chrome"
-        && (matches!(facts.control_type.as_str(), "Document" | "Pane")
-            || (facts.name.is_empty() && facts.control_type == "Custom")
-            || !contains(facts.bounds.as_ref(), x, y))
-}
-
-fn element_at(
-    automation: &UIAutomation,
-    cache: &UICacheRequest,
-    x: i32,
-    y: i32,
-) -> std::result::Result<(ElementFacts, bool), String> {
-    let lookup = || -> uiautomation::Result<(UIElement, ElementFacts)> {
-        // Some apps' hosts (Windows Settings) refuse the one-call lookup with its cached
-        // properties ("The system cannot find the file specified"), which left every click there
-        // unnamed (F016): the element alone, then its properties, works.
-        let element = automation
-            .element_from_point_build_cache(Point::new(x, y), cache)
-            .or_else(|_| {
-                automation
-                    .element_from_point(Point::new(x, y))?
-                    .build_updated_cache(cache)
-            })?;
-        let facts = facts_from_cached(&element, &[]);
-        Ok((element, facts))
-    };
-    let (mut element, mut facts) = lookup().map_err(|error| error.to_string())?;
-    let mut retried = false;
-    // The pointer wasn't resting long enough for `warm_chrome`: one more look, kept only if it
-    // finds something real under the click.
-    if chrome_guess(&facts, x, y) {
-        std::thread::sleep(Duration::from_millis(40));
-        if let Ok(second) = lookup()
-            && !chrome_guess(&second.1, x, y)
-        {
-            (element, facts) = second;
-        }
-        retried = true;
+    fn mouse_moves(&self) -> Option<u64> {
+        crate::platform::input::mouse_moves()
     }
-    // Excel's hit test, in a sheet with a table and frozen panes, names a cell a few columns or
-    // rows from the one clicked (E3 for a click in I4). Walking down from the window to find it
-    // lists the table's hundreds of cells and took 250 ms, past the lookup's deadline, so those
-    // clicks were named from the words on the screen (07/10/2026). Stepping across the grid from
-    // the cell it named finds the right one in a few calls.
-    if !contains(facts.bounds.as_ref(), x, y)
-        && let Some(found) = grid_cell_at(&element, x, y)
-        && let Ok(found) = found.build_updated_cache(cache)
-    {
-        let better = facts_from_cached(&found, &[]);
-        if contains(better.bounds.as_ref(), x, y) {
-            (element, facts) = (found, better);
-        }
+
+    fn now(&self) -> u32 {
+        crate::platform::display::now_tick()
     }
-    // Windows' hit test can answer with the wrong element: a click on Notepad's or File Explorer's
-    // menu named "Close" (the title bar's button) (F015, F070), and in Settings only the window
-    // (F016). When the answer isn't under the click, is only a window or pane, or carries a
-    // framework's name, the element under the click is found by walking down from the window.
-    if (!contains(facts.bounds.as_ref(), x, y)
-        || is_container(&facts)
-        || is_light_dismiss(&facts.automation_id)
-        || framework_name(&facts.name, &facts.class_name))
-        && let Some(found) = descend(automation, cache, &element, x, y)
-    {
-        let better = facts_from_cached(&found, &[]);
-        if contains(better.bounds.as_ref(), x, y) && !is_light_dismiss(&better.automation_id) {
-            (element, facts) = (found, better);
-        }
-    }
-    // What the element is called, a framework's name or the light-dismiss layer's "Close"
-    // included, is decided in TypeScript from these facts (docs/spec/02-capture.md#click-naming).
-    facts.ancestors = parents_of(automation, cache, &element);
-    Ok((facts, retried))
-}
 
-/// How many cells `grid_cell_at` steps across, and for how long, before it gives up: the whole
-/// lookup has 350 ms, and the walk down from the window still follows if this finds nothing.
-const GRID_STEPS: usize = 40;
-const GRID_TIME: Duration = Duration::from_millis(120);
-
-/// A UI Automation rectangle as the recorder's pixel rectangle.
-fn px_rect(rect: &uiautomation::types::Rect) -> PxRect {
-    PxRect {
-        left: rect.get_left(),
-        top: rect.get_top(),
-        right: rect.get_right(),
-        bottom: rect.get_bottom(),
-    }
-}
-
-/// A cell's place in a grid, or a grid's size in cells.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct Cell {
-    row: i32,
-    column: i32,
-}
-
-/// The grid cell under a point, found by stepping from `cell` (a cell of the same grid, not
-/// under it) towards the point (`grid_step`). `None` when `cell` isn't a grid item, or the point
-/// isn't reached within `GRID_STEPS` and `GRID_TIME`.
-fn grid_cell_at(cell: &UIElement, x: i32, y: i32) -> Option<UIElement> {
-    let started = Instant::now();
-    let item = cell.get_pattern::<UIGridItemPattern>().ok()?;
-    let grid = item
-        .get_containing_grid()
-        .ok()?
-        .get_pattern::<UIGridPattern>()
-        .ok()?;
-    let size = Cell {
-        row: grid.get_row_count().ok()?,
-        column: grid.get_column_count().ok()?,
-    };
-    let mut at = Cell {
-        row: item.get_row().ok()?,
-        column: item.get_column().ok()?,
-    };
-    let mut current = cell.clone();
-    for _ in 0..GRID_STEPS {
-        if started.elapsed() > GRID_TIME {
-            return None;
-        }
-        let bounds = px_rect(&current.get_bounding_rectangle().ok()?);
-        match grid_step(&bounds, at, size, x, y)? {
-            GridStep::Here => return Some(current),
-            GridStep::To(next) => {
-                at = next;
-                current = grid.get_item(at.row, at.column).ok()?;
-            }
-        }
-    }
-    None
-}
-
-/// Where `grid_cell_at` goes from a cell.
-#[derive(Debug, PartialEq, Eq)]
-enum GridStep {
-    /// The point is in this cell.
-    Here,
-    /// The next cell to look at.
-    To(Cell),
-}
-
-/// One step across a grid of `size` from the cell at `at` with `bounds`: a column and a row
-/// nearer the point, or `Here` when the cell holds it. `None` when the step would leave the grid.
-fn grid_step(bounds: &PxRect, at: Cell, size: Cell, x: i32, y: i32) -> Option<GridStep> {
-    let toward = |point: i32, low: i32, high: i32, index: i32| {
-        if point < low {
-            index - 1
-        } else if point >= high {
-            index + 1
-        } else {
-            index
-        }
-    };
-    // Excel's hit test leaves out how far the sheet is scrolled, so the cell it names can be one
-    // scrolled out of view, with no bounds: the cells in view are further down and right. Which
-    // of the two is out of view can't be told from an empty rectangle, so both are stepped, and
-    // the steps after correct whichever was already in view.
-    let next = if bounds.right <= bounds.left || bounds.bottom <= bounds.top {
-        Cell {
-            row: at.row + 1,
-            column: at.column + 1,
-        }
-    } else {
-        Cell {
-            row: toward(y, bounds.top, bounds.bottom, at.row),
-            column: toward(x, bounds.left, bounds.right, at.column),
-        }
-    };
-    if next == at {
-        return Some(GridStep::Here);
-    }
-    ((0..size.row).contains(&next.row) && (0..size.column).contains(&next.column))
-        .then_some(GridStep::To(next))
-}
-
-/// The element's parents, nearest first, up to the window, the page or four
-/// (`lookup::ancestors`), each read with its properties in one call.
-fn parents_of(
-    automation: &UIAutomation,
-    cache: &UICacheRequest,
-    element: &UIElement,
-) -> Vec<AncestorFacts> {
-    let (Ok(walker), Ok(root)) = (
-        automation.get_control_view_walker(),
-        automation.get_root_element(),
-    ) else {
-        return Vec::new();
-    };
-    let mut current = element.clone();
-    let parents = std::iter::from_fn(|| {
-        let parent = walker.get_parent_build_cache(&current, cache).ok()?;
-        // The desktop is above every window: never part of an app.
-        if automation.compare_elements(&parent, &root).unwrap_or(true) {
-            return None;
-        }
-        current = parent;
-        Some(AncestorFacts {
-            control_type: current
-                .get_cached_control_type()
-                .map(|control| format!("{control:?}"))
-                .unwrap_or_default(),
-            name: current.get_cached_name().unwrap_or_default(),
+    fn under(&self, x: i32, y: i32) -> Option<Under> {
+        let window = crate::platform::window::root_window_at(x, y)?;
+        let owners = crate::platform::window::owner_processes_at(x, y);
+        Some(Under {
+            window: window.hwnd,
+            chromium: is_chromium(window.exe_name()),
+            allowed: pre_read::may_read(
+                &window,
+                &owners,
+                self.machine.as_deref(),
+                crate::platform::window::process_exe_name,
+            ),
+            tooltip: crate::platform::window::tooltip_at(x, y),
         })
-    });
-    crate::lookup::ancestors(parents)
+    }
+
+    fn ask(&mut self, x: i32, y: i32) {
+        let _ = self.automation.element_from_point(Point::new(x, y));
+    }
+
+    fn read(&mut self, x: i32, y: i32) -> Result<ElementFacts, LookupError> {
+        element_at(&self.automation, &self.cache, x, y).map(|(facts, _)| facts)
+    }
+}
+
+/// Starts reading the menus of XAML's pop-up hosts as they show (#106), into `menus`, until the
+/// returned watch is dropped or `stop` is set. Without it, a `WinUI` menu's click is named from its
+/// screenshot's words alone, or by the window it came from.
+fn watch_pop_up_menus(
+    menus: &Arc<OpenMenus>,
+    machine: Option<Arc<Mutex<RecorderStateMachine>>>,
+    stop: &Arc<AtomicBool>,
+) -> Option<crate::platform::pop_ups::PopUpHosts> {
+    let (shown_tx, shown_rx) = mpsc::channel();
+    let watch = crate::platform::pop_ups::PopUpHosts::watch(shown_tx).ok()?;
+    let menus = Arc::clone(menus);
+    let stop = Arc::clone(stop);
+    std::thread::Builder::new()
+        .name("amluto-uia-pop-ups".into())
+        .spawn(move || pop_up_menu_worker(&shown_rx, &menus, machine.as_deref(), &stop))
+        .ok()?;
+    Some(watch)
+}
+
+/// Reads the element under a resting pointer before each click, until `stop` is set.
+fn pre_read_worker(
+    machine: Option<Arc<Mutex<RecorderStateMachine>>>,
+    reads: &PreReads,
+    stop: &AtomicBool,
+) {
+    let Ok(automation) = UIAutomation::new() else {
+        return;
+    };
+    let Ok(cache) = element_cache(&automation) else {
+        return;
+    };
+    pre_read::run(
+        &mut UiaDesk {
+            automation,
+            cache,
+            machine,
+        },
+        reads,
+        stop,
+    );
 }
 
 // ---------- focus-leave field values ----------
@@ -964,6 +598,8 @@ struct Focused {
     pid: u32,
     /// When focus arrived, so a pause while the field had focus can drop what was typed.
     since_tick_ms: u32,
+    /// Unicode packets seen as focus arrived: a value another program typed is never kept (#91).
+    packets: PacketsAtFocus,
     /// The top-level window in front when focus arrived: exclusions are named by it.
     window_pid: u32,
     window_exe: Option<String>,
@@ -1012,14 +648,14 @@ fn on_focus_changed(
                 (None, Some("setting-off"))
             }
         } else {
-            match read_value(&previous.element) {
-                // Masked here, so the unmasked value never leaves the worker.
-                Some(value) if Some(&value) != previous.initial.as_ref() => {
-                    (Some(fit_value(mask_value(&value))), None)
-                }
-                Some(_) => (None, None), // unchanged: no step
-                None => (None, Some("unreadable")),
-            }
+            let packets = previous
+                .packets
+                .typed_since(crate::platform::input::unicode_packets());
+            value_on_leave(
+                read_value(&previous.element),
+                previous.initial.as_ref(),
+                packets,
+            )
         };
         let record = InputRecord {
             tick_ms,
@@ -1054,36 +690,6 @@ fn on_focus_changed(
     *current = Some(focused);
 }
 
-/// Whether the focused element is a browser's address bar, the kinds `find_omnibox` finds: the
-/// native omnibox edit, the combo box inside Chrome 155's own toolbar view, or Firefox's. What's
-/// typed there is the address, and only its site is kept, by the "Go to" step: it's never a
-/// typing step, which would keep the whole address (testing, 30/09/2026).
-fn is_address_bar(automation: &UIAutomation, element: &UIElement, facts: &ElementFacts) -> bool {
-    if facts.class_name == NATIVE_OMNIBOX {
-        return true;
-    }
-    if facts.automation_id == FIREFOX_URLBAR {
-        return !inside_document(automation, element);
-    }
-    if facts.control_type != "ComboBox" || facts.framework_id != "Chrome" {
-        return false;
-    }
-    let Ok(walker) = automation.get_raw_view_walker() else {
-        return false;
-    };
-    let mut current = element.clone();
-    for _ in 0..16 {
-        let Ok(parent) = walker.get_parent(&current) else {
-            return false;
-        };
-        if parent.get_classname().ok().as_deref() == Some(WEB_UI_TOOLBAR) {
-            return true;
-        }
-        current = parent;
-    }
-    false
-}
-
 /// The newly focused element. Sensitive fields are never read, not even here, and neither are
 /// fields in our own windows, excluded apps, or while the recording isn't running.
 fn remember(automation: &UIAutomation, element: &UIElement, options: &FocusOptions) -> Focused {
@@ -1107,10 +713,23 @@ fn remember(automation: &UIAutomation, element: &UIElement, options: &FocusOptio
     let code_editor = window
         .as_ref()
         .and_then(WindowInfo::exe_name)
-        .is_some_and(crate::typing::is_code_editor);
+        .is_some_and(crate::programs::is_code_editor);
     // The address bar is never read here: leaving it makes no typing step.
     let address_bar = is_address_bar(automation, element, &facts);
-    let editable = !blocked && !code_editor && !address_bar && is_editable(&facts);
+    // Nor, with keys recorded, is Excel's Name Box: the key worker says what was typed there
+    // (`Go to cell "D11"`, #69). Read as focus left it, it showed the cell selected since, typed
+    // there or not, and the step said that was typed in it.
+    let name_box = || {
+        options.note.is_some()
+            && window.as_ref().is_some_and(|window| {
+                crate::excel::is_name_box(
+                    crate::platform::window::window_class(window.hwnd).as_deref(),
+                    crate::platform::window::keyboard_focus(window.hwnd).as_ref(),
+                    window.hwnd,
+                )
+            })
+    };
+    let editable = !blocked && !code_editor && !address_bar && is_editable(&facts) && !name_box();
     // Read even without "Record what's typed", but then only to fingerprint it (below).
     let readable = editable && !facts.sensitive;
     let value_now = if readable { read_value(element) } else { None };
@@ -1118,20 +737,36 @@ fn remember(automation: &UIAutomation, element: &UIElement, options: &FocusOptio
         let mut note = note
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        note.generation = note.generation.wrapping_add(1);
-        note.window = window.as_ref().map_or(0, |window| window.hwnd);
-        note.facts = facts.clone();
-        // Keys typed here make no step: the value is read when focus leaves, or, in the address
-        // bar, the "Go to" step says where it went.
-        note.field = value_now.is_some() || address_bar;
-        note.address_bar = address_bar;
-        note.tick_ms = crate::platform::display::now_tick();
+        note.focus_now(crate::typing::FocusUpdate {
+            window: window.as_ref().map_or(0, |window| window.hwnd),
+            facts: facts.clone(),
+            // Keys typed here make no step: the value is read when focus leaves, or, in the
+            // address bar, the "Go to" step says where it went.
+            field: value_now.is_some() || address_bar,
+            address_bar,
+            tick_ms: crate::platform::display::now_tick(),
+            // Which program the element is in: keys are put down to it only when that's the
+            // window they went to (10/10/2026).
+            pid,
+        });
     }
+    // Keys typed straight after the click that moved focus here may be in the value already
+    // (#97): then it isn't what the field held before, and the value as focus leaves is the
+    // step's, never taken as unchanged.
+    let typed_first = typed_before_focus(
+        crate::platform::display::now_tick(),
+        crate::platform::input::typed_after_press(),
+        facts.bounds,
+        window.as_ref().map(|window| window.hwnd),
+        |x, y| crate::platform::window::root_window_at(x, y).map(|window| window.hwnd),
+    );
+    let value_now = value_before_typing(value_now, typed_first);
     let fingerprint = if options.record_values {
         None
     } else {
         value_now.as_deref().map(fingerprint)
     };
+    let since_tick_ms = crate::platform::display::now_tick();
     let initial = if options.record_values {
         value_now
     } else {
@@ -1144,7 +779,8 @@ fn remember(automation: &UIAutomation, element: &UIElement, options: &FocusOptio
         fingerprint,
         editable,
         pid,
-        since_tick_ms: crate::platform::display::now_tick(),
+        since_tick_ms,
+        packets: PacketsAtFocus::at(since_tick_ms, crate::platform::input::unicode_packets()),
         window_pid: window.as_ref().map_or(0, |window| window.pid),
         window_exe: window
             .as_ref()
@@ -1184,147 +820,626 @@ fn register_focus_handler(
     Some(handler)
 }
 
+// ---------- menus as they open (#56, #106) ----------
+
+/// What reading a menu asks UI Automation for: of the menu, and of each of its items.
+struct MenuCaches {
+    menu: UICacheRequest,
+    items: UICacheRequest,
+}
+
+impl MenuCaches {
+    fn new(automation: &UIAutomation) -> Option<Self> {
+        let menu = automation.create_cache_request().ok()?;
+        for property in [
+            UIProperty::ControlType,
+            UIProperty::BoundingRectangle,
+            UIProperty::ProcessId,
+            UIProperty::NativeWindowHandle,
+        ] {
+            menu.add_property(property).ok()?;
+        }
+        let items = automation.create_cache_request().ok()?;
+        for property in [UIProperty::Name, UIProperty::BoundingRectangle] {
+            items.add_property(property).ok()?;
+        }
+        Some(Self { menu, items })
+    }
+}
+
+/// Listens for menus opening anywhere on the desktop, keeping each one's items in `menus`
+/// (`read_menu`). Returns the element it listens on and the handler, to remove them at the end.
+/// Menus open a few times a minute at most, and each is read in one call.
+fn register_menu_handler(
+    automation: &UIAutomation,
+    menus: Arc<OpenMenus>,
+    machine: Option<Arc<Mutex<RecorderStateMachine>>>,
+    cancelled: Arc<AtomicBool>,
+) -> Option<(UIElement, UIEventHandler)> {
+    let root = automation.get_root_element().ok()?;
+    let caches = MenuCaches::new(automation)?;
+    let menu_cache = caches.menu.clone();
+    let source = automation.clone();
+    let handler: Box<CustomEventHandlerFn> = Box::new(move |menu: &UIElement, _| {
+        if cancelled.load(Ordering::SeqCst) {
+            return Ok(());
+        }
+        // UI Automation calls this from a COM callback: a panic must never unwind into it. A
+        // panic loses this menu's items; its click is named from its screenshot's words alone.
+        let _ = catch_unwind(AssertUnwindSafe(|| {
+            if let Some(opened) = read_menu(&source, &caches, menu, machine.as_deref()) {
+                menus.opened(opened);
+            }
+        }));
+        Ok(())
+    });
+    let handler = UIEventHandler::from(handler);
+    automation
+        .add_automation_event_handler(
+            UIEventType::MenuOpened,
+            &root,
+            TreeScope::Subtree,
+            Some(&menu_cache),
+            &handler,
+        )
+        .ok()?;
+    Some((root, handler))
+}
+
+// ---------- tooltips as they open (#105) ----------
+
+/// Listens for tooltips opening anywhere on the desktop, noting the window each one shows in, so
+/// a click through it goes to the window under it (`capture-win32`'s `tooltip.rs`). XAML draws
+/// its tooltips in pop-up windows as it draws its menus (File Explorer's toolbar), so only UI
+/// Automation says which holds a tooltip. Returns the element it listens on and the handler, to
+/// remove them at the end. Each tooltip is one event with its facts cached: no further calls.
+fn register_tooltip_handler(
+    automation: &UIAutomation,
+    cancelled: Arc<AtomicBool>,
+) -> Option<(UIElement, UIEventHandler)> {
+    let root = automation.get_root_element().ok()?;
+    let cache = automation.create_cache_request().ok()?;
+    for property in [
+        UIProperty::ControlType,
+        UIProperty::BoundingRectangle,
+        UIProperty::ProcessId,
+    ] {
+        cache.add_property(property).ok()?;
+    }
+    let handler: Box<CustomEventHandlerFn> = Box::new(move |tooltip: &UIElement, _| {
+        if cancelled.load(Ordering::SeqCst) {
+            return Ok(());
+        }
+        // UI Automation calls this from a COM callback: a panic must never unwind into it. A
+        // panic loses this tooltip's window; a click through it is taken for one in it.
+        let _ = catch_unwind(AssertUnwindSafe(|| note_tooltip(tooltip)));
+        Ok(())
+    });
+    let handler = UIEventHandler::from(handler);
+    automation
+        .add_automation_event_handler(
+            UIEventType::ToolTipOpened,
+            &root,
+            TreeScope::Subtree,
+            Some(&cache),
+            &handler,
+        )
+        .ok()?;
+    Some((root, handler))
+}
+
+/// Notes the window a tooltip that just opened shows in: the top-level window at its middle,
+/// when that is an owned pop-up of the tooltip's own program. Whether it was noted. Anything an
+/// app says is a tooltip opening that isn't one is left alone.
+fn note_tooltip(tooltip: &UIElement) -> Option<bool> {
+    if tooltip.get_cached_control_type().ok()? != ControlType::ToolTip {
+        return None;
+    }
+    let bounds = px_rect(&tooltip.get_cached_bounding_rectangle().ok()?);
+    if bounds.is_empty() {
+        return None;
+    }
+    let pid = u32::try_from(tooltip.get_cached_process_id().ok()?).ok()?;
+    Some(crate::platform::window::tooltip_opened(
+        bounds.left + bounds.width() / 2,
+        bounds.top + bounds.height() / 2,
+        pid,
+    ))
+}
+
+/// How many parents up a menu its window is looked for: a XAML menu sits a few levels inside the
+/// window it's drawn in.
+const HOST_DEPTH: usize = 8;
+
+/// The top-level window a menu is drawn in, by the nearest element up from it that is a window
+/// of its own (UI Automation's raw view). Asked of the menu itself, not of what's at its middle:
+/// XAML can say a menu opened before its window shows (#106), when what's there is the app's own
+/// window.
+fn host_window(
+    automation: &UIAutomation,
+    cache: &UICacheRequest,
+    menu: &UIElement,
+) -> Option<WindowInfo> {
+    let walker = automation.get_raw_view_walker().ok()?;
+    let mut element = menu.clone();
+    for _ in 0..HOST_DEPTH {
+        let handle: isize = element
+            .get_cached_native_window_handle()
+            .map_or(0, Into::into);
+        if handle != 0 {
+            return crate::platform::window::window_info(handle);
+        }
+        element = walker.get_parent_build_cache(&element, cache).ok()?;
+    }
+    None
+}
+
+/// A menu that just opened, with its items, when a click on it would be recorded (`menu_in`).
+/// `None` for what an app says is a menu opening but isn't one, and for one not yet placed on the
+/// screen.
+fn read_menu(
+    automation: &UIAutomation,
+    caches: &MenuCaches,
+    menu: &UIElement,
+    machine: Option<&Mutex<RecorderStateMachine>>,
+) -> Option<OpenMenu> {
+    let bounds = px_rect(&menu.get_cached_bounding_rectangle().ok()?);
+    if bounds.is_empty() {
+        return None;
+    }
+    let (x, y) = (
+        bounds.left + bounds.width() / 2,
+        bounds.top + bounds.height() / 2,
+    );
+    // A pop-up a tooltip showed in before shows a menu now: it's the window clicked in (#105).
+    crate::platform::window::menu_opened_at(x, y);
+    let window = host_window(automation, &caches.menu, menu)
+        .or_else(|| crate::platform::window::root_window_at(x, y))?;
+    let owners = crate::platform::window::owner_processes_of(window.hwnd);
+    menu_in(
+        automation,
+        &caches.items,
+        menu,
+        &window,
+        owners,
+        machine,
+        MenuSource::Opened,
+    )
+}
+
+/// A menu and its items, read in `window`, when a click on it would be recorded: never one in
+/// Steps' own windows or an excluded app's (by the window it's drawn in, the windows that own
+/// that, `owners`, #103, and its own program), nor while the recording takes no clicks
+/// (`pre_read::may_read`). `None` for anything that isn't a menu, or holds no named item. Its box
+/// may still be empty: XAML can be asked before its first layout (`menus::read_shown`).
+fn menu_in(
+    automation: &UIAutomation,
+    item_cache: &UICacheRequest,
+    menu: &UIElement,
+    window: &WindowInfo,
+    mut owners: Vec<u32>,
+    machine: Option<&Mutex<RecorderStateMachine>>,
+    source: MenuSource,
+) -> Option<OpenMenu> {
+    if menu.get_cached_control_type().ok()? != ControlType::Menu {
+        return None;
+    }
+    // Its window shows a menu now, whatever tooltip it showed before: never looked through (#105).
+    crate::platform::window::menu_opened_in(window.hwnd);
+    let bounds = px_rect(&menu.get_cached_bounding_rectangle().ok()?);
+    let pid = menu
+        .get_cached_process_id()
+        .ok()
+        .and_then(|pid| u32::try_from(pid).ok())?;
+    // The menu's own program, as UI Automation names it, is judged as an owner is.
+    owners.push(pid);
+    if !pre_read::may_read(
+        window,
+        &owners,
+        machine,
+        crate::platform::window::process_exe_name,
+    ) {
+        return None;
+    }
+    let item = automation
+        .create_property_condition(
+            UIProperty::ControlType,
+            Variant::from(ControlType::MenuItem as i32),
+            None,
+        )
+        .ok()?;
+    let mut found = menu
+        .find_all_build_cache(TreeScope::Children, &item, item_cache)
+        .unwrap_or_default();
+    if found.is_empty() {
+        // Office's and XAML's menus can hold their items in groups.
+        found = menu
+            .find_all_build_cache(TreeScope::Descendants, &item, item_cache)
+            .ok()?;
+    }
+    let items = menus::kept_items(found.iter().map(|item| {
+        MenuItem {
+            name: item.get_cached_name().unwrap_or_default(),
+            bounds: item
+                .get_cached_bounding_rectangle()
+                .ok()
+                .map(|rect| px_rect(&rect))
+                .filter(|rect| !rect.is_empty()),
+        }
+    }));
+    (!items.is_empty()).then(|| OpenMenu {
+        window: window.hwnd,
+        bounds,
+        read: crate::platform::display::now_tick(),
+        items,
+        own_window: crate::platform::window::is_pop_up_window(window.hwnd)
+            && menus::fills_window(&bounds, &PxRect::from(window.frame)),
+        source,
+    })
+}
+
+/// Reads the menu in each XAML pop-up host that shows (`PopUpHosts`, #106), on a thread of its own
+/// with its own UI Automation, until the watch stops or `stop` is set: `WinUI` 3's menus (Paint's
+/// File menu) weren't kept by UI Automation's menu-opened event. A host whose menu isn't laid out
+/// yet is looked at again (`menus::read_shown`); one showing no menu has what was kept for it
+/// forgotten, as it shows something else now.
+fn pop_up_menu_worker(
+    shown: &Receiver<crate::platform::pop_ups::PopUpShown>,
+    menus: &OpenMenus,
+    machine: Option<&Mutex<RecorderStateMachine>>,
+    stop: &AtomicBool,
+) {
+    let Ok(automation) = UIAutomation::new() else {
+        return;
+    };
+    let Some(caches) = MenuCaches::new(&automation) else {
+        return;
+    };
+    while let Ok(host) = shown.recv() {
+        if stop.load(Ordering::SeqCst) {
+            return;
+        }
+        let read = menus::read_shown(
+            || look_in_pop_up(&automation, &caches, host.hwnd, machine),
+            |wait| {
+                if !stop.load(Ordering::SeqCst) {
+                    std::thread::sleep(wait);
+                }
+            },
+        );
+        match read {
+            Some(menu) => menus.opened(menu),
+            None => menus.forget(host.hwnd, host.at),
+        }
+    }
+}
+
+/// One look for the menu in a pop-up host that showed: gone once the window is hidden or closed,
+/// or when a click there wouldn't be recorded (`pre_read::may_read`), so it isn't looked at
+/// again; nothing yet while it's cloaked or has no size, or no menu is found in it.
+fn look_in_pop_up(
+    automation: &UIAutomation,
+    caches: &MenuCaches,
+    hwnd: isize,
+    machine: Option<&Mutex<RecorderStateMachine>>,
+) -> Look {
+    use crate::platform::window;
+    if !window::is_visible(hwnd) {
+        return Look::Gone;
+    }
+    let Some(host) = window::window_info(hwnd) else {
+        return Look::Gone;
+    };
+    let owners = window::owner_processes_of(hwnd);
+    if !pre_read::may_read(&host, &owners, machine, window::process_exe_name) {
+        return Look::Gone;
+    }
+    if !window::is_showing(hwnd) {
+        return Look::Nothing;
+    }
+    menu_in_window(automation, &caches.menu, hwnd, &PxRect::from(host.frame))
+        .and_then(|menu| {
+            menu_in(
+                automation,
+                &caches.items,
+                &menu,
+                &host,
+                owners,
+                machine,
+                MenuSource::PopUpShown,
+            )
+        })
+        .map_or(Look::Nothing, Look::Menu)
+}
+
+/// The menu in a window: the first in its part of UI Automation's tree, or, where an app puts a
+/// pop-up's contents elsewhere in the tree, the menu the element at the window's middle is part
+/// of (a pop-up host's menu fills it).
+fn menu_in_window(
+    automation: &UIAutomation,
+    cache: &UICacheRequest,
+    hwnd: isize,
+    frame: &PxRect,
+) -> Option<UIElement> {
+    let is_menu = automation
+        .create_property_condition(
+            UIProperty::ControlType,
+            Variant::from(ControlType::Menu as i32),
+            None,
+        )
+        .ok()?;
+    if let Ok(menu) = automation
+        .element_from_handle(Handle::from(hwnd))
+        .and_then(|element| element.find_first_build_cache(TreeScope::Subtree, &is_menu, cache))
+    {
+        return Some(menu);
+    }
+    let walker = automation.get_raw_view_walker().ok()?;
+    let middle = Point::new(
+        frame.left + frame.width() / 2,
+        frame.top + frame.height() / 2,
+    );
+    let mut element = automation
+        .element_from_point_build_cache(middle, cache)
+        .ok()?;
+    for _ in 0..HOST_DEPTH {
+        if element.get_cached_control_type().ok()? == ControlType::Menu {
+            return Some(element);
+        }
+        element = walker.get_parent_build_cache(&element, cache).ok()?;
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn cell_at(row: i32, column: i32) -> Cell {
-        Cell { row, column }
+    /// One line about a window, for the live probe: its program, class and title.
+    fn described(hwnd: isize) -> String {
+        let window = crate::platform::window::window_info(hwnd);
+        format!(
+            "{} {:?} {:?}{}",
+            window
+                .as_ref()
+                .and_then(WindowInfo::exe_name)
+                .unwrap_or("?"),
+            crate::platform::window::window_class(hwnd).unwrap_or_default(),
+            window
+                .as_ref()
+                .map(|window| window.title.as_str())
+                .unwrap_or_default(),
+            if crate::platform::window::is_pop_up_window(hwnd) {
+                " (a pop-up)"
+            } else {
+                ""
+            },
+        )
     }
 
-    fn cell(left: i32, top: i32, right: i32, bottom: i32) -> PxRect {
-        PxRect {
-            left,
-            top,
-            right,
-            bottom,
-        }
-    }
-
+    /// Live check, read-only: for 45 seconds, prints what says a menu opened and what the
+    /// recorder keeps of it (#56, #106). Open menus by hand while it runs (Paint's File menu, then
+    /// Excel's right-click menu or Notepad's Edit menu) and rest the pointer on their items. It
+    /// prints, as they come:
+    /// - `[menu-opened]`: each UI Automation menu-opened event, kept or not;
+    /// - `[pop-up host]`: each XAML pop-up host that showed (`WinUI`'s, Paint's);
+    /// - `[focus]`: focus moving to a menu or a menu item;
+    /// - `[kept]`: each menu the recorder kept, by which of the first two, with its window, whether
+    ///   it has a window of its own, and its items;
+    /// - `[click]`: what a click under the pointer would carry (its items, and `showing`, which lets
+    ///   the item under the click name it without the screenshot's words).
+    ///
+    /// `cargo test -p capture menus_read_as_they_open -- --ignored --nocapture`
     #[test]
-    fn a_grid_step_moves_a_column_and_a_row_towards_the_point() {
-        let e3 = cell(100, 100, 200, 150);
-        assert_eq!(
-            grid_step(&e3, cell_at(2, 4), cell_at(30, 17), 150, 120),
-            Some(GridStep::Here)
-        );
-        assert_eq!(
-            grid_step(&e3, cell_at(2, 4), cell_at(30, 17), 450, 170),
-            Some(GridStep::To(cell_at(3, 5)))
-        );
-        assert_eq!(
-            grid_step(&e3, cell_at(2, 4), cell_at(30, 17), 50, 120),
-            Some(GridStep::To(cell_at(2, 3)))
-        );
-        assert_eq!(
-            grid_step(&e3, cell_at(2, 4), cell_at(30, 17), 150, 99),
-            Some(GridStep::To(cell_at(1, 4)))
-        );
-        // The right and bottom edges belong to the next cell, as the hit test has them.
-        assert_eq!(
-            grid_step(&e3, cell_at(2, 4), cell_at(30, 17), 200, 150),
-            Some(GridStep::To(cell_at(3, 5)))
-        );
-    }
-
-    #[test]
-    fn a_cell_scrolled_out_of_view_steps_down_and_right_into_it() {
-        // Excel named D3, scrolled out of view, for a click in H4 (07/10/2026).
-        let hidden = cell(0, 0, 0, 0);
-        assert_eq!(
-            grid_step(&hidden, cell_at(2, 3), cell_at(30, 17), -1251, 924),
-            Some(GridStep::To(cell_at(3, 4)))
-        );
-    }
-
-    #[test]
-    fn a_grid_step_never_leaves_the_grid() {
-        let corner = cell(100, 100, 200, 150);
-        assert_eq!(
-            grid_step(&corner, cell_at(0, 0), cell_at(30, 17), 50, 50),
-            None
-        );
-        assert_eq!(
-            grid_step(&cell(0, 0, 0, 0), cell_at(29, 3), cell_at(30, 17), 0, 0),
-            None
-        );
-    }
-
-    /// Live check: prints what Steps reads from the address bar of every open Firefox, Chrome and
-    /// Edge window. `cargo test -p capture reads_open_browsers_address_bars -- --ignored
-    /// --nocapture`, with a browser open on a web page.
-    #[test]
-    #[ignore = "needs browser windows open on this desktop"]
-    fn reads_open_browsers_address_bars() {
+    #[ignore = "needs menus opened by hand on this desktop"]
+    fn menus_read_as_they_open() {
         let automation = UIAutomation::new().expect("UI Automation");
-        let root = automation.get_root_element().expect("root");
-        let windows = automation
-            .create_true_condition()
-            .and_then(|all| root.find_all(TreeScope::Children, &all))
-            .expect("windows");
-        let mut found = 0;
-        for window in windows {
-            let class = window.get_classname().unwrap_or_default();
-            if class != "MozillaWindowClass" && class != "Chrome_WidgetWin_1" {
+        let menus = Arc::new(OpenMenus::default());
+        let stop = Arc::new(AtomicBool::new(false));
+        // What the recorder runs while recording.
+        let (root, handler) =
+            register_menu_handler(&automation, Arc::clone(&menus), None, Arc::clone(&stop))
+                .expect("listening for menus");
+        let watch = watch_pop_up_menus(&menus, None, &stop).expect("watching pop-up hosts");
+        // What says a menu opened, kept or not.
+        let (opened, focused) = print_menu_signals(&automation, &root);
+        let (shown_tx, shown_rx) = mpsc::channel();
+        let shown = crate::platform::pop_ups::PopUpHosts::watch(shown_tx).expect("watching");
+
+        let started = Instant::now();
+        let mut kept: Vec<OpenMenu> = Vec::new();
+        let mut last: Option<ClickedMenu> = None;
+        while started.elapsed() < Duration::from_secs(45) {
+            std::thread::sleep(Duration::from_millis(100));
+            while let Ok(host) = shown_rx.try_recv() {
+                println!("[pop-up host] {}", described(host.hwnd));
+            }
+            print_kept(&menus, &mut kept, &mut last);
+        }
+        stop.store(true, Ordering::SeqCst);
+        drop(shown);
+        drop(watch);
+        let _ = automation.remove_focus_changed_event_handler(&focused);
+        let _ = automation.remove_automation_event_handler(UIEventType::MenuOpened, &root, &opened);
+        let _ =
+            automation.remove_automation_event_handler(UIEventType::MenuOpened, &root, &handler);
+        assert!(!kept.is_empty(), "no menu was kept");
+    }
+
+    /// For the live check: prints each menu-opened event, kept or not, and focus moving to a menu
+    /// or a menu item. Returns the handlers, to remove them at the end.
+    fn print_menu_signals(
+        automation: &UIAutomation,
+        root: &UIElement,
+    ) -> (UIEventHandler, UIFocusChangedEventHandler) {
+        let caches = MenuCaches::new(automation).expect("cache requests");
+        let opened_cache = caches.menu.clone();
+        let walker_automation = automation.clone();
+        let opened: Box<CustomEventHandlerFn> = Box::new(move |menu: &UIElement, _| {
+            let _ = catch_unwind(AssertUnwindSafe(|| {
+                let bounds = menu
+                    .get_cached_bounding_rectangle()
+                    .map(|rect| px_rect(&rect));
+                let host = host_window(&walker_automation, &caches.menu, menu);
+                println!(
+                    "[menu-opened] {:?} box {bounds:?}, in {}",
+                    menu.get_cached_control_type(),
+                    host.map_or_else(|| "no window".into(), |window| described(window.hwnd)),
+                );
+            }));
+            Ok(())
+        });
+        let opened = UIEventHandler::from(opened);
+        automation
+            .add_automation_event_handler(
+                UIEventType::MenuOpened,
+                root,
+                TreeScope::Subtree,
+                Some(&opened_cache),
+                &opened,
+            )
+            .expect("listening for menus");
+        let focus_cache = element_cache(automation).expect("cache request");
+        let focused: Box<CustomFocusChangedEventHandlerFn> =
+            Box::new(move |element: &UIElement| {
+                let _ = catch_unwind(AssertUnwindSafe(|| {
+                    if let Ok(kind @ (ControlType::Menu | ControlType::MenuItem)) =
+                        element.get_cached_control_type()
+                    {
+                        println!(
+                            "[focus] {kind:?} {:?}",
+                            element.get_cached_name().unwrap_or_default()
+                        );
+                    }
+                }));
+                Ok(())
+            });
+        let focused = UIFocusChangedEventHandler::from(focused);
+        let _ = automation.add_focus_changed_event_handler(Some(&focus_cache), &focused);
+        (opened, focused)
+    }
+
+    /// For the live check: prints each menu kept since the last look, and what a click under the
+    /// pointer would carry when that changes.
+    fn print_kept(menus: &OpenMenus, kept: &mut Vec<OpenMenu>, last: &mut Option<ClickedMenu>) {
+        for menu in menus.kept() {
+            if kept.contains(&menu) {
                 continue;
             }
-            let Ok(handle) = window.get_native_window_handle() else {
+            let names: Vec<&str> = menu.items.iter().map(|item| item.name.as_str()).collect();
+            let boxed = menu
+                .items
+                .iter()
+                .filter(|item| item.bounds.is_some())
+                .count();
+            println!(
+                "[kept] by {:?}: {}, box {:?}, own window {}: {} items, {boxed} boxed: {names:?}",
+                menu.source,
+                described(menu.window),
+                menu.bounds,
+                menu.own_window,
+                menu.items.len(),
+            );
+            kept.push(menu);
+        }
+        let Some((x, y)) = crate::platform::display::cursor_pos() else {
+            return;
+        };
+        let Some(window) = crate::platform::window::root_window_at(x, y) else {
+            return;
+        };
+        let clicked = menus.for_click(x, y, window.hwnd, crate::platform::display::now_tick());
+        if clicked.is_none() || clicked == *last {
+            return;
+        }
+        if let Some(menu) = &clicked {
+            let under = menu
+                .items
+                .iter()
+                .filter(|item| item.bounds.is_some_and(|bounds| bounds.contains(x, y)))
+                .map(|item| item.name.as_str())
+                .collect::<Vec<_>>();
+            println!(
+                "[click] at ({x}, {y}) in {}: {} items, showing {}, under the click {under:?}",
+                described(window.hwnd),
+                menu.items.len(),
+                menu.showing,
+            );
+        }
+        *last = clicked;
+    }
+
+    /// Live check, read-only (#105): for 30 seconds, prints each tooltip UI Automation says opened
+    /// (its box, its program, and whether its window was noted), and the window a click under the
+    /// pointer would go to, with whether a tooltip lies over it. Rest the pointer on a toolbar
+    /// button until its tooltip shows (File Explorer's Details button). It passes once a click
+    /// under the pointer would go through a tooltip.
+    /// `cargo test -p capture tooltips_under_the_pointer -- --ignored --nocapture`
+    #[test]
+    #[ignore = "needs a tooltip shown by hand on this desktop"]
+    fn tooltips_under_the_pointer_are_looked_through() {
+        let _ = crate::platform::display::enable_per_monitor_dpi_awareness();
+        let automation = UIAutomation::new().expect("UI Automation");
+        let root = automation.get_root_element().expect("root");
+        let cache = automation.create_cache_request().expect("cache");
+        for property in [
+            UIProperty::ControlType,
+            UIProperty::BoundingRectangle,
+            UIProperty::ProcessId,
+            UIProperty::Name,
+        ] {
+            cache.add_property(property).expect("property");
+        }
+        let handler: Box<CustomEventHandlerFn> = Box::new(|tooltip: &UIElement, _| {
+            let noted = note_tooltip(tooltip);
+            println!(
+                "tooltip opened: {:?} {:?} {:?} pid {:?} -> noted {noted:?}",
+                tooltip.get_cached_control_type(),
+                tooltip.get_cached_name(),
+                tooltip
+                    .get_cached_bounding_rectangle()
+                    .map(|rect| px_rect(&rect)),
+                tooltip.get_cached_process_id(),
+            );
+            Ok(())
+        });
+        let handler = UIEventHandler::from(handler);
+        automation
+            .add_automation_event_handler(
+                UIEventType::ToolTipOpened,
+                &root,
+                TreeScope::Subtree,
+                Some(&cache),
+                &handler,
+            )
+            .expect("listening for tooltips");
+        let started = Instant::now();
+        let mut last = None;
+        let mut through = false;
+        while started.elapsed() < Duration::from_secs(30) && !through {
+            std::thread::sleep(Duration::from_millis(100));
+            let Some((x, y)) = crate::platform::display::cursor_pos() else {
                 continue;
             };
-            let hwnd: isize = handle.into();
-            let read = cached_origin(&automation, &mut HashMap::new(), hwnd);
-            println!(
-                "{class} {:?}: {read:?}",
-                window.get_name().unwrap_or_default()
-            );
-            found += usize::from(read.origin.is_some() || read.focused);
+            let Some(pressed) = crate::platform::window::pressed_at(x, y, false) else {
+                continue;
+            };
+            through = crate::platform::window::tooltip_at(x, y);
+            let now = (pressed.window.hwnd, through);
+            if last != Some(now) {
+                last = Some(now);
+                println!(
+                    "at ({x}, {y}): tooltip over it {through}; a click goes to {:?} {:?} {:?} {:?}",
+                    crate::platform::window::window_class(pressed.window.hwnd),
+                    pressed.window.title,
+                    pressed.window.exe_name(),
+                    pressed.window.frame,
+                );
+            }
         }
-        assert!(found > 0, "no browser address bar was read");
-    }
-
-    /// `packages/core/test-vectors/click-naming.json`: what the TypeScript naming shares.
-    fn shared_naming() -> serde_json::Value {
-        serde_json::from_str(include_str!(
-            "../../../../../../packages/core/test-vectors/click-naming.json"
-        ))
-        .unwrap()
-    }
-
-    fn strings(value: &serde_json::Value) -> Vec<&str> {
-        value
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|item| item.as_str().unwrap())
-            .collect()
-    }
-
-    #[test]
-    fn framework_names_and_light_dismiss_are_the_namings() {
-        let shared = shared_naming();
-        assert_eq!(strings(&shared["frameworkNames"]), FRAMEWORK_NAMES);
-        assert_eq!(
-            strings(&shared["lightDismissAutomationIds"]),
-            LIGHT_DISMISS_IDS
-        );
-        for id in LIGHT_DISMISS_IDS {
-            assert!(is_light_dismiss(id));
-        }
-        assert!(!is_light_dismiss("Close"));
-    }
-
-    #[test]
-    fn framework_names_are_told_apart_as_the_naming_tells_them() {
-        let shared = shared_naming();
-        for case in shared["frameworkNameCases"].as_array().unwrap() {
-            let name = case["name"].as_str().unwrap();
-            let class_name = case["className"].as_str().unwrap();
-            assert_eq!(
-                framework_name(name, class_name),
-                case["framework"].as_bool().unwrap(),
-                "{name:?} (class {class_name:?})"
-            );
-        }
+        let _ =
+            automation.remove_automation_event_handler(UIEventType::ToolTipOpened, &root, &handler);
+        assert!(through, "no tooltip under the pointer was looked through");
     }
 
     #[test]
@@ -1333,5 +1448,224 @@ mod tests {
             format!("{:?}", uiautomation::types::ControlType::Hyperlink),
             "Hyperlink"
         );
+    }
+
+    /// The pre-reads' desk with the pointer held still at one point, so a live test needn't move
+    /// the real one.
+    struct Resting {
+        desk: UiaDesk,
+        at: (i32, i32),
+    }
+
+    impl pre_read::Desk for Resting {
+        fn pointer(&self) -> Option<(i32, i32)> {
+            Some(self.at)
+        }
+        fn last_input(&self) -> Option<u32> {
+            Some(0)
+        }
+        fn mouse_moves(&self) -> Option<u64> {
+            Some(0)
+        }
+        fn now(&self) -> u32 {
+            self.desk.now()
+        }
+        fn under(&self, x: i32, y: i32) -> Option<Under> {
+            self.desk.under(x, y)
+        }
+        fn ask(&mut self, x: i32, y: i32) {
+            self.desk.ask(x, y);
+        }
+        fn read(&mut self, x: i32, y: i32) -> Result<ElementFacts, LookupError> {
+            self.desk.read(x, y)
+        }
+    }
+
+    fn uia_desk() -> UiaDesk {
+        let automation = UIAutomation::new().expect("UI Automation");
+        let cache = element_cache(&automation).expect("cache request");
+        UiaDesk {
+            automation,
+            cache,
+            machine: None,
+        }
+    }
+
+    fn median_and_max(mut values: Vec<f64>) -> String {
+        values.sort_by(f64::total_cmp);
+        match (values.get(values.len() / 2), values.last()) {
+            (Some(median), Some(max)) => format!("{median:>6.1} / {max:>6.1}"),
+            _ => format!("{:>15}", "-"),
+        }
+    }
+
+    /// Up to 24 points in the windows on screen, three in each, with the program each is in.
+    fn points_on_screen() -> Vec<(i32, i32, isize, String)> {
+        use crate::platform::window::{root_window_at, shown_windows};
+        let own = crate::platform::window::own_process_id();
+        let mut points: Vec<(i32, i32, isize, String)> = Vec::new();
+
+        for shown in shown_windows() {
+            let frame = shown.frame;
+            if shown.pid == own
+                || shown.see_through
+                || shown.notification
+                || frame.right - frame.left < 300
+                || frame.bottom - frame.top < 200
+            {
+                continue;
+            }
+            let width = frame.right - frame.left;
+            let height = frame.bottom - frame.top;
+            for (x, y) in [
+                (frame.left + width / 2, frame.top + height / 2),
+                (frame.left + width / 4, frame.top + 60),
+                (frame.left + width * 3 / 4, frame.top + height * 3 / 4),
+            ] {
+                if let Some(window) = root_window_at(x, y)
+                    && window.pid != own
+                    && points.len() < 24
+                {
+                    let exe = window.exe_name().unwrap_or("?").to_string();
+                    points.push((x, y, window.hwnd, exe));
+                }
+            }
+        }
+        points
+    }
+
+    /// A lookup thread answering from `reads`, as `UiaClient`'s does.
+    fn lookup_thread(reads: &Arc<PreReads>) -> (Sender<Request>, Replies, JoinHandle<()>) {
+        let (request_tx, request_rx) = mpsc::channel();
+        let (reply_tx, reply_rx) = mpsc::channel();
+        let (ready_tx, ready_rx) = mpsc::channel();
+        let reads = Arc::clone(reads);
+        let thread = std::thread::spawn(move || {
+            let cancelled = Arc::new(AtomicBool::new(false));
+            worker(
+                &request_rx,
+                &reply_tx,
+                None,
+                &ready_tx,
+                &cancelled,
+                &reads,
+                Arc::default(),
+            );
+        });
+        ready_rx
+            .recv_timeout(STARTUP_TIMEOUT)
+            .expect("worker started")
+            .expect("worker ready");
+        (request_tx, Replies { receiver: reply_rx }, thread)
+    }
+
+    /// Live timings, read-only: no input is sent and the pointer isn't moved. For points in the
+    /// windows on screen, how long the lookup thread takes to answer a click (the pipeline's
+    /// `uia_ms`): read after the click (every click outside Chromium before #92, and a click now
+    /// with no pre-read that fits), named from its pre-read, and read after the click while
+    /// another thread reads the same window without a pause (worse than the pre-reads, which
+    /// read a resting pointer's element at most every 250 ms). Prints programs, control types and
+    /// times, never names. `cargo test -p capture pre_read_timings -- --ignored --nocapture`
+    #[test]
+    #[ignore = "reads the windows on this desktop"]
+    fn pre_read_timings() {
+        let points = points_on_screen();
+        assert!(!points.is_empty(), "no window on screen to read");
+
+        let reads = Arc::new(PreReads::default());
+        let (request_tx, replies, worker_thread) = lookup_thread(&reads);
+        let mut next_id = 0_u64;
+        let mut ask = |x: i32, y: i32, hwnd: isize, pressed: Option<u32>| {
+            next_id += 1;
+            let started = Instant::now();
+            request_tx
+                .send(Request::At {
+                    id: next_id,
+                    x,
+                    y,
+                    hwnd,
+                    pressed,
+                })
+                .expect("worker running");
+            replies.wait(
+                next_id,
+                started,
+                started + Duration::from_secs(3),
+                "stopped",
+            )
+        };
+
+        println!(
+            "{:<24} {:<12} {:>15} {:>15} {:>15}",
+            "program", "control", "after ms", "pre-read ms", "busy ms"
+        );
+        let mut all = [Vec::new(), Vec::new(), Vec::new()];
+        for (x, y, hwnd, exe) in &points {
+            let (x, y, hwnd) = (*x, *y, *hwnd);
+            let mut timings = [Vec::new(), Vec::new(), Vec::new()];
+            let mut control = String::new();
+            for _ in 0..5 {
+                // Read after the click.
+                if let Lookup::Found { ms, facts, .. } = ask(x, y, hwnd, None) {
+                    timings[0].push(ms);
+                    control = facts.control_type;
+                }
+                // Named from its pre-read: the pointer rested there, then the button went down.
+                let mut resting = Resting {
+                    desk: uia_desk(),
+                    at: (x, y),
+                };
+                let mut watch = pre_read::Watch::default();
+                // The click before was a press: the next read waits for the app to react.
+                watch.look(&mut resting, &reads);
+                std::thread::sleep(Duration::from_millis(300));
+                watch.look(&mut resting, &reads);
+                std::thread::sleep(Duration::from_millis(32));
+                let pressed = crate::platform::display::now_tick();
+                if let Lookup::Found {
+                    ms, pre_read: true, ..
+                } = ask(x, y, hwnd, Some(pressed))
+                {
+                    timings[1].push(ms);
+                }
+            }
+            // Read after the click while another thread reads the same window without a pause.
+            let busy = Arc::new(AtomicBool::new(true));
+            let reader = {
+                let busy = Arc::clone(&busy);
+                std::thread::spawn(move || {
+                    let mut desk = uia_desk();
+                    while busy.load(Ordering::SeqCst) {
+                        let _ = pre_read::Desk::read(&mut desk, x + 7, y + 5);
+                    }
+                })
+            };
+            for _ in 0..5 {
+                if let Lookup::Found { ms, .. } = ask(x, y, hwnd, None) {
+                    timings[2].push(ms);
+                }
+            }
+            busy.store(false, Ordering::SeqCst);
+            reader.join().expect("reader");
+            println!(
+                "{exe:<24} {control:<12} {} {} {}",
+                median_and_max(timings[0].clone()),
+                median_and_max(timings[1].clone()),
+                median_and_max(timings[2].clone())
+            );
+            for (total, these) in all.iter_mut().zip(timings) {
+                total.extend(these);
+            }
+        }
+        let [after, named, busy] = all;
+        println!(
+            "{:<37} {} {} {}",
+            "all (median / max)",
+            median_and_max(after),
+            median_and_max(named),
+            median_and_max(busy)
+        );
+        drop(request_tx);
+        worker_thread.join().expect("worker");
     }
 }

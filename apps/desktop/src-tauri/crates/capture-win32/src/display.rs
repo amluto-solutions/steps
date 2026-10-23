@@ -291,6 +291,12 @@ pub fn input_desktop_is_default() -> bool {
     if read.is_err() {
         return false;
     }
+    is_default_desktop_name(&name)
+}
+
+/// Whether a desktop's name, as `GetUserObjectInformationW` fills a buffer with it (UTF-16, ended
+/// by a nul or by the buffer's end), is the normal desktop's, `Default`, in any case.
+fn is_default_desktop_name(name: &[u16]) -> bool {
     let end = name
         .iter()
         .position(|&unit| unit == 0)
@@ -302,9 +308,45 @@ pub fn input_desktop_is_default() -> bool {
 mod tests {
     use super::*;
 
+    /// `name` as the buffer Windows fills: UTF-16, a nul, then whatever was there before.
+    fn buffer(name: &str) -> [u16; 64] {
+        let mut buffer = [0xFFFF_u16; 64];
+        for (slot, unit) in buffer.iter_mut().zip(name.encode_utf16().chain([0])) {
+            *slot = unit;
+        }
+        buffer
+    }
+
     #[test]
+    fn the_normal_desktop_is_known_by_its_name_in_any_case() {
+        assert!(is_default_desktop_name(&buffer("Default")));
+        assert!(is_default_desktop_name(&buffer("default")));
+        assert!(is_default_desktop_name(&buffer("DEFAULT")));
+    }
+
+    #[test]
+    fn the_secure_desktop_and_others_are_not_the_normal_one() {
+        // The lock screen, a UAC prompt and Ctrl+Alt+Del show on Winlogon.
+        assert!(!is_default_desktop_name(&buffer("Winlogon")));
+        assert!(!is_default_desktop_name(&buffer("Disconnect")));
+        assert!(!is_default_desktop_name(&buffer("")));
+        assert!(!is_default_desktop_name(&buffer("Default2")));
+    }
+
+    #[test]
+    fn a_name_that_fills_the_buffer_is_read_to_its_end() {
+        let full: Vec<u16> = "Default".encode_utf16().collect();
+        assert!(is_default_desktop_name(&full));
+        let longer: Vec<u16> = "DefaultX".encode_utf16().collect();
+        assert!(!is_default_desktop_name(&longer));
+    }
+
+    /// The live check: true only from an unlocked, interactive session with no UAC prompt or
+    /// Ctrl+Alt+Del showing. Run by hand; in the gate it failed whenever the PC locked or a UAC
+    /// prompt was up during the run (21/10/2026).
+    #[test]
+    #[ignore = "needs an unlocked, interactive desktop with nothing on the secure desktop"]
     fn the_normal_desktop_is_showing_while_tests_run() {
-        // Tests run from an interactive, unlocked session.
         assert!(input_desktop_is_default());
     }
 }

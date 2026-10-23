@@ -40,16 +40,14 @@ export interface Dir {
 }
 
 /** A file that was expected not to exist, did. */
-export const exists = (name: string) =>
-  new LibraryError("storageError", `Steps could not read or write the library: ${name} exists.`);
+// A storage error's message is only its cause: the app's own words say "That couldn't be saved
+// or read:" before it, as for the desktop's (library crate, `LibraryError::detail`).
+export const exists = (name: string) => new LibraryError("storageError", `${name} exists.`);
 
 const storage = (error: unknown) =>
   error instanceof LibraryError
     ? error
-    : new LibraryError(
-        "storageError",
-        `Steps could not read or write the library: ${error instanceof Error ? error.message : String(error)}`,
-      );
+    : new LibraryError("storageError", error instanceof Error ? error.message : String(error));
 
 /** Runs a folder operation, turning the browser's errors into the library's. */
 export async function guarded<T>(action: () => Promise<T>): Promise<T> {

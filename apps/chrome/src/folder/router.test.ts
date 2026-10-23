@@ -43,6 +43,10 @@ const files: FileAccess = {
     saved.set(token, bytes);
     return Promise.resolve(token);
   },
+  download: (name, bytes) => {
+    saved.set(`downloads/${name}`, bytes);
+    return Promise.resolve(name);
+  },
 };
 
 /** A folder the person could choose, allowed or not, and asking or not. */
@@ -441,5 +445,11 @@ describe("between the browser and a folder", () => {
     expect(imported.id).not.toBe(guideId);
     // A tip box only: notes and headers aren't counted as steps.
     expect(imported).toMatchObject({ title: "Payroll", stepCount: 0 });
+
+    // Into the browser's downloads, as the other exports go (12/10/2026, #88).
+    const name = "Payroll - 12-10-2026.amlsteps";
+    expect(await library.exportAmlstepsTo(id, guideId, "downloads", name, false)).toBe(name);
+    saved.set("file:1", saved.get(`downloads/${name}`) ?? new Uint8Array());
+    expect(await library.importAmlsteps(id, "file:1")).toMatchObject({ title: "Payroll" });
   });
 });

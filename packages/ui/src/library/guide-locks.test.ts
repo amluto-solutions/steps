@@ -276,6 +276,84 @@ describe("guide password locks (04/10/2026)", () => {
     expect(history.lastSaved?.pc).toBe("PC-1");
   });
 
+  describe("a session that ends by the guide going (#111)", () => {
+    /** The save count of a guide where it is now, or in the Bin of "lib". */
+    const saves = (library: ReturnType<typeof spiedLibrary>["library"], at: string, id = "g1") =>
+      parseGuideHistory(library.data.libraries.get(at)?.guides.get(id)?.history).saves;
+    /** The editor letting go of the place the guide left: nothing is there to let go of. */
+    const letGo = (locks: ReturnType<typeof setUp>["locks"]) =>
+      locks.library.releaseLock("lib", "g1").catch(() => undefined);
+
+    it("counts a changed session once, on the guide where Move to took it", async () => {
+      const { locks, library } = setUp();
+      await locks.library.openForEditing("lib", "g1", false);
+      await locks.library.saveStep("lib", "g1", { id: "s1" });
+      await locks.library.moveGuide("lib", "g1", "other");
+      expect(saves(library, "other")).toBe(1);
+      expect(
+        parseGuideHistory(library.data.libraries.get("other")?.guides.get("g1")?.history),
+      ).toMatchObject({ lastSaved: { by: "Robin Hale", pc: "PC-1" } });
+
+      // The old editor letting go, and an unchanged session where it went, count nothing more.
+      await letGo(locks);
+      await locks.library.openForEditing("other", "g1", false);
+      await locks.library.releaseLock("other", "g1");
+      expect(saves(library, "other")).toBe(1);
+    });
+
+    it("counts nothing when an unchanged session moves", async () => {
+      const { locks, library } = setUp();
+      await locks.library.openForEditing("lib", "g1", false);
+      await locks.library.moveGuide("lib", "g1", "other");
+      await letGo(locks);
+      expect(saves(library, "other")).toBe(0);
+    });
+
+    it("counts a changed session as it goes to the Bin, and the count comes back with it", async () => {
+      const { locks, library } = setUp();
+      await locks.library.openForEditing("lib", "g1", false);
+      await locks.library.saveGuide("lib", "g1", { id: "g1" });
+      const entry = await locks.library.trashGuide("lib", "g1");
+      await letGo(locks);
+      await locks.library.restoreGuide("lib", entry.trashId);
+      expect(saves(library, "lib")).toBe(1);
+      // A session after the Restore that changes nothing counts nothing.
+      await locks.library.openForEditing("lib", "g1", false);
+      await locks.library.releaseLock("lib", "g1");
+      expect(saves(library, "lib")).toBe(1);
+    });
+
+    it("counts a locked guide's session too, beside the Bin's event", async () => {
+      const { locks, library } = setUp();
+      await locks.lock(g1, "secret1");
+      await locks.unlock(g1, "secret1");
+      await locks.library.openForEditing("lib", "g1", false);
+      await locks.library.saveStep("lib", "g1", { id: "s1" });
+      const entry = await locks.library.trashGuide("lib", "g1");
+      await letGo(locks);
+      await library.restoreGuide("lib", entry.trashId);
+      const history = parseGuideHistory(
+        library.data.libraries.get("lib")?.guides.get("g1")?.history,
+      );
+      expect(history.saves).toBe(1);
+      expect(history.events.map((event) => event.kind)).toEqual(["locked", "binned"]);
+    });
+
+    it("counts the session once when it ends after a move or a Bin that failed", async () => {
+      const { locks, library } = setUp();
+      vi.mocked(library.moveGuide).mockRejectedValueOnce(new Error("the drive has gone"));
+      vi.mocked(library.trashGuide).mockRejectedValueOnce(new Error("the drive has gone"));
+      await locks.library.openForEditing("lib", "g1", false);
+      await locks.library.saveStep("lib", "g1", { id: "s1" });
+      await expect(locks.library.moveGuide("lib", "g1", "other")).rejects.toThrow();
+      await expect(locks.library.trashGuide("lib", "g1")).rejects.toThrow();
+      // Nothing counted while the guide stayed where it is: the session goes on.
+      expect(saves(library, "lib")).toBe(0);
+      await locks.library.releaseLock("lib", "g1");
+      expect(saves(library, "lib")).toBe(1);
+    });
+  });
+
   it("removes the lock or changes the password only once unlocked, keeping who locked it", async () => {
     const { locks, stored } = setUp();
     await locks.lock(g1, "secret1");
@@ -292,6 +370,26 @@ describe("guide password locks (04/10/2026)", () => {
       "passwordChanged",
       "lockRemoved",
     ]);
+  });
+
+  it("tells listeners each time a guide is locked, given a new password or unlocked for good (#81)", async () => {
+    const { locks } = setUp();
+    const heard: string[] = [];
+    const stop = locks.onChange((changed) => heard.push(changed.guideId));
+    await locks.lock(g1, "secret1");
+    expect(heard).toEqual(["g1"]);
+    // A wrong password and a refused removal change nothing.
+    await locks.unlock(g1, "wrong-one");
+    await expect(locks.removeLock(g1)).rejects.toBeInstanceOf(GuideLockedError);
+    expect(heard).toEqual(["g1"]);
+    await locks.unlock(g1, "secret1");
+    await locks.changePassword(g1, "secret2");
+    await locks.unlock(g1, "secret2");
+    await locks.removeLock(g1);
+    expect(heard).toEqual(["g1", "g1", "g1"]);
+    stop();
+    await locks.lock(g1, "secret3");
+    expect(heard).toHaveLength(3);
   });
 
   it("opens any guide with IT's recovery password, and says so in its history", async () => {

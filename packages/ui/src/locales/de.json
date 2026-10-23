@@ -1,7 +1,5 @@
 {
   "app": {
-    "alreadyOpenTitle": "Steps ist bereits geöffnet",
-    "alreadyOpenBody": "Es läuft immer nur ein Steps. Deshalb haben wir dieses für Sie in den Vordergrund geholt.",
     "name": "Steps",
     "by": "von",
     "logoAlt": "Amluto"
@@ -75,6 +73,8 @@
     "heading": "Ihre Anleitungen",
     "count_one": "{{count}} Anleitung",
     "count_other": "{{count}} Anleitungen",
+    "countOf_one": "{{shown}} von {{count}} Anleitung",
+    "countOf_other": "{{shown}} von {{count}} Anleitungen",
     "steps_one": "{{count}} Schritt",
     "steps_other": "{{count}} Schritte",
     "search": "Anleitungen durchsuchen",
@@ -204,7 +204,7 @@
       "note": "Für andere Steps-Nutzer",
       "pickTitle": "Anleitung als Steps-Datei speichern",
       "filter": "Steps-Anleitung",
-      "done": "Anleitung exportiert. Weichgezeichnete Bereiche sind in der Datei endgültig weichgezeichnet.",
+      "blurredForGood": "Weichgezeichnete Bereiche sind in der Datei endgültig weichgezeichnet.",
       "originals": "Nicht weichgezeichnete Originale einschließen (für die interne Übergabe)",
       "originalsWarning": "Die Datei enthält jeden Screenshot ohne Weichzeichnung. Wer sie erhält, kann sehen, was weichgezeichnet war. Nutzen Sie das nur, um eine Anleitung an Kollegen zu übergeben, die die Weichzeichnung bearbeiten müssen.",
       "burnedIn": "Weichgezeichnete Bereiche sind in der Datei endgültig weichgezeichnet. Ausgeblendete eingegebene Werte, Kommentare und Versionen werden weggelassen."
@@ -472,6 +472,14 @@
       "error": "Speichern fehlgeschlagen, neuer Versuch läuft",
       "saved": "Alle Änderungen gespeichert"
     },
+    "leave": {
+      "title": "Ohne die letzten Änderungen verlassen?",
+      "body": "Steps konnte Ihre letzten Änderungen nicht speichern und versucht es weiter. Wenn Sie jetzt gehen, können sie verloren gehen.",
+      "leave": "Trotzdem verlassen",
+      "close": "Trotzdem schließen",
+      "quit": "Trotzdem beenden",
+      "stay": "Bleiben"
+    },
     "stepsList": "Schritte",
     "stepCount_one": "{{count}} Schritt",
     "stepCount_other": "{{count}} Schritte",
@@ -519,6 +527,7 @@
       "typing": "Prüfen Sie diesen Schritt: Die Eingabe stimmt vielleicht nicht genau.",
       "code": "Prüfen Sie diesen Schritt: Ein vertraulicher Wert darin wurde im Screenshot nicht gefunden und konnte nicht weichgezeichnet werden, oder der Text stimmt nicht genau.",
       "fillEnd": "Prüfen Sie diesen Schritt: Die Aufnahme konnte nicht erkennen, in welcher Zelle das Ausfüllen endete. Schreiben Sie, wie weit es ging, oder wählen Sie „Sieht richtig aus“.",
+      "appSwitch": "Prüfen Sie diesen Schritt: Weder ein Klick noch eine Taste hat diese App in den Vordergrund gebracht, sie kann also von selbst nach vorn gekommen sein. Löschen Sie den Schritt, wenn die Anleitung nicht in diese App gewechselt ist, oder wählen Sie „Sieht richtig aus“.",
       "looksRight": "Sieht richtig aus"
     },
     "stepText": "Schritttext",
@@ -917,6 +926,20 @@
       "inUse": "Wird bereits für {{name}} verwendet.",
       "unavailable": "Eine andere App verwendet diese bereits, daher funktioniert sie gerade nicht.",
       "heldBySteps": "Eine andere Kopie von Steps ist geöffnet und verwendet diese. Schließen Sie sie, und starten Sie dann diese neu.",
+      "commonUse": "Andere Apps verwenden {{keys}} für „{{use}}“. Solange Steps diese Tastenkombination belegt, funktioniert das dort nicht.",
+      "commonMany": "Viele Apps verwenden {{keys}} selbst. Solange Steps diese Tastenkombination belegt, funktioniert sie dort nicht.",
+      "uses": {
+        "reloadNoCache": "Ohne Cache neu laden",
+        "reopenTab": "Geschlossenen Tab wieder öffnen",
+        "privateWindow": "Neues privates Fenster",
+        "closeWindow": "Fenster schließen",
+        "closeTab": "Tab schließen",
+        "devTools": "Entwicklertools",
+        "pastePlain": "Als unformatierten Text einfügen",
+        "redo": "Wiederholen",
+        "saveAs": "Speichern unter",
+        "bookmarksBar": "Lesezeichenleiste anzeigen"
+      },
       "failed": "Die Tastenkombination konnte nicht gespeichert werden.",
       "reset": "Auf Standard zurücksetzen",
       "resetDone": "Tastenkombinationen zurückgesetzt.",
@@ -1029,6 +1052,9 @@
     "excludeApp": "{{app}} nie aufzeichnen",
     "excludeAppEmpty": "Diese App nie aufzeichnen",
     "appExcluded": "{{app}} wird nie aufgezeichnet",
+    "excludeAppsLike": "Windows-Apps wie {{app}} nie aufzeichnen",
+    "appsLikeExcluded": "Windows-Apps wie {{app}} werden nie aufgezeichnet",
+    "waitingForKeys": "Warte auf die Tasten",
     "startAgain": "Neu beginnen",
     "startAgainHelp_one": "Löscht diesen Schritt und zeichnet weiter auf",
     "startAgainHelp_other": "Löscht diese {{count}} Schritte und zeichnet weiter auf",
@@ -1052,6 +1078,7 @@
     "into": "Aufnahme in „{{title}}“",
     "intoFallback": "Die neuen Schritte konnten nicht in „{{title}}“ eingefügt werden: Die Anleitung wurde geschlossen, oder jemand anderes bearbeitet sie. Stattdessen befinden sie sich in einer eigenen Aufnahme.",
     "intoNothing": "Es wurde nichts aufgezeichnet, daher ist „{{title}}“ unverändert.",
+    "nothingRecorded": "Es wurde nichts aufgezeichnet, daher wurde keine Anleitung erstellt.",
     "startRecording": "Aufnahme starten",
     "startTitle": "Aufnahme starten",
     "keysChoice": "Eingaben aufzeichnen",
@@ -1107,6 +1134,7 @@
       "mergeClickIntoTyping": "Den Klick mit der folgenden Eingabe zusammenführen: {{steps}}",
       "removeDoubleClick": "Einen wiederholten Klick entfernen: {{steps}}",
       "removeOpenApp": "Einen „Öffnen“-Schritt entfernen, den der nächste Klick schon zeigt: {{steps}}",
+      "removeOpenBeforeOpen": "Einen „Öffnen“-Schritt entfernen, auf den sofort ein weiterer „Öffnen“-Schritt folgt: {{steps}}",
       "removeRedirect": "Einen „Aufrufen“-Schritt entfernen, den der Link nur durchlaufen hat: {{steps}}"
     },
     "apply_one": "{{count}} Änderung anwenden",
@@ -1327,6 +1355,8 @@
     "found_one": "{{count}} Treffer in {{steps}} Schritten gefunden.",
     "found_other": "{{count}} Treffer in {{steps}} Schritten gefunden.",
     "nothing": "Nichts gefunden.",
+    "matches_one": "{{count}} Treffer",
+    "matches_other": "{{count}} Treffer",
     "unread_one": "{{count}} Screenshot konnte nicht gelesen werden und wurde daher nicht durchsucht. Prüfen Sie ihn selbst.",
     "unread_other": "{{count}} Screenshots konnten nicht gelesen werden und wurden daher nicht durchsucht. Prüfen Sie sie selbst.",
     "notGuaranteed": "Vorschläge können etwas übersehen. Prüfen Sie jeden Screenshot, bevor Sie die Anleitung teilen.",
@@ -1355,17 +1385,18 @@
       "term": "Wort aus Ihrer Liste",
       "account": "Ihr Kontoname",
       "file": "Dateiname",
-      "path": "Dateipfad"
+      "path": "Dateipfad",
+      "notification": "Benachrichtigung"
     },
     "nextTo": "{{kind}} neben „{{label}}“"
   },
   "zoom": {
     "menu": "Auf jeden Klick zoomen",
-    "menuNote": "Schneidet sehr breite Screenshots um den Klick herum zu, damit sie auf einer Seite gut lesbar sind",
+    "menuNote": "Schneidet Screenshots, die breiter als {{width}} Pixel sind, auf den Bereich um den Klick zu, damit der Text auf der Seite größer wird",
     "auto": "Automatisch",
     "done_one": "{{count}} Screenshot vergrößert.",
     "done_other": "{{count}} Screenshots vergrößert.",
-    "nothing": "Kein Screenshot muss vergrößert werden: Alle sind auf einer Seite gut lesbar."
+    "nothing": "Nichts zu vergrößern: Es werden nur Screenshots zugeschnitten, die breiter als {{width}} Pixel sind, einen Klick haben und noch nicht zugeschnitten wurden."
   },
   "exportSettings": {
     "folder": "Exporte speichern in",
@@ -1506,7 +1537,7 @@
       "eyebrow": "Rundgang abgeschlossen",
       "title": "Alles bereit",
       "body": "Das war der Rundgang. Sie können ihn jederzeit in den Einstellungen erneut starten.",
-      "finish": "Abschließen"
+      "gotIt": "Verstanden"
     },
     "pill": {
       "label": "Rundgang",

@@ -129,7 +129,8 @@ impl Library {
     }
 
     /// Makes a saved version the current guide. The current state is saved first as a version
-    /// called "Before restoring <date>", so a restore can itself be undone.
+    /// called "Before restoring <date>", so a restore can itself be undone. The steps it puts
+    /// back lose their delete notes, so none is flagged as brought back by someone else.
     ///
     /// # Errors
     /// `InvalidId`, `GuideNotFound`, `VersionNotFound`, `NewerFormat`, `Storage`, `Json`.
@@ -153,7 +154,11 @@ impl Library {
         let folder = self.guide_dir(guide_id)?;
         replace_steps(&folder, &source.join("steps"))?;
         write_json_atomic(&folder.join("guide.json"), &guide)?;
-        self.load_guide(guide_id)
+        let restored = self.load_guide(guide_id)?;
+        // Only once the steps are back: had the notes gone first and the swap then failed, a step
+        // deleted here and edited elsewhere would stay in the guide unflagged.
+        self.forget_deletes_of(guide_id, &restored.steps)?;
+        Ok(restored)
     }
 }
 
@@ -247,6 +252,28 @@ mod tests {
             .filter(|entry| entry.file_name().to_string_lossy().starts_with('.'))
             .count();
         assert_eq!(leftovers, 0);
+    }
+
+    #[test]
+    fn restoring_after_a_delete_brings_the_step_back_without_a_conflict() {
+        // #58: save a version, delete a step, restore. One person, one session.
+        let (_root, library) = library();
+        let id = library.create_guide("Sort a list", "Robin").unwrap().guide["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        for (step_id, key) in [("s1", "a0"), ("s2", "a1"), ("s3", "a2")] {
+            library.save_step(&id, &step(step_id, key, None)).unwrap();
+        }
+        let saved = library.save_version(&id, "", "Robin").unwrap();
+        library.delete_step(&id, "s2").unwrap();
+        library
+            .note_delete(&id, "s2", "Robin", "robin-session")
+            .unwrap();
+
+        let restored = library.restore_version(&id, &saved.id, "Robin").unwrap();
+        assert_eq!(restored.steps.len(), 3);
+        assert_eq!(library.list_conflicts(&id).unwrap(), []);
     }
 
     #[test]

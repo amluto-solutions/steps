@@ -16,11 +16,16 @@ const snapshot = {
   missedCount: 0,
   inputSource: "rawInput",
   keysRecorded: true,
+  waitingForKeys: true,
 };
 
 describe("recorder events", () => {
   it("accept what the recorder sends", () => {
     expect(recorderSnapshotSchema.parse(snapshot)).toEqual(snapshot);
+    // From a build before the bar said it was waiting for a shortcut's keys: it isn't.
+    expect(
+      recorderSnapshotSchema.parse({ ...snapshot, waitingForKeys: undefined }).waitingForKeys,
+    ).toBe(false);
     expect(
       recorderFinishedSchema.parse({ sessionId: "session-1", title: "Guide", snapshot }).title,
     ).toBe("Guide");

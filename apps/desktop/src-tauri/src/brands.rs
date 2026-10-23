@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use serde_json::Value;
 use tauri::AppHandle;
 
-use crate::recorder::CommandError;
+use crate::error::CommandError;
 
 /// Room for two logos and uploaded fonts (up to four 4 MB faces, base64).
 const MAX_PROFILE_BYTES: usize = 24 * 1024 * 1024;

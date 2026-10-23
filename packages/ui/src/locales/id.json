@@ -1,7 +1,5 @@
 {
   "app": {
-    "alreadyOpenTitle": "Steps sudah terbuka",
-    "alreadyOpenBody": "Hanya satu Steps yang dapat berjalan dalam satu waktu, jadi kami telah memindahkan yang sudah terbuka ke depan untuk Anda.",
     "name": "Steps",
     "by": "by",
     "logoAlt": "Amluto"
@@ -67,6 +65,7 @@
   "library": {
     "heading": "Panduan Anda",
     "count_other": "{{count}} panduan",
+    "countOf_other": "{{shown}} dari {{count}} panduan",
     "steps_other": "{{count}} langkah",
     "search": "Cari panduan",
     "searchPlaceholder": "Cari judul, langkah, dan catatan",
@@ -186,7 +185,7 @@
       "note": "Untuk pengguna Steps lain",
       "pickTitle": "Simpan panduan sebagai file Steps",
       "filter": "Panduan Steps",
-      "done": "Panduan diekspor. Area yang diburamkan tetap buram secara permanen di file.",
+      "blurredForGood": "Area yang diburamkan tetap buram secara permanen di file.",
       "originals": "Sertakan cuplikan asli yang tidak buram (untuk serah terima internal)",
       "originalsWarning": "File akan berisi setiap cuplikan layar tanpa buramnya. Siapa pun yang menerimanya dapat melihat apa yang diburamkan. Gunakan ini hanya untuk menyerahkan panduan kepada rekan kerja yang perlu mengedit buramnya.",
       "burnedIn": "Area yang diburamkan tetap buram secara permanen di file. Nilai ketikan yang disembunyikan, komentar, dan versi tidak disertakan."
@@ -431,6 +430,14 @@
       "error": "Gagal menyimpan, mencoba lagi",
       "saved": "Semua perubahan disimpan"
     },
+    "leave": {
+      "title": "Keluar tanpa menyimpan perubahan terbaru Anda?",
+      "body": "Steps tidak dapat menyimpan perubahan terbaru Anda dan masih mencoba lagi. Jika Anda keluar sekarang, perubahan tersebut mungkin hilang.",
+      "leave": "Keluar saja",
+      "close": "Tutup saja",
+      "quit": "Keluar saja",
+      "stay": "Tetap di sini"
+    },
     "stepsList": "Langkah",
     "stepCount_other": "{{count}} langkah",
     "add": "Tambah",
@@ -473,6 +480,7 @@
       "typing": "Periksa langkah ini: ketikan mungkin tidak sama persis.",
       "code": "Periksa langkah ini: rahasia di dalamnya tidak ditemukan di cuplikan layar untuk diburamkan, atau teksnya mungkin tidak sama persis.",
       "fillEnd": "Periksa langkah ini: rekaman tidak dapat menentukan di sel mana pengisian berakhir. Tulis sampai mana, atau pilih “Sudah benar”.",
+      "appSwitch": "Periksa langkah ini: tidak ada klik atau penekanan tombol yang membawa aplikasi ini ke depan, jadi mungkin aplikasi itu maju dengan sendirinya. Hapus langkah jika panduan tidak berpindah ke sana, atau pilih “Sudah benar”.",
       "looksRight": "Sudah benar"
     },
     "stepText": "Teks langkah",
@@ -866,6 +874,20 @@
       "inUse": "Sudah digunakan untuk {{name}}.",
       "unavailable": "Aplikasi lain sudah menggunakan ini, jadi pintasan ini tidak berfungsi saat ini.",
       "heldBySteps": "Salinan Steps lain sedang terbuka dan menggunakan ini. Tutup salinan itu, lalu mulai ulang yang ini.",
+      "commonUse": "Aplikasi lain menggunakan {{keys}} untuk “{{use}}”. Selama Steps menggunakannya, perintah itu tidak akan berfungsi di aplikasi tersebut.",
+      "commonMany": "Banyak aplikasi menggunakan {{keys}} sendiri. Selama Steps menggunakannya, pintasan itu tidak akan berfungsi di aplikasi tersebut.",
+      "uses": {
+        "reloadNoCache": "Muat ulang tanpa cache",
+        "reopenTab": "Buka kembali tab yang ditutup",
+        "privateWindow": "Jendela pribadi baru",
+        "closeWindow": "Tutup jendela",
+        "closeTab": "Tutup tab",
+        "devTools": "Alat pengembang",
+        "pastePlain": "Tempel sebagai teks biasa",
+        "redo": "Ulangi",
+        "saveAs": "Simpan sebagai",
+        "bookmarksBar": "Tampilkan bilah bookmark"
+      },
       "failed": "Pintasan itu tidak dapat disimpan.",
       "reset": "Atur ulang ke default",
       "resetDone": "Pintasan diatur ulang.",
@@ -978,6 +1000,9 @@
     "excludeApp": "Jangan pernah rekam {{app}}",
     "excludeAppEmpty": "Jangan pernah rekam aplikasi ini",
     "appExcluded": "{{app}} tidak pernah direkam",
+    "excludeAppsLike": "Jangan pernah rekam aplikasi Windows seperti {{app}}",
+    "appsLikeExcluded": "Aplikasi Windows seperti {{app}} tidak pernah direkam",
+    "waitingForKeys": "Menunggu tombol",
     "startAgain": "Mulai dari awal",
     "startAgainHelp_other": "Menghapus {{count}} langkah ini dan terus merekam",
     "startedAgain_other": "Dimulai dari awal. {{count}} langkah sebelumnya dihapus.",
@@ -997,6 +1022,7 @@
     "into": "Merekam ke “{{title}}”",
     "intoFallback": "Langkah baru tidak dapat dimasukkan ke “{{title}}”: panduannya sudah ditutup, atau orang lain sedang mengeditnya. Langkah-langkah itu ada di rekaman tersendiri.",
     "intoNothing": "Tidak ada yang direkam, jadi “{{title}}” tetap seperti semula.",
+    "nothingRecorded": "Tidak ada yang direkam, jadi tidak ada panduan yang dibuat.",
     "startRecording": "Mulai merekam",
     "startTitle": "Mulai rekaman",
     "keysChoice": "Rekam yang diketik",
@@ -1051,6 +1077,7 @@
       "mergeClickIntoTyping": "Gabungkan klik dengan ketikan setelahnya: {{steps}}",
       "removeDoubleClick": "Hapus klik yang berulang: {{steps}}",
       "removeOpenApp": "Hapus langkah “Buka” yang sudah terlihat dari klik berikutnya: {{steps}}",
+      "removeOpenBeforeOpen": "Hapus langkah “Buka” yang langsung diikuti langkah “Buka” lain: {{steps}}",
       "removeRedirect": "Hapus langkah “Kunjungi” yang hanya dilewati oleh tautan: {{steps}}"
     },
     "apply_other": "Terapkan {{count}} perubahan",
@@ -1261,6 +1288,7 @@
     "searching": "Membaca cuplikan layar: {{done}} dari {{total}}",
     "found_other": "{{count}} kecocokan ditemukan di {{steps}} langkah.",
     "nothing": "Tidak ada yang ditemukan.",
+    "matches_other": "{{count}} kecocokan",
     "unread_other": "{{count}} cuplikan layar tidak dapat dibaca, jadi tidak dicari. Periksa sendiri.",
     "notGuaranteed": "Saran bisa melewatkan sesuatu. Periksa setiap cuplikan layar sebelum Anda membagikan panduan.",
     "inText_other": "Teks ini juga ada di kata-kata atau catatan {{count}} langkah ({{steps}}).",
@@ -1284,16 +1312,17 @@
       "term": "kata yang selalu diburamkan",
       "account": "nama akun Anda",
       "file": "nama file",
-      "path": "jalur file"
+      "path": "jalur file",
+      "notification": "notifikasi"
     },
     "nextTo": "{{kind}} di samping “{{label}}”"
   },
   "zoom": {
     "menu": "Perbesar pada setiap klik",
-    "menuNote": "Memangkas cuplikan layar yang sangat lebar di sekitar klik agar mudah dibaca di halaman",
+    "menuNote": "Memangkas cuplikan layar yang lebih lebar dari {{width}} piksel ke area di sekitar klik, agar teks di halaman lebih besar",
     "auto": "Otomatis",
     "done_other": "{{count}} cuplikan layar diperbesar.",
-    "nothing": "Tidak ada cuplikan layar yang perlu diperbesar: semuanya sudah mudah dibaca di halaman."
+    "nothing": "Tidak ada yang bisa diperbesar: perintah ini hanya memangkas cuplikan layar yang lebih lebar dari {{width}} piksel, memiliki klik, dan belum dipangkas."
   },
   "exportSettings": {
     "folder": "Simpan ekspor ke",
@@ -1434,7 +1463,7 @@
       "eyebrow": "Tur selesai",
       "title": "Semua sudah siap",
       "body": "Itulah turnya. Anda dapat menjalankannya lagi dari Pengaturan kapan saja.",
-      "finish": "Selesai"
+      "gotIt": "Mengerti"
     },
     "pill": {
       "label": "Tur",

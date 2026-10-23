@@ -8,7 +8,9 @@ folders, which it never touches.
 
 - **The download section reads the current release live**: the version and date from
   `/update/release.json` (the file the app itself updates from) and the SHA-256s from
-  `/download/SHA256SUMS.txt`. A new release needs no website upload.
+  `/download/SHA256SUMS.txt`. A new release needs no website upload. The date is the one
+  `CHANGELOG.md` gives the version, which `npm run release` writes into `release.json`
+  (`scripts/lib/update.test.mjs` checks the two agree).
 - **Everything else is in the build**: the screenshots, and the live demo.
 
 ## The IT guide

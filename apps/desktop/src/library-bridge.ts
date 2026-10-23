@@ -106,6 +106,8 @@ export const desktopLibrary: LibraryBridge = {
 
   exportAmlsteps: (libraryId, guideId, destination, includeOriginals) =>
     invoke("library_export_amlsteps", { libraryId, guideId, destination, includeOriginals }),
+  exportAmlstepsTo: (libraryId, guideId, folder, name, includeOriginals) =>
+    invoke("library_export_amlsteps_to", { libraryId, guideId, folder, name, includeOriginals }),
   importAmlsteps: (libraryId, source) => invoke("library_import_amlsteps", { libraryId, source }),
 
   pickFolder: async (title) => {

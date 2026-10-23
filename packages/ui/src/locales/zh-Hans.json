@@ -1,7 +1,5 @@
 {
   "app": {
-    "alreadyOpenTitle": "Steps 已经打开",
-    "alreadyOpenBody": "Steps 一次只能运行一个，所以我们已将已打开的这个窗口切换到前台。",
     "name": "Steps",
     "by": "by",
     "logoAlt": "Amluto"
@@ -67,6 +65,7 @@
   "library": {
     "heading": "你的指南",
     "count_other": "{{count}} 个指南",
+    "countOf_other": "{{shown}} / {{count}} 个指南",
     "steps_other": "{{count}} 个步骤",
     "search": "搜索指南",
     "searchPlaceholder": "搜索标题、步骤和备注",
@@ -186,7 +185,7 @@
       "note": "供其他 Steps 用户使用",
       "pickTitle": "将指南另存为 Steps 文件",
       "filter": "Steps 指南",
-      "done": "已导出指南。文件中的模糊区域已永久模糊。",
+      "blurredForGood": "文件中的模糊区域已永久模糊。",
       "originals": "包含未模糊的原图（用于内部交接）",
       "originalsWarning": "文件将包含所有未经模糊处理的截图。任何拿到该文件的人都能看到被模糊的内容。仅在将指南交给需要编辑模糊区域的同事时使用。",
       "burnedIn": "文件中的模糊区域已永久模糊。隐藏的键入值、批注和版本不会包含在内。"
@@ -431,6 +430,14 @@
       "error": "无法保存，正在重试",
       "saved": "所有更改均已保存"
     },
+    "leave": {
+      "title": "要在不保存最新更改的情况下离开吗？",
+      "body": "Steps 无法保存你的最新更改，正在重试。如果现在离开，这些更改可能会丢失。",
+      "leave": "仍然离开",
+      "close": "仍然关闭",
+      "quit": "仍然退出",
+      "stay": "留下"
+    },
     "stepsList": "步骤",
     "stepCount_other": "{{count}} 个步骤",
     "add": "添加",
@@ -473,6 +480,7 @@
       "typing": "请检查此步骤：键入的内容可能不完全一致。",
       "code": "请检查此步骤：其中的机密信息无法在截图中找到，因此未能模糊，或者文本可能不完全一致。",
       "fillEnd": "请检查此步骤：录制时无法识别填充在哪个单元格结束。请写下填充到了哪里，或选择“看起来没问题”。",
+      "appSwitch": "请检查此步骤：没有任何单击或按键将此应用切换到前台，因此它可能是自行弹出的。如果指南并未切换到该应用，请删除此步骤，或选择“看起来没问题”。",
       "looksRight": "看起来没问题"
     },
     "stepText": "步骤文字",
@@ -866,6 +874,20 @@
       "inUse": "已用于“{{name}}”。",
       "unavailable": "另一个应用已在使用此快捷键，因此它目前无效。",
       "heldBySteps": "另一个 Steps 副本已打开并在使用此快捷键。请先关闭它，然后重新启动此副本。",
+      "commonUse": "其他应用将 {{keys}} 用于“{{use}}”。Steps 占用该快捷键期间，它在那些应用中不会执行此操作。",
+      "commonMany": "许多应用自己会使用 {{keys}}。Steps 占用该快捷键期间，它在那些应用中将无法使用。",
+      "uses": {
+        "reloadNoCache": "忽略缓存重新加载",
+        "reopenTab": "重新打开关闭的标签页",
+        "privateWindow": "新建无痕窗口",
+        "closeWindow": "关闭窗口",
+        "closeTab": "关闭标签页",
+        "devTools": "开发者工具",
+        "pastePlain": "粘贴为纯文本",
+        "redo": "重做",
+        "saveAs": "另存为",
+        "bookmarksBar": "显示书签栏"
+      },
       "failed": "无法保存该快捷键。",
       "reset": "重置为默认值",
       "resetDone": "已重置快捷键。",
@@ -978,6 +1000,9 @@
     "excludeApp": "从不录制 {{app}}",
     "excludeAppEmpty": "从不录制此应用",
     "appExcluded": "不会再录制 {{app}}",
+    "excludeAppsLike": "从不录制 {{app}} 这类 Windows 应用",
+    "appsLikeExcluded": "不会再录制 {{app}} 这类 Windows 应用",
+    "waitingForKeys": "正在等待按键",
     "startAgain": "重新开始",
     "startAgainHelp_other": "清除这 {{count}} 个步骤并继续录制",
     "startedAgain_other": "已重新开始。之前的 {{count}} 个步骤已清除。",
@@ -997,6 +1022,7 @@
     "into": "正在录制到“{{title}}”",
     "intoFallback": "新步骤无法放入“{{title}}”：它已被关闭，或有其他人正在编辑。这些步骤已改为单独的一份录制。",
     "intoNothing": "未录制任何内容，因此“{{title}}”保持不变。",
+    "nothingRecorded": "未录制任何内容，因此未创建指南。",
     "startRecording": "开始录制",
     "startTitle": "开始录制",
     "keysChoice": "记录键入内容",
@@ -1051,6 +1077,7 @@
       "mergeClickIntoTyping": "将单击合并到其后的键入中：{{steps}}",
       "removeDoubleClick": "删除重复的单击：{{steps}}",
       "removeOpenApp": "删除下一次单击已体现的“打开”步骤：{{steps}}",
+      "removeOpenBeforeOpen": "删除后面紧跟着另一个“打开”步骤的“打开”步骤：{{steps}}",
       "removeRedirect": "删除链接仅中途经过的“转到”步骤：{{steps}}"
     },
     "apply_other": "应用 {{count}} 项更改",
@@ -1261,6 +1288,7 @@
     "searching": "正在读取截图：{{done}}/{{total}}",
     "found_other": "在 {{steps}} 个步骤中找到 {{count}} 个匹配项。",
     "nothing": "未找到任何内容。",
+    "matches_other": "{{count}} 处匹配",
     "unread_other": "{{count}} 张截图无法读取，因此未被搜索。请自行检查。",
     "notGuaranteed": "建议可能会有遗漏。共享指南前，请检查每张截图。",
     "inText_other": "它也出现在 {{count}} 个步骤（{{steps}}）的措辞或备注中。",
@@ -1284,16 +1312,17 @@
       "term": "始终模糊词",
       "account": "你的账户名",
       "file": "文件名",
-      "path": "文件路径"
+      "path": "文件路径",
+      "notification": "通知"
     },
     "nextTo": "“{{label}}”旁边的{{kind}}"
   },
   "zoom": {
     "menu": "放大每次单击的位置",
-    "menuNote": "围绕单击位置裁剪很宽的截图，使其在页面上清晰易读",
+    "menuNote": "将宽于 {{width}} 像素的截图裁剪到单击位置周围的区域，让页面上的文字更大",
     "auto": "自动",
     "done_other": "已放大 {{count}} 张截图。",
-    "nothing": "没有需要放大的截图：它们在页面上已经清晰易读。"
+    "nothing": "没有可放大的内容：只会裁剪宽于 {{width}} 像素、带有单击且尚未裁剪的截图。"
   },
   "exportSettings": {
     "folder": "导出保存位置",
@@ -1434,7 +1463,7 @@
       "eyebrow": "导览完成",
       "title": "一切就绪",
       "body": "导览到此结束。你可以随时从“设置”中再次运行它。",
-      "finish": "完成"
+      "gotIt": "知道了"
     },
     "pill": {
       "label": "导览",

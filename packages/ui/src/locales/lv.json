@@ -1,7 +1,5 @@
 {
   "app": {
-    "alreadyOpenTitle": "Steps jau darbojas",
-    "alreadyOpenBody": "Vienlaikus var darboties tikai viens Steps, tāpēc esošo logu izvirzījām priekšplānā.",
     "name": "Steps",
     "by": "by",
     "logoAlt": "Amluto"
@@ -83,6 +81,9 @@
     "count_zero": "{{count}} pamācību",
     "count_one": "{{count}} pamācība",
     "count_other": "{{count}} pamācības",
+    "countOf_zero": "{{shown}} no {{count}} pamācībām",
+    "countOf_one": "{{shown}} no {{count}} pamācības",
+    "countOf_other": "{{shown}} no {{count}} pamācībām",
     "steps_zero": "{{count}} soļu",
     "steps_one": "{{count}} solis",
     "steps_other": "{{count}} soļi",
@@ -222,7 +223,7 @@
       "note": "Citam Steps lietotājam",
       "pickTitle": "Saglabāt pamācību kā Steps failu",
       "filter": "Steps pamācība",
-      "done": "Pamācība eksportēta. Aizmiglotie apgabali failā ir aizmigloti neatgriezeniski.",
+      "blurredForGood": "Aizmiglotie apgabali failā ir aizmigloti neatgriezeniski.",
       "originals": "Iekļaut neaizmiglotos oriģinālus (nodošanai organizācijas iekšienē)",
       "originalsWarning": "Failā būs visi ekrānuzņēmumi bez aizmiglojuma. Ikviens, kas to saņems, redzēs, kas bija aizmiglots. Izmantojiet to tikai, lai nodotu pamācību kolēģim, kuram jārediģē aizmiglojums.",
       "burnedIn": "Aizmiglotie apgabali failā ir aizmigloti neatgriezeniski. Paslēptās ievadītās vērtības, komentāri un versijas netiek iekļautas."
@@ -513,6 +514,14 @@
       "error": "Neizdevās saglabāt, tiek mēģināts vēlreiz",
       "saved": "Visas izmaiņas saglabātas"
     },
+    "leave": {
+      "title": "Vai iziet bez jaunākajām izmaiņām?",
+      "body": "Neizdevās saglabāt jūsu jaunākās izmaiņas, un Steps joprojām mēģina. Ja iziesiet tagad, tās var tikt zaudētas.",
+      "leave": "Iziet tomēr",
+      "close": "Aizvērt tomēr",
+      "quit": "Iziet tomēr",
+      "stay": "Palikt"
+    },
     "stepsList": "Soļi",
     "stepCount_zero": "{{count}} soļu",
     "stepCount_one": "{{count}} solis",
@@ -565,6 +574,7 @@
       "typing": "Pārbaudiet šo soli: ievadītais teksts var precīzi neatbilst.",
       "code": "Pārbaudiet šo soli: tajā esošo slepeno informāciju neizdevās atrast ekrānuzņēmumā, lai to aizmigloto, vai arī teksts var precīzi neatbilst.",
       "fillEnd": "Pārbaudiet šo soli: ierakstot neizdevās noteikt, kurā šūnā beidzās aizpildīšana. Uzrakstiet, kur tā beidzās, vai izvēlieties “Izskatās pareizi”.",
+      "appSwitch": "Pārbaudiet šo soli: neviens klikšķis vai taustiņa nospiešana neizvirzīja šo programmu priekšplānā, tāpēc tā, iespējams, izvirzījās pati. Izdzēsiet soli, ja pamācība uz to nepārslēdzās, vai izvēlieties “Izskatās pareizi”.",
       "looksRight": "Izskatās pareizi"
     },
     "stepText": "Soļa teksts",
@@ -968,6 +978,20 @@
       "inUse": "Jau tiek izmantots: {{name}}.",
       "unavailable": "Šo kombināciju jau izmanto cita programma, tāpēc pašlaik tā nedarbojas.",
       "heldBySteps": "Cita Steps kopija ir atvērta un izmanto šo kombināciju. Aizveriet to, pēc tam restartējiet šo.",
+      "commonUse": "Citas programmas izmanto {{keys}} komandai “{{use}}”. Kamēr Steps to ir aizņēmis, tur tā nedarbosies.",
+      "commonMany": "Daudzas programmas pašas izmanto {{keys}}. Kamēr Steps to ir aizņēmis, tajās tā nedarbosies.",
+      "uses": {
+        "reloadNoCache": "Pārlādēt bez kešatmiņas",
+        "reopenTab": "Atkārtoti atvērt aizvērto cilni",
+        "privateWindow": "Jauns privātais logs",
+        "closeWindow": "Aizvērt logu",
+        "closeTab": "Aizvērt cilni",
+        "devTools": "Izstrādātāja rīki",
+        "pastePlain": "Ielīmēt kā vienkāršu tekstu",
+        "redo": "Atkārtot",
+        "saveAs": "Saglabāt kā",
+        "bookmarksBar": "Rādīt grāmatzīmju joslu"
+      },
       "failed": "Šo īsinājumtaustiņu nevarēja saglabāt.",
       "reset": "Atiestatīt noklusējumus",
       "resetDone": "Īsinājumtaustiņi atiestatīti.",
@@ -1080,6 +1104,9 @@
     "excludeApp": "Nekad neierakstīt {{app}}",
     "excludeAppEmpty": "Nekad neierakstīt šo programmu",
     "appExcluded": "{{app}} nekad netiek ierakstīta",
+    "excludeAppsLike": "Nekad neierakstīt Windows lietotnes, piemēram, {{app}}",
+    "appsLikeExcluded": "Windows lietotnes, piemēram, {{app}}, nekad netiek ierakstītas",
+    "waitingForKeys": "Gaida taustiņus",
     "startAgain": "Sākt no jauna",
     "startAgainHelp_zero": "Notīra šos {{count}} soļus un turpina ierakstīšanu",
     "startAgainHelp_one": "Notīra šo {{count}} soli un turpina ierakstīšanu",
@@ -1107,6 +1134,7 @@
     "into": "Ieraksts pamācībā “{{title}}”",
     "intoFallback": "Jaunos soļus nevarēja ievietot pamācībā “{{title}}”: tā tika aizvērta vai to rediģē kāds cits. Tā vietā tie ir atsevišķā ierakstā.",
     "intoNothing": "Nekas netika ierakstīts, tāpēc pamācība “{{title}}” nav mainīta.",
+    "nothingRecorded": "Nekas netika ierakstīts, tāpēc pamācība netika izveidota.",
     "startRecording": "Sākt ierakstīšanu",
     "startTitle": "Sākt ierakstīšanu",
     "keysChoice": "Ierakstīt ievadīto tekstu",
@@ -1163,6 +1191,7 @@
       "mergeClickIntoTyping": "Apvienot klikšķi ar tam sekojošo teksta ievadi: {{steps}}",
       "removeDoubleClick": "Noņemt atkārtotu klikšķi: {{steps}}",
       "removeOpenApp": "Noņemt soli “Atveriet”, ko jau parāda nākamais klikšķis: {{steps}}",
+      "removeOpenBeforeOpen": "Noņemt soli “Atveriet”, kam uzreiz seko cits solis “Atveriet”: {{steps}}",
       "removeRedirect": "Noņemt soli “Dodieties uz”, caur kuru saite tikai pārsūtīja: {{steps}}"
     },
     "apply_zero": "Lietot {{count}} izmaiņas",
@@ -1393,6 +1422,9 @@
     "found_one": "Atrasta {{count}} atbilstība, soļi: {{steps}}.",
     "found_other": "Atrastas {{count}} atbilstības, soļi: {{steps}}.",
     "nothing": "Nekas netika atrasts.",
+    "matches_zero": "{{count}} atbilstību",
+    "matches_one": "{{count}} atbilstība",
+    "matches_other": "{{count}} atbilstības",
     "unread_zero": "{{count}} ekrānuzņēmumus nevarēja nolasīt, tāpēc tajos netika meklēts. Pārbaudiet tos paši.",
     "unread_one": "{{count}} ekrānuzņēmumu nevarēja nolasīt, tāpēc tajā netika meklēts. Pārbaudiet to paši.",
     "unread_other": "{{count}} ekrānuzņēmumus nevarēja nolasīt, tāpēc tajos netika meklēts. Pārbaudiet tos paši.",
@@ -1426,18 +1458,19 @@
       "term": "vienmēr aizmiglojams vārds",
       "account": "jūsu konta nosaukums",
       "file": "faila nosaukums",
-      "path": "faila ceļš"
+      "path": "faila ceļš",
+      "notification": "paziņojums"
     },
     "nextTo": "{{kind}} blakus “{{label}}”"
   },
   "zoom": {
     "menu": "Tuvināt katru klikšķi",
-    "menuNote": "Apgriež ļoti platus ekrānuzņēmumus ap klikšķi, lai tie labi izskatītos lappusē",
+    "menuNote": "Apgriež ekrānuzņēmumus, kas platāki par {{width}} pikseļiem, līdz apgabalam ap klikšķi, lai teksts lappusē būtu lielāks",
     "auto": "Automātiski",
     "done_zero": "Tuvināti {{count}} ekrānuzņēmumi.",
     "done_one": "Tuvināts {{count}} ekrānuzņēmums.",
     "done_other": "Tuvināti {{count}} ekrānuzņēmumi.",
-    "nothing": "Nevienu ekrānuzņēmumu nav jātuvina: tie jau labi izskatās lappusē."
+    "nothing": "Nav ko tuvināt: tiek apgriezti tikai ekrānuzņēmumi, kas platāki par {{width}} pikseļiem, kuros ir klikšķis un kuri vēl nav apgriezti."
   },
   "exportSettings": {
     "folder": "Saglabāt eksportus šeit",
@@ -1578,7 +1611,7 @@
       "eyebrow": "Apskats pabeigts",
       "title": "Viss gatavs",
       "body": "Tas arī viss. Apskatu jebkurā laikā varat palaist vēlreiz iestatījumos.",
-      "finish": "Pabeigt"
+      "gotIt": "Skaidrs"
     },
     "pill": {
       "label": "Apskats",

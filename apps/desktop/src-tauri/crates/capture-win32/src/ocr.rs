@@ -32,6 +32,7 @@ pub fn recognize(bgra: &[u8], width: u32, height: u32) -> Result<Vec<Line>> {
     // SAFETY: no reserved pointer is passed, and the matching uninitialise is skipped on
     // purpose so an apartment another part of the thread relies on is never torn down.
     let _ = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
+    crate::com::keep_multithreaded_apartment();
     let engine = OcrEngine::TryCreateFromUserProfileLanguages()?;
     let limit = OcrEngine::MaxImageDimension()?;
     if width > limit || height > limit {

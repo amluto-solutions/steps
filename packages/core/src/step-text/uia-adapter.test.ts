@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import shared from "../../test-vectors/click-naming.json";
 import type { UiaElementFacts } from "./types.ts";
-import { clickPhrase, nameClick, NAMING_SOURCES } from "./click-naming.ts";
+import {
+  clickPhrase,
+  INPUT_PANEL_PROGRAMS,
+  nameClick,
+  NAMING_SOURCES,
+  TITLE_BAR_BUTTONS,
+} from "./click-naming.ts";
 import { ELEMENT_KINDS, renderPhrase } from "./phrase.ts";
 import {
   describeInput,
@@ -189,6 +195,10 @@ describe("the naming facts the Windows recorder shares (test-vectors/click-namin
     expect(NAMING_SOURCES).toEqual(shared.namingSources);
   });
 
+  it("reads the same title-bar buttons as the recorder writes", () => {
+    expect(TITLE_BAR_BUTTONS).toEqual(shared.titleBarButtons);
+  });
+
   it("knows the same framework names and light-dismiss layer as the recorder", () => {
     expect(FRAMEWORK_NAMES).toEqual(shared.frameworkNames);
     expect(LIGHT_DISMISS_IDS).toEqual(shared.lightDismissAutomationIds);
@@ -201,6 +211,10 @@ describe("the naming facts the Windows recorder shares (test-vectors/click-namin
       expect(read.name).toBe(framework ? "" : name);
     },
   );
+
+  it("knows Windows' input panels by the same program as the recorder (#109)", () => {
+    expect(INPUT_PANEL_PROGRAMS).toEqual(shared.inputPanelPrograms);
+  });
 
   it("takes the light-dismiss layer's name off", () => {
     for (const automationId of shared.lightDismissAutomationIds)

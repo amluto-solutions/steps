@@ -1,7 +1,5 @@
 {
   "app": {
-    "alreadyOpenTitle": "Steps jest już otwarty",
-    "alreadyOpenBody": "Naraz działa tylko jedna kopia Steps, więc wyświetliliśmy ją na wierzchu.",
     "name": "Steps",
     "by": "by",
     "logoAlt": "Amluto"
@@ -91,6 +89,10 @@
     "count_few": "{{count}} instrukcje",
     "count_many": "{{count}} instrukcji",
     "count_other": "{{count}} instrukcji",
+    "countOf_one": "{{shown}} z {{count}} instrukcji",
+    "countOf_few": "{{shown}} z {{count}} instrukcji",
+    "countOf_many": "{{shown}} z {{count}} instrukcji",
+    "countOf_other": "{{shown}} z {{count}} instrukcji",
     "steps_one": "{{count}} krok",
     "steps_few": "{{count}} kroki",
     "steps_many": "{{count}} kroków",
@@ -240,7 +242,7 @@
       "note": "Dla innego użytkownika Steps",
       "pickTitle": "Zapisz instrukcję jako plik Steps",
       "filter": "Instrukcja Steps",
-      "done": "Wyeksportowano instrukcję. Rozmyte obszary są w pliku rozmyte na stałe.",
+      "blurredForGood": "Rozmyte obszary są w pliku rozmyte na stałe.",
       "originals": "Dołącz nierozmyte oryginały (do przekazania wewnątrz firmy)",
       "originalsWarning": "Plik będzie zawierać każdy zrzut ekranu bez rozmycia. Każdy, kto go otrzyma, zobaczy, co było rozmyte. Używaj tej opcji tylko do przekazania instrukcji współpracownikowi, który musi edytować rozmycie.",
       "burnedIn": "Rozmyte obszary są w pliku rozmyte na stałe. Ukryte wpisane wartości, komentarze i wersje są pomijane."
@@ -554,6 +556,14 @@
       "error": "Nie udało się zapisać, ponawianie próby",
       "saved": "Wszystkie zmiany zapisane"
     },
+    "leave": {
+      "title": "Wyjść bez zapisania najnowszych zmian?",
+      "body": "Nie udało się zapisać najnowszych zmian, ale Steps nadal próbuje. Jeśli wyjdziesz teraz, mogą zostać utracone.",
+      "leave": "Wyjdź mimo to",
+      "close": "Zamknij mimo to",
+      "quit": "Zakończ mimo to",
+      "stay": "Zostań"
+    },
     "stepsList": "Kroki",
     "stepCount_one": "{{count}} krok",
     "stepCount_few": "{{count}} kroki",
@@ -611,6 +621,7 @@
       "typing": "Sprawdź ten krok: wpisany tekst może nie zgadzać się dokładnie.",
       "code": "Sprawdź ten krok: nie udało się znaleźć na zrzucie ekranu poufnej wartości do rozmycia albo tekst może nie zgadzać się dokładnie.",
       "fillEnd": "Sprawdź ten krok: nagranie nie rozpoznało, w której komórce zakończyło się wypełnienie. Wpisz, dokąd sięgnęło, lub wybierz Wygląda dobrze.",
+      "appSwitch": "Sprawdź ten krok: aplikacja nie została wysunięta na wierzch żadnym kliknięciem ani klawiszem, więc mogła wysunąć się sama. Usuń krok, jeśli instrukcja nie przechodziła do tej aplikacji, lub wybierz Wygląda dobrze.",
       "looksRight": "Wygląda dobrze"
     },
     "stepText": "Tekst kroku",
@@ -1019,6 +1030,20 @@
       "inUse": "Już używany dla: {{name}}.",
       "unavailable": "Inna aplikacja już używa tego skrótu, więc teraz nie działa.",
       "heldBySteps": "Inna kopia Steps jest otwarta i używa tego skrótu. Zamknij ją, a następnie uruchom tę ponownie.",
+      "commonUse": "Inne aplikacje używają {{keys}} do polecenia „{{use}}”. Dopóki Steps ma ten skrót, nie zadziała on tam.",
+      "commonMany": "Wiele aplikacji samo używa {{keys}}. Dopóki Steps ma ten skrót, nie będzie on w nich działać.",
+      "uses": {
+        "reloadNoCache": "Załaduj ponownie bez pamięci podręcznej",
+        "reopenTab": "Otwórz ponownie zamkniętą kartę",
+        "privateWindow": "Nowe okno prywatne",
+        "closeWindow": "Zamknij okno",
+        "closeTab": "Zamknij kartę",
+        "devTools": "Narzędzia deweloperskie",
+        "pastePlain": "Wklej jako zwykły tekst",
+        "redo": "Ponów",
+        "saveAs": "Zapisz jako",
+        "bookmarksBar": "Pokaż pasek zakładek"
+      },
       "failed": "Nie udało się zapisać tego skrótu.",
       "reset": "Przywróć domyślne",
       "resetDone": "Przywrócono domyślne skróty.",
@@ -1131,6 +1156,9 @@
     "excludeApp": "Nigdy nie nagrywaj {{app}}",
     "excludeAppEmpty": "Nigdy nie nagrywaj tej aplikacji",
     "appExcluded": "Aplikacja {{app}} nigdy nie jest nagrywana",
+    "excludeAppsLike": "Nigdy nie nagrywaj aplikacji Windows, np. {{app}}",
+    "appsLikeExcluded": "Aplikacje Windows, np. {{app}}, nigdy nie są nagrywane",
+    "waitingForKeys": "Oczekiwanie na klawisze",
     "startAgain": "Zacznij od nowa",
     "startAgainHelp_one": "Usuwa ten krok i nagrywa dalej",
     "startAgainHelp_few": "Usuwa te {{count}} kroki i nagrywa dalej",
@@ -1162,6 +1190,7 @@
     "into": "Nagrywanie do „{{title}}”",
     "intoFallback": "Nowe kroki nie mogły trafić do „{{title}}”: instrukcję zamknięto albo edytuje ją ktoś inny. Zamiast tego są w osobnym nagraniu.",
     "intoNothing": "Nic nie nagrano, więc „{{title}}” pozostała bez zmian.",
+    "nothingRecorded": "Nic nie nagrano, więc nie utworzono instrukcji.",
     "startRecording": "Rozpocznij nagrywanie",
     "startTitle": "Rozpocznij nagrywanie",
     "keysChoice": "Nagrywaj wpisywany tekst",
@@ -1219,6 +1248,7 @@
       "mergeClickIntoTyping": "Scal kliknięcie z następującym po nim wpisywaniem: {{steps}}",
       "removeDoubleClick": "Usuń powtórzone kliknięcie: {{steps}}",
       "removeOpenApp": "Usuń krok „Otwórz”, który pokazuje już następne kliknięcie: {{steps}}",
+      "removeOpenBeforeOpen": "Usuń krok „Otwórz”, po którym od razu następuje kolejny krok „Otwórz”: {{steps}}",
       "removeRedirect": "Usuń krok „Przejdź do”, przez który link tylko przechodził: {{steps}}"
     },
     "apply_one": "Zastosuj {{count}} zmianę",
@@ -1459,6 +1489,10 @@
     "found_many": "Znaleziono {{count}} dopasowań; liczba kroków: {{steps}}.",
     "found_other": "Znaleziono {{count}} dopasowań; liczba kroków: {{steps}}.",
     "nothing": "Nic nie znaleziono.",
+    "matches_one": "{{count}} trafienie",
+    "matches_few": "{{count}} trafienia",
+    "matches_many": "{{count}} trafień",
+    "matches_other": "{{count}} trafienia",
     "unread_one": "Nie udało się odczytać {{count}} zrzutu ekranu, więc nie został przeszukany. Sprawdź go samodzielnie.",
     "unread_few": "Nie udało się odczytać {{count}} zrzutów ekranu, więc nie zostały przeszukane. Sprawdź je samodzielnie.",
     "unread_many": "Nie udało się odczytać {{count}} zrzutów ekranu, więc nie zostały przeszukane. Sprawdź je samodzielnie.",
@@ -1497,19 +1531,20 @@
       "term": "słowo do rozmywania zawsze",
       "account": "nazwa Twojego konta",
       "file": "nazwa pliku",
-      "path": "ścieżka pliku"
+      "path": "ścieżka pliku",
+      "notification": "powiadomienie"
     },
     "nextTo": "{{kind}} obok „{{label}}”"
   },
   "zoom": {
     "menu": "Powiększ każde kliknięcie",
-    "menuNote": "Przycina bardzo szerokie zrzuty ekranu wokół kliknięcia, aby były czytelne na stronie",
+    "menuNote": "Przycina zrzuty ekranu szersze niż {{width}} pikseli do obszaru wokół kliknięcia, aby tekst na stronie był większy",
     "auto": "Auto",
     "done_one": "Powiększono {{count}} zrzut ekranu.",
     "done_few": "Powiększono {{count}} zrzuty ekranu.",
     "done_many": "Powiększono {{count}} zrzutów ekranu.",
     "done_other": "Powiększono {{count}} zrzutów ekranu.",
-    "nothing": "Żaden zrzut ekranu nie wymaga powiększenia: wszystkie są czytelne na stronie."
+    "nothing": "Nic do powiększenia: przycina tylko zrzuty ekranu szersze niż {{width}} pikseli, które mają kliknięcie i nie zostały jeszcze przycięte."
   },
   "exportSettings": {
     "folder": "Zapisuj eksporty w",
@@ -1650,7 +1685,7 @@
       "eyebrow": "Samouczek ukończony",
       "title": "Wszystko gotowe",
       "body": "To już cały samouczek. Możesz go uruchomić ponownie w Ustawieniach, kiedy tylko chcesz.",
-      "finish": "Zakończ"
+      "gotIt": "Rozumiem"
     },
     "pill": {
       "label": "Samouczek",

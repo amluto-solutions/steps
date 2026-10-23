@@ -94,11 +94,15 @@ export function fakeRecorder(
     heartbeatRequest: new Set<() => void>(),
   };
   const listen =
-    <T>(set: Set<T>) =>
-    (handler: T) => {
-      set.add(handler);
+    <A extends unknown[]>(set: Set<(...args: A) => void>) =>
+    (handler: (...args: A) => void) => {
+      // An entry of its own, so one function listening twice is two listeners, as with Tauri's
+      // events: under React's StrictMode the bar listened with `setSnapshot` twice, and stopping
+      // the first took the second away, so the preview's bar never followed the recorder's state.
+      const entry = (...args: A) => handler(...args);
+      set.add(entry);
       return Promise.resolve(() => {
-        set.delete(handler);
+        set.delete(entry);
       });
     };
   const fire: RecorderEvents = {
@@ -175,7 +179,9 @@ export function fakeRecorder(
     async stop() {
       const sessionId = snapshot.sessionId;
       const found = sessionId ? sessions.get(sessionId) : undefined;
-      const done = await become({ ...IDLE });
+      // Both editions keep the stopped recording as the current one until it's saved or
+      // discarded, so Discard right after Stop lets it go.
+      const done = await become({ ...IDLE, sessionId });
       if (sessionId && found) {
         found.stopped = true;
         fire.finished({ sessionId, title: found.title, snapshot: { ...done, sessionId } });
@@ -196,14 +202,24 @@ export function fakeRecorder(
     setTargetMonitor: () => Promise.resolve(),
     setBarHidden: () => Promise.resolve(),
     captureNow: () => Promise.resolve(),
-    addShortcut: () => Promise.resolve(),
-    closeShortcutPopup: () => Promise.resolve(),
+    async addShortcut() {
+      await become({ waitingForKeys: true });
+    },
+    async closeShortcutPopup(added) {
+      // Only a step the recording waited for counts, as on the desktop.
+      const counted = added && snapshot.waitingForKeys === true;
+      await become({
+        waitingForKeys: false,
+        stepCount: snapshot.stepCount + (counted ? 1 : 0),
+      });
+    },
     heartbeat: () => Promise.resolve(),
 
     getRecoveries: () =>
       Promise.resolve(
         [...sessions]
-          .filter(([sessionId]) => sessionId !== snapshot.sessionId)
+          // The one recording now isn't for recovery; a stopped one is, until it's saved.
+          .filter(([sessionId]) => sessionId !== snapshot.sessionId || snapshot.state === "idle")
           .map(([sessionId, found]): RecoverySession => ({
             sessionId,
             title: found.title,

@@ -51,7 +51,7 @@ export const LIGHT_DISMISS_IDS: readonly string[] = ["Light Dismiss"];
  * A framework's name (`PopupHost`, `Pop-upHost`, `DesktopWindowXamlSource`, or a window class
  * such as `Chrome_RenderWidgetHostHWND` standing in for one).
  */
-const isFrameworkName = (name: string, className: string) =>
+export const isFrameworkName = (name: string, className: string): boolean =>
   FRAMEWORK_NAMES.includes(name.replace(/[^\p{L}\p{N}_]/gu, "").toLowerCase()) ||
   (name !== "" && name === className && name.includes("_"));
 
@@ -99,6 +99,10 @@ export const promoteTextLeaf = (facts: UiaElementFacts): UiaElementFacts => {
   const item = partOfItem ? owningItem(facts) : null;
   if (item) return { ...facts, controlType: item.controlType, name: item.name };
   const [parent] = facts.ancestors;
+  // A combo box's own drop-down button says what it does ("Open", or "Close" once the list is
+  // open), not which list it opens: the combo box does (Excel's Number Format, 10/10/2026, #92).
+  if (facts.controlType === "Button" && parent?.controlType === "ComboBox" && clean(parent.name))
+    return { ...facts, controlType: parent.controlType, name: parent.name };
   const cellInDesktopRow =
     parent !== undefined &&
     clean(parent.name) !== undefined &&
@@ -108,6 +112,21 @@ export const promoteTextLeaf = (facts: UiaElementFacts): UiaElementFacts => {
   if (cellInDesktopRow) return { ...facts, controlType: parent.controlType, name: parent.name };
   return facts;
 };
+
+/** Word's own window class for a document's body, which UI Automation reports as a Document. */
+export const WORD_BODY_CLASS = "_WwG";
+
+/** Whether `exe` (a window's program file) is Word's. */
+export const isWord = (exe: string | null | undefined): boolean =>
+  exe?.toLowerCase() === "winword.exe";
+
+/**
+ * Word's document body: the Document UI Automation finds where Word's text is, of Word's own
+ * window class, in Word (#74). Word names it after the file ("Document3"). Outlook writes mail in
+ * the same window class, named for the message, so only Word's counts.
+ */
+export const isWordBody = (facts: UiaElementFacts, exe: string | null | undefined): boolean =>
+  facts.controlType === "Document" && facts.className === WORD_BODY_CLASS && isWord(exe);
 
 export function uiaToStepTarget(input: UiaElementFacts): StepTarget {
   const facts = promoteTextLeaf(readableFacts(input));

@@ -5,12 +5,14 @@ export {
   ENGLISH,
   QUOTE_LIMIT,
   TONES,
+  asDoubleClick,
   asRightClick,
   isTone,
   phraseFor,
   renderPhrase,
   shorten,
   taskbarAppName,
+  typingInDocument,
 } from "./phrase.ts";
 export type {
   ElementKind,
@@ -26,17 +28,25 @@ export { phraseOfStep, wordStepIn } from "./reword.ts";
 export type { PhraseFacts } from "./reword.ts";
 export {
   NAMING_SOURCES,
+  TITLE_BAR_BUTTONS,
   clickPhrase,
+  menuItemFor,
   nameClick,
   namingOfStep,
+  windowTitleOf,
   withScreenWords,
+  withoutEllipsis,
+  withoutShortcut,
 } from "./click-naming.ts";
 export type {
   ClickEvidence,
   ClickNaming,
+  ClickWindow,
+  MenuItem,
   NamingSource,
   ScreenEvidence,
   StoredClick,
+  TitleBarButton,
 } from "./click-naming.ts";
 export type { StepAction, StepTarget, UiaAncestor, UiaElementFacts } from "./types.ts";
-export { describeInput, readableFacts, uiaToStepTarget } from "./uia-adapter.ts";
+export { describeInput, isWordBody, readableFacts, uiaToStepTarget } from "./uia-adapter.ts";

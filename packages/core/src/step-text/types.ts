@@ -38,6 +38,17 @@ export interface UiaElementFacts {
    */
   ancestors: readonly UiaAncestor[];
   sensitive: boolean;
+  /**
+   * A spreadsheet cell with a filter drop-down (Excel's `HasFilterDropdown`): the header's words,
+   * the cell's text (12/10/2026, #70). Absent for any other element, and in older recordings.
+   */
+  filterHeader?: string | undefined;
+  /**
+   * The class of the Document the element's parents stopped at (Word's body is `_WwG`), which
+   * says the element is part of that document (#74). Absent when they stopped anywhere else, on
+   * Linux, and in older recordings.
+   */
+  documentClass?: string | undefined;
 }
 
 /** One of an element's parents, as UI Automation or AT-SPI named it. */

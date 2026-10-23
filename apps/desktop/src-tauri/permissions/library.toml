@@ -199,6 +199,11 @@ description = "Allows the user to save a guide as an .amlsteps file at a locatio
 commands.allow = ["library_export_amlsteps"]
 
 [[permission]]
+identifier = "allow-library-export-amlsteps-to"
+description = "Allows the user to save a guide as an .amlsteps file in the export folder, under a name no file there has."
+commands.allow = ["library_export_amlsteps_to"]
+
+[[permission]]
 identifier = "allow-library-import-amlsteps"
 description = "Allows the user to import an .amlsteps file they chose, under the hostile-file rules."
 commands.allow = ["library_import_amlsteps"]

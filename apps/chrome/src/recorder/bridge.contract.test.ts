@@ -41,6 +41,10 @@ function memoryFiles(): FileAccess {
       kept.set(token, bytes);
       return Promise.resolve(token);
     },
+    download: (name, bytes) => {
+      kept.set(name, bytes);
+      return Promise.resolve(name);
+    },
   };
 }
 

@@ -30,7 +30,15 @@ export const ENGLISH: StepWording = { language: DEFAULT_LANGUAGE, tone: DEFAULT_
 /**
  * What kind of thing was clicked, for the tones that name it ("the Save button"). `field` is a
  * box named by its label (worded "… field" even in the casual tone); `namedField` one named by an
- * explicit accessible name, which the casual tone words as a plain name.
+ * explicit accessible name, which the casual tone words as a plain name. The four title-bar
+ * buttons are a window's own Close, Minimise, Maximise and Restore, named by the window's title
+ * and worded by what they do in every tone (`Close "Book2 - Excel"`, 12/10/2026). A filter button
+ * is the drop-down on a spreadsheet header, named by the header (`Open the filter on "Item"`,
+ * 12/10/2026, #70). A document is a click in a word processor's document text (Word's page or
+ * body), worded as a click in the document whatever its parts are called (`Click in the
+ * document`, #74), so it has no click template of its own. An input panel is Windows' text input
+ * host (the emoji panel, clipboard history, the touch keyboard, voice typing), where what was
+ * clicked is never named: an item there can be named after what it holds, clipboard text (#109).
  */
 export const ELEMENT_KINDS = [
   "button",
@@ -46,6 +54,13 @@ export const ELEMENT_KINDS = [
   "switch",
   "picture",
   "listItem",
+  "closeButton",
+  "minimiseButton",
+  "maximiseButton",
+  "restoreButton",
+  "filterButton",
+  "document",
+  "inputPanel",
   "other",
 ] as const;
 export type ElementKind = (typeof ELEMENT_KINDS)[number];
@@ -58,11 +73,21 @@ export type Phrase =
   | { key: "clickIn"; title: string }
   | { key: "clickBare" }
   | { key: "clickTaskbar"; name: string }
+  | { key: "clickInDocument" }
+  | { key: "rightClickInDocument" }
+  | { key: "doubleClickInDocument" }
+  | { key: "clickInInputPanel" }
+  | { key: "rightClickInInputPanel" }
+  | { key: "doubleClickInInputPanel" }
   | { key: "rightClick"; name: string }
   | { key: "rightClickIn"; title: string }
   | { key: "rightClickBare" }
+  | { key: "doubleClick"; name: string }
+  | { key: "doubleClickIn"; title: string }
+  | { key: "doubleClickBare" }
   | { key: "selectRange"; range: string }
   | { key: "fill"; from: string; to: string | null }
+  | { key: "drawOnCanvas" }
   | { key: "typeValueInField"; value: string; field: string }
   | { key: "typeInField"; field: string }
   | { key: "chooseValueIn"; value: string; field: string }
@@ -71,8 +96,12 @@ export type Phrase =
   | { key: "type" }
   | { key: "typeValueInCell"; value: string; cell: string }
   | { key: "typeInCell"; cell: string }
-  | { key: "press"; keys: string }
+  | { key: "typeValueInDocument"; value: string }
+  | { key: "typeInDocument" }
+  /** `app` is the program the keys went to, for shortcuts only one app names (#71). */
+  | { key: "press"; keys: string; app?: string | null | undefined }
   | { key: "goTo"; site: string }
+  | { key: "goToCell"; cell: string }
   | { key: "open"; app: string }
   | { key: "runIn"; terminal: Terminal | null }
   | { key: "formulaInCell"; cell: string }
@@ -100,6 +129,28 @@ export interface Phrasebook {
   rightClick: string;
   rightClickIn: string;
   rightClickBare: string;
+  /**
+   * A double-click (12/10/2026, #55): on something named, in a window, or neither. A plain click's
+   * words had a reader click once where the app wanted two (opening a file, renaming a sheet).
+   */
+  doubleClick: string;
+  doubleClickIn: string;
+  doubleClickBare: string;
+  /**
+   * A click, right-click or double-click in a word processor's document text (#74): where in it
+   * is the place the reader is shown, and Word names its pages ("Page 1"), not what's on them.
+   */
+  clickInDocument: string;
+  rightClickInDocument: string;
+  doubleClickInDocument: string;
+  /**
+   * A click, right-click or double-click in Windows' input panel (the emoji panel, clipboard
+   * history, the touch keyboard, voice typing; #109): what was picked there is never said, since
+   * a clipboard history item can be named after the text it holds.
+   */
+  clickInInputPanel: string;
+  rightClickInInputPanel: string;
+  doubleClickInInputPanel: string;
   /** Cells selected by dragging: `{range}` is "D38:F42" (04/10/2026). */
   selectRange: string;
   /**
@@ -110,6 +161,11 @@ export interface Phrasebook {
   fillDown: string;
   fillTo: string;
   fillColumn: string;
+  /**
+   * A pencil or brush dragged across a drawing canvas (Paint's, #73): a stroke, not a click on
+   * the canvas, which Paint names after the tool ("Using Pencil tool on Canvas").
+   */
+  drawOnCanvas: string;
   typeValueInField: string;
   typeInField: string;
   /** A choice made in a drop-down list by typing: `{value}`, `{field}` (F010). */
@@ -120,10 +176,18 @@ export interface Phrasebook {
   type: string;
   typeValueInCell: string;
   typeInCell: string;
+  /**
+   * Typing in a word processor's document body (#74): `{value}`, and with no value. Word names
+   * its body after the file, so `in "Document3" field` read as if the file were a box.
+   */
+  typeValueInDocument: string;
+  typeInDocument: string;
   press: string;
   /** A shortcut Windows has a name for: `{keys}`, `{name}` ("Copy"). */
   pressNamed: string;
   goTo: string;
+  /** A spreadsheet cell gone to with Excel's Go To or Name Box: `{cell}` is "D11" (#69). */
+  goToCell: string;
   open: string;
   runIn: string;
   runInTerminal: string;
@@ -207,6 +271,24 @@ export function renderPhrase(phrase: Phrase, language: string, tone: Tone): stri
       return fill(book.rightClickIn, { title: phrase.title });
     case "rightClickBare":
       return book.rightClickBare;
+    case "doubleClick":
+      return fill(book.doubleClick, { name: shorten(phrase.name) });
+    case "doubleClickIn":
+      return fill(book.doubleClickIn, { title: phrase.title });
+    case "doubleClickBare":
+      return book.doubleClickBare;
+    case "clickInDocument":
+      return book.clickInDocument;
+    case "rightClickInDocument":
+      return book.rightClickInDocument;
+    case "doubleClickInDocument":
+      return book.doubleClickInDocument;
+    case "clickInInputPanel":
+      return book.clickInInputPanel;
+    case "rightClickInInputPanel":
+      return book.rightClickInInputPanel;
+    case "doubleClickInInputPanel":
+      return book.doubleClickInInputPanel;
     case "selectRange":
       return fill(book.selectRange, { range: phrase.range });
     case "fill":
@@ -215,6 +297,8 @@ export function renderPhrase(phrase: Phrase, language: string, tone: Tone): stri
         from: phrase.from,
         to: phrase.to,
       });
+    case "drawOnCanvas":
+      return book.drawOnCanvas;
     case "typeValueInField":
       return fill(book.typeValueInField, {
         value: shorten(phrase.value),
@@ -237,15 +321,21 @@ export function renderPhrase(phrase: Phrase, language: string, tone: Tone): stri
       return fill(book.typeValueInCell, { value: shorten(phrase.value), cell: phrase.cell });
     case "typeInCell":
       return fill(book.typeInCell, { cell: phrase.cell });
+    case "typeValueInDocument":
+      return fill(book.typeValueInDocument, { value: shorten(phrase.value) });
+    case "typeInDocument":
+      return book.typeInDocument;
     case "press": {
       const keys = localKeys(phrase.keys, language);
-      const shortcut = shortcutOf(phrase.keys);
+      const shortcut = shortcutOf(phrase.keys, phrase.app);
       return shortcut
         ? fill(book.pressNamed, { keys, name: phrases.shortcuts[shortcut] })
         : fill(book.press, { keys });
     }
     case "goTo":
       return fill(book.goTo, { site: phrase.site });
+    case "goToCell":
+      return fill(book.goToCell, { cell: phrase.cell });
     case "open":
       return fill(book.open, { app: phrase.app });
     case "runIn":
@@ -370,6 +460,18 @@ function clickNames(target: StepTarget): { facts: NameFact[]; field?: true }[] {
   return names;
 }
 
+const TRAILING_COLON = /\s*[:：]\s*$/u;
+
+/**
+ * A field's label without the colon after it ("File name:", "Nom du fichier :", "ファイル名："):
+ * Win32 dialogs label a box with the text beside it, colon and all, and the step names the field,
+ * `in "File name" field` (12/10/2026, #100). A label that is nothing but a colon keeps it.
+ */
+const withoutColon = (label: string): string => {
+  const cut = label.replace(TRAILING_COLON, "");
+  return /[\p{L}\p{N}]/u.test(cut) ? cut : label;
+};
+
 /**
  * Typing names the field, by whatever labels it, and the value only when it's shown
  * (docs/spec/04-editor.md#typed-values): never the field's name as if it were what was typed.
@@ -381,7 +483,8 @@ function typingPhrase(target: StepTarget): Phrase | undefined {
     return value
       ? { key: "typeValueInCell", value, cell: labelText }
       : { key: "typeInCell", cell: labelText };
-  const field = firstFact(target, ["labelText", "ariaLabel", "placeholder", "name", "innerText"]);
+  const label = firstFact(target, ["labelText", "ariaLabel", "placeholder", "name", "innerText"]);
+  const field = label && withoutColon(label);
   // Typing into a drop-down list chooses from it: "Type in … field" read wrongly (F010).
   const list = target.tagName === "SELECT" || ["combobox", "listbox"].includes(target.role ?? "");
   if (field && list)
@@ -438,6 +541,14 @@ export function taskbarAppName(buttonName: string): string {
 }
 
 /**
+ * Typing in a word processor's document text (Word's body, #74): what Word names its body is the
+ * file ("Document3"), not a box to fill in. A stored step says so with `textParts.kind`
+ * `document`.
+ */
+export const typingInDocument = (value: string | undefined): Phrase =>
+  value ? { key: "typeValueInDocument", value } : { key: "typeInDocument" };
+
+/**
  * The same click made with the right button (04/10/2026: right-clicks read as plain clicks, so a
  * context menu's choice seemed to come from nowhere). A stored step says so with the verb
  * `rightClick`.
@@ -451,6 +562,43 @@ export function asRightClick(phrase: Phrase): Phrase {
       return { key: "rightClickIn", title: phrase.title };
     case "clickBare":
       return { key: "rightClickBare" };
+    case "clickInDocument":
+      return { key: "rightClickInDocument" };
+    case "clickInInputPanel":
+      return { key: "rightClickInInputPanel" };
+    default:
+      return phrase;
+  }
+}
+
+/** A window's own title-bar buttons, worded by what they do whichever way they were clicked. */
+const TITLE_BAR_KINDS: ReadonlySet<ElementKind> = new Set([
+  "closeButton",
+  "minimiseButton",
+  "maximiseButton",
+  "restoreButton",
+]);
+
+/**
+ * The same click made twice in Windows' double-click time and distance (12/10/2026, #55): the
+ * recorder collapses it into one step, which says so, or a reader single-clicks and nothing
+ * happens. A stored step says so with the verb `doubleClick`. A window's own title-bar button
+ * keeps its words (`Maximise "Book1"`, #48): its first press already did what the step says.
+ */
+export function asDoubleClick(phrase: Phrase): Phrase {
+  switch (phrase.key) {
+    case "click":
+      return TITLE_BAR_KINDS.has(phrase.kind) ? phrase : { key: "doubleClick", name: phrase.name };
+    case "clickTaskbar":
+      return { key: "doubleClick", name: phrase.name };
+    case "clickIn":
+      return { key: "doubleClickIn", title: phrase.title };
+    case "clickBare":
+      return { key: "doubleClickBare" };
+    case "clickInDocument":
+      return { key: "doubleClickInDocument" };
+    case "clickInInputPanel":
+      return { key: "doubleClickInInputPanel" };
     default:
       return phrase;
   }

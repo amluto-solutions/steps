@@ -17,6 +17,19 @@ const rawMessage = (error: unknown): string =>
       : "";
 
 /**
+ * Why something failed, for the app's log: the error's kind and its own words (a Rust error's
+ * code and message). Anything quoted in them goes, since some errors quote what they were given
+ * (`JSON.parse` quotes the text), and logs never hold a guide's words.
+ */
+export const failureReason = (error: unknown): string => {
+  const kind = errorCode(error) ?? (error instanceof Error ? error.name : typeof error);
+  const message = (rawMessage(error) || (typeof error === "string" ? error : ""))
+    .replace(/"[^"]*"|'[^']*'|“[^”]*”|‘[^’]*’|`[^`]*`/g, "…")
+    .slice(0, 300);
+  return message ? `${kind}: ${message}` : kind;
+};
+
+/**
  * The message to show for a failed command. Tauri rejects with the Rust error object
  * (`{ code, message }`); its code picks the words from en.json (`errors.<code>`), so all text
  * the user reads comes from there. The Rust message is only used as `{{detail}}` where it names

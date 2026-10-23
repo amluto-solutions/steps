@@ -1,7 +1,5 @@
 {
   "app": {
-    "alreadyOpenTitle": "Steps este deja deschis",
-    "alreadyOpenBody": "Rulează un singur Steps la un moment dat, așa că l-am adus pe acesta în prim-plan.",
     "name": "Steps",
     "by": "de la",
     "logoAlt": "Amluto"
@@ -83,6 +81,9 @@
     "count_one": "{{count}} ghid",
     "count_few": "{{count}} ghiduri",
     "count_other": "{{count}} de ghiduri",
+    "countOf_one": "{{shown}} din {{count}} ghid",
+    "countOf_few": "{{shown}} din {{count}} ghiduri",
+    "countOf_other": "{{shown}} din {{count}} de ghiduri",
     "steps_one": "{{count}} pas",
     "steps_few": "{{count}} pași",
     "steps_other": "{{count}} de pași",
@@ -222,7 +223,7 @@
       "note": "Pentru alt utilizator Steps",
       "pickTitle": "Salvați ghidul ca fișier Steps",
       "filter": "Ghid Steps",
-      "done": "Ghidul a fost exportat. Zonele estompate sunt estompate definitiv în fișier.",
+      "blurredForGood": "Zonele estompate sunt estompate definitiv în fișier.",
       "originals": "Includeți originalele neestompate (pentru predare internă)",
       "originalsWarning": "Fișierul va conține fiecare captură de ecran fără estompare. Oricine îl primește poate vedea ce a fost estompat. Folosiți opțiunea doar pentru a preda un ghid unui coleg care trebuie să editeze estomparea.",
       "burnedIn": "Zonele estompate sunt estompate definitiv în fișier. Valorile tastate ascunse, comentariile și versiunile nu sunt incluse."
@@ -513,6 +514,14 @@
       "error": "Nu s-a putut salva, se reîncearcă",
       "saved": "Toate modificările sunt salvate"
     },
+    "leave": {
+      "title": "Ieșiți fără a salva ultimele modificări?",
+      "body": "Steps nu a putut salva ultimele modificări și reîncearcă. Dacă ieșiți acum, este posibil să se piardă.",
+      "leave": "Ieșiți oricum",
+      "close": "Închideți oricum",
+      "quit": "Ieșiți oricum",
+      "stay": "Rămâneți"
+    },
     "stepsList": "Pași",
     "stepCount_one": "{{count}} pas",
     "stepCount_few": "{{count}} pași",
@@ -565,6 +574,7 @@
       "typing": "Verificați acest pas: textul tastat poate să nu corespundă exact.",
       "code": "Verificați acest pas: un secret nu a putut fi găsit în captura de ecran pentru a fi estompat sau textul poate să nu corespundă exact.",
       "fillEnd": "Verificați acest pas: înregistrarea nu a putut stabili în ce celulă s-a încheiat umplerea. Scrieți până unde a mers sau alegeți Arată corect.",
+      "appSwitch": "Verificați acest pas: niciun clic și nicio tastă nu a adus această aplicație în prim-plan, așa că este posibil să fi venit în prim-plan singură. Ștergeți pasul dacă ghidul nu a ajuns acolo sau alegeți Arată corect.",
       "looksRight": "Arată corect"
     },
     "stepText": "Textul pasului",
@@ -968,6 +978,20 @@
       "inUse": "Folosită deja pentru {{name}}.",
       "unavailable": "Altă aplicație o folosește deja, deci nu funcționează acum.",
       "heldBySteps": "Altă copie a Steps este deschisă și o folosește. Închide-o, apoi repornește-o pe aceasta.",
+      "commonUse": "Alte aplicații folosesc {{keys}} pentru „{{use}}”. Cât timp Steps deține această comandă rapidă, nu va funcționa acolo.",
+      "commonMany": "Multe aplicații folosesc {{keys}} ele însele. Cât timp Steps deține această comandă rapidă, nu va funcționa în ele.",
+      "uses": {
+        "reloadNoCache": "Reîncarcă fără memorie cache",
+        "reopenTab": "Redeschide fila închisă",
+        "privateWindow": "Fereastră privată nouă",
+        "closeWindow": "Închide fereastra",
+        "closeTab": "Închide fila",
+        "devTools": "Instrumente pentru dezvoltatori",
+        "pastePlain": "Lipește ca text simplu",
+        "redo": "Refă",
+        "saveAs": "Salvează ca",
+        "bookmarksBar": "Afișează bara de marcaje"
+      },
       "failed": "Comanda rapidă nu a putut fi salvată.",
       "reset": "Resetare la valorile implicite",
       "resetDone": "Comenzile rapide au fost resetate.",
@@ -1080,6 +1104,9 @@
     "excludeApp": "Nu înregistrați niciodată {{app}}",
     "excludeAppEmpty": "Nu înregistrați niciodată această aplicație",
     "appExcluded": "{{app}} nu se înregistrează niciodată",
+    "excludeAppsLike": "Nu înregistrați niciodată aplicații Windows ca {{app}}",
+    "appsLikeExcluded": "Aplicațiile Windows ca {{app}} nu se înregistrează niciodată",
+    "waitingForKeys": "Se așteaptă tastele",
     "startAgain": "Reîncepere",
     "startAgainHelp_one": "Șterge acest pas și continuă înregistrarea",
     "startAgainHelp_few": "Șterge acești {{count}} pași și continuă înregistrarea",
@@ -1107,6 +1134,7 @@
     "into": "Se înregistrează în „{{title}}”",
     "intoFallback": "Pașii noi nu au putut fi adăugați în „{{title}}”: ghidul a fost închis sau îl editează altcineva. Au devenit o înregistrare separată.",
     "intoNothing": "Nu s-a înregistrat nimic, deci „{{title}}” a rămas neschimbat.",
+    "nothingRecorded": "Nu s-a înregistrat nimic, deci nu s-a creat niciun ghid.",
     "startRecording": "Pornire înregistrare",
     "startTitle": "Porniți o înregistrare",
     "keysChoice": "Înregistrați ce se tastează",
@@ -1163,6 +1191,7 @@
       "mergeClickIntoTyping": "Combinați clicul cu textul tastat care urmează: {{steps}}",
       "removeDoubleClick": "Eliminați un clic repetat: {{steps}}",
       "removeOpenApp": "Eliminați un pas „Deschideți” pe care îl arată deja clicul următor: {{steps}}",
+      "removeOpenBeforeOpen": "Eliminați un pas „Deschideți” urmat imediat de alt pas „Deschideți”: {{steps}}",
       "removeRedirect": "Eliminați un pas „Accesați” prin care linkul doar a trecut: {{steps}}"
     },
     "apply_one": "Aplicați {{count}} modificare",
@@ -1393,6 +1422,9 @@
     "found_few": "S-au găsit {{count}} potriviri. Pași afectați: {{steps}}.",
     "found_other": "S-au găsit {{count}} de potriviri. Pași afectați: {{steps}}.",
     "nothing": "Nu s-a găsit nimic.",
+    "matches_one": "{{count}} potrivire",
+    "matches_few": "{{count}} potriviri",
+    "matches_other": "{{count}} de potriviri",
     "unread_one": "{{count}} captură de ecran nu a putut fi citită, deci nu a fost căutată. Verificați-o personal.",
     "unread_few": "{{count}} capturi de ecran nu au putut fi citite, deci nu au fost căutate. Verificați-le personal.",
     "unread_other": "{{count}} de capturi de ecran nu au putut fi citite, deci nu au fost căutate. Verificați-le personal.",
@@ -1426,18 +1458,19 @@
       "term": "cuvânt de estompat întotdeauna",
       "account": "numele contului dvs.",
       "file": "nume de fișier",
-      "path": "cale de fișier"
+      "path": "cale de fișier",
+      "notification": "notificare"
     },
     "nextTo": "{{kind}} lângă „{{label}}”"
   },
   "zoom": {
     "menu": "Mărire pe fiecare clic",
-    "menuNote": "Decupează capturile de ecran foarte late în jurul clicului, ca să se citească bine pe pagină",
+    "menuNote": "Decupează capturile de ecran mai late de {{width}} de pixeli în jurul clicului, ca textul să fie mai mare pe pagină",
     "auto": "Automat",
     "done_one": "S-a mărit {{count}} captură de ecran.",
     "done_few": "S-au mărit {{count}} capturi de ecran.",
     "done_other": "S-au mărit {{count}} de capturi de ecran.",
-    "nothing": "Nicio captură de ecran nu trebuie mărită: toate se citesc deja bine pe pagină."
+    "nothing": "Nimic de mărit: se decupează doar capturile de ecran mai late de {{width}} de pixeli care au un clic și nu sunt încă decupate."
   },
   "exportSettings": {
     "folder": "Salvare exporturi în",
@@ -1578,7 +1611,7 @@
       "eyebrow": "Tur finalizat",
       "title": "Totul este pregătit",
       "body": "Acesta a fost turul. Îl puteți relua din Setări oricând doriți.",
-      "finish": "Terminare"
+      "gotIt": "Am înțeles"
     },
     "pill": {
       "label": "Tur",

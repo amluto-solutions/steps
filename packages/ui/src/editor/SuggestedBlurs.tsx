@@ -19,6 +19,8 @@ const keyOf = (finding: Finding) => {
  */
 export function SuggestedBlurs(props: {
   findings: Finding[];
+  /** A read-only or locked guide: findings can be shown, not blurred or dismissed. */
+  readOnly?: boolean;
   onBlur: (findings: Finding[]) => void;
   onDismiss: (findings: Finding[]) => void;
   onShow: (finding: Finding) => void;
@@ -47,6 +49,7 @@ export function SuggestedBlurs(props: {
           type="button"
           className="btn h-7 px-2.5"
           aria-label={several ? t("suggest.blurOne", { what, number }) : undefined}
+          disabled={props.readOnly}
           onClick={() => props.onBlur([finding])}
         >
           {t("suggest.blurAll")}
@@ -55,6 +58,7 @@ export function SuggestedBlurs(props: {
           type="button"
           className="btn btn-quiet h-7 px-2"
           aria-label={several ? t("suggest.dismissOne", { what, number }) : undefined}
+          disabled={props.readOnly}
           onClick={() => props.onDismiss([finding])}
         >
           {t("suggest.dismiss")}
@@ -75,12 +79,18 @@ export function SuggestedBlurs(props: {
         </span>
         {several ? (
           <>
-            <button type="button" className="btn h-8 px-3" onClick={() => props.onBlur(findings)}>
+            <button
+              type="button"
+              className="btn h-8 px-3"
+              disabled={props.readOnly}
+              onClick={() => props.onBlur(findings)}
+            >
               {t("suggest.blurEvery", { count: findings.length })}
             </button>
             <button
               type="button"
               className="btn btn-quiet h-8 px-2"
+              disabled={props.readOnly}
               onClick={() => props.onDismiss(findings)}
             >
               {t("suggest.dismissEvery")}

@@ -165,6 +165,7 @@ fn print_record(record: &Record) {
             drag.to.as_deref().unwrap_or("the column's end"),
             drag.of
         ),
+        Record::Draw(draw) => println!("draw         on {:?} (of #{})", draw.element.name, draw.of),
         Record::Missed { count, after_id } => {
             println!("MISSED       {count} click(s) after #{after_id}");
         }
@@ -215,6 +216,7 @@ fn summary(stats: &Stats) -> serde_json::Value {
         "uiaTimeouts": stats.uia_timeouts,
         "uiaErrors": stats.uia_errors,
         "uiaRetries": stats.uia_retries,
+        "uiaPreReads": stats.uia_pre_reads,
         "screenshotMs": { "p50": p(&stats.screenshot_ms, 50.0), "p95": p(&stats.screenshot_ms, 95.0) },
         "uiaMs": { "p50": p(&stats.uia_ms, 50.0), "p95": p(&stats.uia_ms, 95.0) },
         "queueDelayMs": { "p50": p(&stats.queue_delay_ms, 50.0), "p95": p(&stats.queue_delay_ms, 95.0) },
@@ -263,7 +265,8 @@ fn run() -> Result<(), String> {
             machine: None,
             entered: capture::lookup::FieldSlot::default(),
         },
-    )))?;
+    )))
+    .map_err(|e| e.to_string())?;
     let (mut sink, writer) = start_writer(&options.out)?;
 
     let config = PipelineConfig {

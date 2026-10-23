@@ -1,7 +1,5 @@
 {
   "app": {
-    "alreadyOpenTitle": "Steps je že odprt",
-    "alreadyOpenBody": "Hkrati lahko deluje samo en Steps, zato smo tega prenesli v ospredje.",
     "name": "Steps",
     "by": "podjetja",
     "logoAlt": "Amluto"
@@ -91,6 +89,10 @@
     "count_two": "{{count}} vodnika",
     "count_few": "{{count}} vodniki",
     "count_other": "{{count}} vodnikov",
+    "countOf_one": "{{shown}} od {{count}} vodnika",
+    "countOf_two": "{{shown}} od {{count}} vodnikov",
+    "countOf_few": "{{shown}} od {{count}} vodnikov",
+    "countOf_other": "{{shown}} od {{count}} vodnikov",
     "steps_one": "{{count}} korak",
     "steps_two": "{{count}} koraka",
     "steps_few": "{{count}} koraki",
@@ -240,7 +242,7 @@
       "note": "Za drugega uporabnika aplikacije Steps",
       "pickTitle": "Shranite vodnik kot datoteko Steps",
       "filter": "Vodnik Steps",
-      "done": "Vodnik je izvožen. Zamegljena območja so v datoteki trajno zamegljena.",
+      "blurredForGood": "Zamegljena območja so v datoteki trajno zamegljena.",
       "originals": "Vključi nezamegljene izvirnike (za interno predajo)",
       "originalsWarning": "Datoteka bo vsebovala vse posnetke zaslona brez zameglitve. Vsakdo, ki jo prejme, lahko vidi, kaj je bilo zamegljeno. To uporabite le, ko vodnik predajate sodelavcu, ki mora urejati zameglitev.",
       "burnedIn": "Zamegljena območja so v datoteki trajno zamegljena. Skrite vtipkane vrednosti, komentarji in različice so izpuščeni."
@@ -554,6 +556,14 @@
       "error": "Shranjevanje ni uspelo, poskušam znova",
       "saved": "Vse spremembe so shranjene"
     },
+    "leave": {
+      "title": "Želite oditi, ne da bi shranili najnovejše spremembe?",
+      "body": "Najnovejših sprememb ni bilo mogoče shraniti, Steps pa še vedno poskuša. Če zdaj odidete, se lahko izgubijo.",
+      "leave": "Vseeno odidi",
+      "close": "Vseeno zapri",
+      "quit": "Vseeno končaj",
+      "stay": "Ostani"
+    },
     "stepsList": "Koraki",
     "stepCount_one": "{{count}} korak",
     "stepCount_two": "{{count}} koraka",
@@ -611,6 +621,7 @@
       "typing": "Preverite ta korak: vtipkano besedilo se morda ne ujema natančno.",
       "code": "Preverite ta korak: skrivnega podatka ni bilo mogoče najti na posnetku zaslona, da bi ga zameglili, ali pa se besedilo morda ne ujema natančno.",
       "fillEnd": "Preverite ta korak: snemanje ni moglo ugotoviti, v kateri celici se je zapolnitev končala. Napišite, kam je segla, ali izberite Videti je dobro.",
+      "appSwitch": "Preverite ta korak: noben klik ali pritisk tipke ni prenesel te aplikacije v ospredje, zato se je morda pojavila sama. Izbrišite korak, če vodnik ni šel v to aplikacijo, ali izberite Videti je dobro.",
       "looksRight": "Videti je dobro"
     },
     "stepText": "Besedilo koraka",
@@ -1019,6 +1030,20 @@
       "inUse": "Že uporabljeno za: {{name}}.",
       "unavailable": "To že uporablja druga aplikacija, zato trenutno ne deluje.",
       "heldBySteps": "Druga kopija Steps je odprta in to uporablja. Zaprite jo, nato znova zaženite to.",
+      "commonUse": "Druge aplikacije uporabljajo {{keys}} za „{{use}}“. Dokler jo ima Steps, tam tega ne bo počela.",
+      "commonMany": "Številne aplikacije same uporabljajo {{keys}}. Dokler jo ima Steps, v njih ne bo delovala.",
+      "uses": {
+        "reloadNoCache": "Znova naloži brez predpomnilnika",
+        "reopenTab": "Znova odpri zaprti zavihek",
+        "privateWindow": "Novo zasebno okno",
+        "closeWindow": "Zapri okno",
+        "closeTab": "Zapri zavihek",
+        "devTools": "Orodja za razvijalce",
+        "pastePlain": "Prilepi kot navadno besedilo",
+        "redo": "Znova uveljavi",
+        "saveAs": "Shrani kot",
+        "bookmarksBar": "Pokaži vrstico z zaznamki"
+      },
       "failed": "Bližnjice ni bilo mogoče shraniti.",
       "reset": "Ponastavi na privzete",
       "resetDone": "Bližnjice so ponastavljene.",
@@ -1131,6 +1156,9 @@
     "excludeApp": "Nikoli ne snemaj {{app}}",
     "excludeAppEmpty": "Nikoli ne snemaj te aplikacije",
     "appExcluded": "{{app}} se nikoli ne snema",
+    "excludeAppsLike": "Nikoli ne snemaj aplikacij Windows, kot je {{app}}",
+    "appsLikeExcluded": "Aplikacije Windows, kot je {{app}}, se nikoli ne snemajo",
+    "waitingForKeys": "Čakanje na tipke",
     "startAgain": "Začni znova",
     "startAgainHelp_one": "Počisti {{count}} korak in nadaljuje snemanje",
     "startAgainHelp_two": "Počisti {{count}} koraka in nadaljuje snemanje",
@@ -1162,6 +1190,7 @@
     "into": "Snemanje v „{{title}}“",
     "intoFallback": "Novih korakov ni bilo mogoče vstaviti v „{{title}}“: vodnik je bil zaprt ali ga ureja nekdo drug. Namesto tega so v svojem posnetku.",
     "intoNothing": "Nič ni bilo posnetega, zato je „{{title}}“ nespremenjen.",
+    "nothingRecorded": "Nič ni bilo posnetega, zato vodnik ni bil ustvarjen.",
     "startRecording": "Začni snemanje",
     "startTitle": "Začnite snemanje",
     "keysChoice": "Snemaj vtipkano besedilo",
@@ -1219,6 +1248,7 @@
       "mergeClickIntoTyping": "Združi klik s tipkanjem, ki mu sledi: {{steps}}",
       "removeDoubleClick": "Odstrani ponovljen klik: {{steps}}",
       "removeOpenApp": "Odstrani korak „Odprite“, ki ga naslednji klik že prikazuje: {{steps}}",
+      "removeOpenBeforeOpen": "Odstrani korak „Odprite“, ki mu takoj sledi še en „Odprite“: {{steps}}",
       "removeRedirect": "Odstrani korak „Pojdite na“, prek katerega je povezava le šla: {{steps}}"
     },
     "apply_one": "Uporabi {{count}} spremembo",
@@ -1459,6 +1489,10 @@
     "found_few": "Najdena so {{count}} ujemanja; število korakov: {{steps}}.",
     "found_other": "Najdenih je {{count}} ujemanj; število korakov: {{steps}}.",
     "nothing": "Ni najdenega.",
+    "matches_one": "{{count}} zadetek",
+    "matches_two": "{{count}} zadetka",
+    "matches_few": "{{count}} zadetki",
+    "matches_other": "{{count}} zadetkov",
     "unread_one": "{{count}} posnetka zaslona ni bilo mogoče prebrati, zato ni bil preiskan. Preverite ga sami.",
     "unread_two": "{{count}} posnetkov zaslona ni bilo mogoče prebrati, zato nista bila preiskana. Preverite ju sami.",
     "unread_few": "{{count}} posnetkov zaslona ni bilo mogoče prebrati, zato niso bili preiskani. Preverite jih sami.",
@@ -1497,19 +1531,20 @@
       "term": "beseda za vedno zameglitev",
       "account": "ime vašega računa",
       "file": "ime datoteke",
-      "path": "pot datoteke"
+      "path": "pot datoteke",
+      "notification": "obvestilo"
     },
     "nextTo": "{{kind}} ob oznaki „{{label}}“"
   },
   "zoom": {
     "menu": "Povečaj ob vsakem kliku",
-    "menuNote": "Obreže zelo široke posnetke zaslona okoli klika, da so na strani dobro berljivi",
+    "menuNote": "Obreže posnetke zaslona, širše od {{width}} slikovnih pik, na območje okoli klika, da je besedilo na strani večje",
     "auto": "Samodejno",
     "done_one": "Povečan je {{count}} posnetek zaslona.",
     "done_two": "Povečana sta {{count}} posnetka zaslona.",
     "done_few": "Povečani so {{count}} posnetki zaslona.",
     "done_other": "Povečanih je {{count}} posnetkov zaslona.",
-    "nothing": "Nobenega posnetka zaslona ni treba povečati: na strani so že dobro berljivi."
+    "nothing": "Ničesar ni treba povečati: obreže le posnetke zaslona, širše od {{width}} slikovnih pik, ki imajo klik in še niso obrezani."
   },
   "exportSettings": {
     "folder": "Shrani izvoze v",
@@ -1650,7 +1685,7 @@
       "eyebrow": "Ogled dokončan",
       "title": "Vse je pripravljeno",
       "body": "To je bil ogled. Znova ga lahko zaženete v Nastavitvah, kadar želite.",
-      "finish": "Dokončaj"
+      "gotIt": "Razumem"
     },
     "pill": {
       "label": "Ogled",

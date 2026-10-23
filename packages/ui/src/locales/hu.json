@@ -1,7 +1,5 @@
 {
   "app": {
-    "alreadyOpenTitle": "A Steps már meg van nyitva",
-    "alreadyOpenBody": "Egyszerre csak egy Steps futhat, ezért ezt hoztuk előtérbe.",
     "name": "Steps",
     "by": "by",
     "logoAlt": "Amluto"
@@ -75,6 +73,8 @@
     "heading": "Saját útmutatók",
     "count_one": "{{count}} útmutató",
     "count_other": "{{count}} útmutató",
+    "countOf_one": "{{shown}} / {{count}} útmutató",
+    "countOf_other": "{{shown}} / {{count}} útmutató",
     "steps_one": "{{count}} lépés",
     "steps_other": "{{count}} lépés",
     "search": "Útmutatók keresése",
@@ -204,7 +204,7 @@
       "note": "Más Steps-felhasználónak",
       "pickTitle": "Útmutató mentése Steps-fájlként",
       "filter": "Steps-útmutató",
-      "done": "Útmutató exportálva. Az elmosott területek a fájlban véglegesen el vannak mosva.",
+      "blurredForGood": "Az elmosott területek a fájlban véglegesen el vannak mosva.",
       "originals": "Az elmosás nélküli eredetik hozzáadása (belső átadáshoz)",
       "originalsWarning": "A fájl minden képernyőképet elmosás nélkül tartalmaz. Aki megkapja, látja, mi volt elmosva. Csak akkor használja, ha olyan kollégának adja át az útmutatót, akinek szerkesztenie kell az elmosást.",
       "burnedIn": "Az elmosott területek a fájlban véglegesen el vannak mosva. A rejtett beírt értékek, a megjegyzések és a verziók kimaradnak."
@@ -472,6 +472,14 @@
       "error": "Nem sikerült menteni, újrapróbálkozás",
       "saved": "Minden módosítás mentve"
     },
+    "leave": {
+      "title": "Kilép a legutóbbi módosítások mentése nélkül?",
+      "body": "A legutóbbi módosításait nem sikerült menteni, a Steps pedig még próbálkozik. Ha most kilép, elveszhetnek.",
+      "leave": "Kilépés mindenképp",
+      "close": "Bezárás mindenképp",
+      "quit": "Kilépés mindenképp",
+      "stay": "Maradás"
+    },
     "stepsList": "Lépések",
     "stepCount_one": "{{count}} lépés",
     "stepCount_other": "{{count}} lépés",
@@ -519,6 +527,7 @@
       "typing": "Ellenőrizze ezt a lépést: a gépelés talán nem pontos.",
       "code": "Ellenőrizze ezt a lépést: egy titkos adatot nem sikerült megtalálni a képernyőképen az elmosáshoz, vagy a szöveg talán nem pontos.",
       "fillEnd": "Ellenőrizze ezt a lépést: a felvétel nem tudta megállapítani, melyik cellánál ért véget a kitöltés. Írja be, hová jutott, vagy válassza a Rendben van lehetőséget.",
+      "appSwitch": "Ellenőrizze ezt a lépést: sem kattintás, sem billentyűleütés nem hozta előtérbe ezt az alkalmazást, ezért lehet, hogy magától került előtérbe. Törölje a lépést, ha az útmutató nem váltott oda, vagy válassza a Rendben van lehetőséget.",
       "looksRight": "Rendben van"
     },
     "stepText": "Lépés szövege",
@@ -917,6 +926,20 @@
       "inUse": "Már használatban: {{name}}.",
       "unavailable": "Egy másik alkalmazás már használja, ezért most nem működik.",
       "heldBySteps": "A Steps egy másik példánya meg van nyitva, és ezt használja. Zárja be, majd indítsa újra ezt.",
+      "commonUse": "Más alkalmazásokban a(z) {{keys}} a következő műveletet végzi: „{{use}}”. Amíg a Steps használja, ott ez nem fog működni.",
+      "commonMany": "Sok alkalmazás maga is használja a(z) {{keys}} billentyűparancsot. Amíg a Steps használja, azokban nem fog működni.",
+      "uses": {
+        "reloadNoCache": "Újratöltés gyorsítótár nélkül",
+        "reopenTab": "Bezárt lap újranyitása",
+        "privateWindow": "Új privát ablak",
+        "closeWindow": "Ablak bezárása",
+        "closeTab": "Lap bezárása",
+        "devTools": "Fejlesztői eszközök",
+        "pastePlain": "Beillesztés egyszerű szövegként",
+        "redo": "Újra",
+        "saveAs": "Mentés másként",
+        "bookmarksBar": "Könyvjelzősáv megjelenítése"
+      },
       "failed": "A billentyűparancsot nem sikerült menteni.",
       "reset": "Alapértékek visszaállítása",
       "resetDone": "Billentyűparancsok visszaállítva.",
@@ -1029,6 +1052,9 @@
     "excludeApp": "Soha ne legyen rögzítve: {{app}}",
     "excludeAppEmpty": "Ez az alkalmazás soha ne legyen rögzítve",
     "appExcluded": "{{app}} soha nem lesz rögzítve",
+    "excludeAppsLike": "Soha ne legyenek rögzítve a Windows-alkalmazások, pl. {{app}}",
+    "appsLikeExcluded": "A Windows-alkalmazások (pl. {{app}}) soha nem lesznek rögzítve",
+    "waitingForKeys": "Várakozás a billentyűkre",
     "startAgain": "Újrakezdés",
     "startAgainHelp_one": "Törli az eddigi {{count}} lépést, és folytatja a felvételt",
     "startAgainHelp_other": "Törli az eddigi {{count}} lépést, és folytatja a felvételt",
@@ -1052,6 +1078,7 @@
     "into": "Felvétel ide: „{{title}}”",
     "intoFallback": "Az új lépések nem kerülhettek ebbe az útmutatóba: „{{title}}”. Bezárták, vagy valaki más szerkeszti. Ehelyett külön felvételben vannak.",
     "intoNothing": "Semmi nem lett rögzítve, ezért „{{title}}” változatlan maradt.",
+    "nothingRecorded": "Semmi nem lett rögzítve, ezért nem készült útmutató.",
     "startRecording": "Felvétel indítása",
     "startTitle": "Felvétel indítása",
     "keysChoice": "Gépelés rögzítése",
@@ -1107,6 +1134,7 @@
       "mergeClickIntoTyping": "A kattintás összevonása az utána következő gépeléssel: {{steps}}",
       "removeDoubleClick": "Ismételt kattintás eltávolítása: {{steps}}",
       "removeOpenApp": "Megnyitási lépés eltávolítása, amelyet a következő kattintás már mutat: {{steps}}",
+      "removeOpenBeforeOpen": "Megnyitási lépés eltávolítása, amelyet közvetlenül újabb megnyitási lépés követ: {{steps}}",
       "removeRedirect": "Ugrási lépés eltávolítása, amelyen a hivatkozás csak áthaladt: {{steps}}"
     },
     "apply_one": "{{count}} módosítás alkalmazása",
@@ -1327,6 +1355,8 @@
     "found_one": "{{count}} találat {{steps}} lépésben.",
     "found_other": "{{count}} találat {{steps}} lépésben.",
     "nothing": "Nincs találat.",
+    "matches_one": "{{count}} találat",
+    "matches_other": "{{count}} találat",
     "unread_one": "{{count}} képernyőképet nem sikerült beolvasni, ezért kimaradt a keresésből. Ellenőrizze saját maga.",
     "unread_other": "{{count}} képernyőképet nem sikerült beolvasni, ezért kimaradtak a keresésből. Ellenőrizze őket saját maga.",
     "notGuaranteed": "A javaslatok nem találnak meg mindent. Az útmutató megosztása előtt ellenőrizzen minden képernyőképet.",
@@ -1355,17 +1385,18 @@
       "term": "mindig elmosandó szó",
       "account": "fióknév",
       "file": "fájlnév",
-      "path": "fájlelérési út"
+      "path": "fájlelérési út",
+      "notification": "értesítés"
     },
     "nextTo": "{{kind}} („{{label}}” mellett)"
   },
   "zoom": {
     "menu": "Ránagyítás minden kattintásra",
-    "menuNote": "A nagyon széles képernyőképeket a kattintás körül vágja körül, hogy jól olvashatók legyenek az oldalon",
+    "menuNote": "A {{width}} képpontnál szélesebb képernyőképeket a kattintás körüli részre vágja, hogy nagyobb legyen a szöveg az oldalon",
     "auto": "Automatikus",
     "done_one": "{{count}} képernyőképen ránagyítva.",
     "done_other": "{{count}} képernyőképen ránagyítva.",
-    "nothing": "Egyik képernyőképet sem kell nagyítani: már jól olvashatók az oldalon."
+    "nothing": "Nincs mit nagyítani: csak a {{width}} képpontnál szélesebb, kattintást tartalmazó, még nem vágott képernyőképeket vágja meg."
   },
   "exportSettings": {
     "folder": "Exportok mentési helye",
@@ -1506,7 +1537,7 @@
       "eyebrow": "Bemutató kész",
       "title": "Minden készen áll",
       "body": "Ennyi volt a bemutató. A Beállításokból bármikor újra lejátszhatja.",
-      "finish": "Befejezés"
+      "gotIt": "Értem"
     },
     "pill": {
       "label": "Bemutató",

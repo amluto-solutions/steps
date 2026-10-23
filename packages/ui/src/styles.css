@@ -274,6 +274,10 @@ h3 {
   .field {
     @apply h-9 rounded-lg border border-control-line bg-background px-3 text-sm text-body placeholder:text-secondary;
   }
+  /* A read-only or locked guide's text (#81): still readable and selectable, but not a box to type in. */
+  .field[readonly] {
+    @apply border-panel bg-subtle;
+  }
   .chip {
     @apply inline-flex items-center rounded-full bg-subtle px-2 py-0.5 text-xs text-secondary;
   }

@@ -1,5 +1,5 @@
 {
-  "_comment": "What Rust and TypeScript must agree on about a click's naming (docs/spec/02-capture.md#click-naming). elementKinds and namingSources are the values a stored naming may hold (packages/core/src/step-text, crates/library/src/schema.rs). frameworkNames are a UI framework's own names for its hosts, compared without anything but letters, digits and underscores and without case; lightDismissAutomationIds mark the invisible layer a XAML menu lays over its window. The TypeScript naming takes both off an element's facts (uia-adapter.ts readableFacts); the Windows recorder uses them to decide when to walk down to the element under the click (crates/capture/src/uia.rs). frameworkNameCases are names with the class name beside them, and whether they are a framework's.",
+  "_comment": "What Rust and TypeScript must agree on about a click's naming (docs/spec/02-capture.md#click-naming). elementKinds and namingSources are the values a stored naming may hold (packages/core/src/step-text, crates/library/src/schema.rs). titleBarButtons are what the Windows recorder writes as a click's titleBarButton, from the window's hit test as the button went down (crates/capture/src/pipeline.rs), and the TypeScript naming reads (click-naming.ts). frameworkNames are a UI framework's own names for its hosts, compared without anything but letters, digits and underscores and without case; lightDismissAutomationIds mark the invisible layer a XAML menu lays over its window. The TypeScript naming takes both off an element's facts (uia-adapter.ts readableFacts); the Windows recorder uses them to decide when to walk down to the element under the click (crates/capture/src/uia.rs). frameworkNameCases are names with the class name beside them, and whether they are a framework's. inputPanelPrograms draw Windows' input panels (the emoji panel, clipboard history, the touch keyboard, voice typing; #109): a click in one of their windows is never named by what's in it (click-naming.ts isInputPanel), and the Windows recorder reads nothing under the pointer there and greys their windows in every screenshot (crates/capture/src/dictation.rs).",
   "elementKinds": [
     "button",
     "link",
@@ -14,9 +14,26 @@
     "switch",
     "picture",
     "listItem",
+    "closeButton",
+    "minimiseButton",
+    "maximiseButton",
+    "restoreButton",
+    "filterButton",
+    "document",
+    "inputPanel",
     "other"
   ],
-  "namingSources": ["element", "ancestor", "page", "taskbar", "screen", "window"],
+  "namingSources": [
+    "element",
+    "ancestor",
+    "page",
+    "taskbar",
+    "titleBar",
+    "screen",
+    "menu",
+    "window"
+  ],
+  "titleBarButtons": ["close", "minimise", "maximise", "restore"],
   "frameworkNames": [
     "popuphost",
     "desktopwindowxamlsource",
@@ -28,6 +45,7 @@
     "windowsuicorecorewindow"
   ],
   "lightDismissAutomationIds": ["Light Dismiss"],
+  "inputPanelPrograms": ["TextInputHost.exe"],
   "frameworkNameCases": [
     { "name": "PopupHost", "className": "", "framework": true },
     { "name": "Pop-upHost", "className": "", "framework": true },

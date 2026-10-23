@@ -55,12 +55,16 @@ export interface Release {
 export type ReleaseState =
   { kind: "loading" } | { kind: "ready"; release: Release } | { kind: "error" };
 
+/**
+ * pub_date is midday UTC on the release date in CHANGELOG.md (scripts/lib/update.mjs), so the day
+ * is read in UTC: every visitor sees the date CHANGELOG.md gives, whatever their time zone.
+ */
 const day = (iso: unknown): string | null => {
   if (typeof iso !== "string") return null;
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return null;
   const pad = (value: number) => String(value).padStart(2, "0");
-  return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}`;
+  return `${pad(date.getUTCDate())}/${pad(date.getUTCMonth() + 1)}/${date.getUTCFullYear()}`;
 };
 
 /** "hash  name" lines, as sha256sum writes them. */

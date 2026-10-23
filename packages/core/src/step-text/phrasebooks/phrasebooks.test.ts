@@ -19,7 +19,25 @@ const KINDS: ElementKind[] = [
   "switch",
   "picture",
   "listItem",
+  "closeButton",
+  "minimiseButton",
+  "maximiseButton",
+  "restoreButton",
+  "filterButton",
+  "document",
+  "inputPanel",
   "other",
+];
+
+/**
+ * A window's own title-bar buttons are worded by what they do (`Close "Book2 - Excel"`): falling
+ * back to a plain click would read `Click "Book2 - Excel"`, as if the window were the thing clicked.
+ */
+const TITLE_BAR_KINDS: ElementKind[] = [
+  "closeButton",
+  "minimiseButton",
+  "maximiseButton",
+  "restoreButton",
 ];
 
 /** `{slots}` in a template, once each, sorted. */
@@ -82,6 +100,35 @@ describe.each(books)("%s phrasebook", (code, book) => {
     }
     expect(problems).toEqual([]);
   });
+
+  it.each(["casual", "plain", "formal"] as const)(
+    "words a window's title-bar buttons in the %s tone",
+    (tone) => {
+      const click: Partial<Record<ElementKind, string>> = book?.[tone].click ?? {};
+      expect(TITLE_BAR_KINDS.filter((kind) => !click[kind]?.trim())).toEqual([]);
+    },
+  );
+
+  it.each(["casual", "plain", "formal"] as const)(
+    "words a spreadsheet header's filter drop-down in the %s tone (#70)",
+    (tone) => {
+      // Falling back to a plain click would read `Click "Item"`: a reader clicks the header cell,
+      // which opens nothing.
+      expect(book?.[tone].click.filterButton?.trim()).toBeTruthy();
+    },
+  );
+
+  it.each(["casual", "plain", "formal"] as const)(
+    "words a double-click apart from a click and a right-click in the %s tone (#55)",
+    (tone) => {
+      const own = book?.[tone];
+      if (!own) throw new Error(`no ${tone} tone`);
+      const named = [own.doubleClick, own.click.other, own.rightClick];
+      const inWindow = [own.doubleClickIn, own.clickIn, own.rightClickIn];
+      const bare = [own.doubleClickBare, own.clickBare, own.rightClickBare];
+      for (const words of [named, inWindow, bare]) expect(new Set(words).size).toBe(3);
+    },
+  );
 
   it("names every shortcut", () => {
     expect(Object.keys(book?.shortcuts ?? {}).sort()).toEqual(Object.keys(en.shortcuts).sort());

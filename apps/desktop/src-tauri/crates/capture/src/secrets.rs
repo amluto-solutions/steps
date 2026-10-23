@@ -4,10 +4,13 @@
 //! `--token=x`, `$env:API_KEY = "x"`, `export TOKEN=x`, `Password=x;` in a connection string,
 //! `?token=x` in an address), and a few places a secret is passed with no name
 //! (`ConvertTo-SecureString "x"`, `Bearer x`, `https://user:x@host`), is replaced with `••••`
-//! before the command is stored. The values found are returned so the same text can be blurred in
-//! the step's screenshot. Card numbers and IBANs are masked too. Like the typed-value masking, it
-//! is a safety net, not a guarantee.
+//! before the command is stored. The values found are returned so the same text can be covered in
+//! the step's screenshot, where on-PC text recognition finds it (`blur_secrets`). Card numbers and
+//! IBANs are masked too. Like the typed-value masking, it is a safety net, not a guarantee.
 
+use image::{Rgba, RgbaImage};
+
+use crate::screenshot::Shot;
 use crate::sensitive::{looks_sensitive, mask_card_numbers};
 
 pub const MASK: &str = "••••";
@@ -238,6 +241,91 @@ fn url_password(word: &str) -> Option<(usize, usize)> {
     (to > from).then_some((from, to))
 }
 
+/// Hides each secret in the screenshot where on-PC text recognition finds it. Returns `false` if
+/// any secret couldn't be found (the step is then flagged "check this screenshot"). The text read
+/// is used only here and forgotten.
+pub(crate) fn blur_secrets(shot: &mut Shot, secrets: &[String]) -> bool {
+    let secrets: Vec<String> = secrets
+        .iter()
+        .map(|secret| secret.split_whitespace().collect::<String>())
+        .filter(|secret| !secret.is_empty())
+        .collect();
+    if secrets.is_empty() {
+        return true;
+    }
+    let (width, height) = (shot.image.width(), shot.image.height());
+    let mut bgra = shot.image.as_raw().clone();
+    for pixel in bgra.as_chunks_mut::<4>().0 {
+        pixel.swap(0, 2);
+    }
+    let Ok(lines) = crate::platform::ocr::recognize(&bgra, width, height) else {
+        return false;
+    };
+    let mut all_found = true;
+    for secret in &secrets {
+        let mut found = false;
+        for line in &lines {
+            // The line's words run together, so a secret OCR splits into two words still matches.
+            let mut joined = String::new();
+            let mut spans = Vec::with_capacity(line.len());
+            for word in line {
+                let start = joined.len();
+                joined.push_str(&word.text);
+                spans.push((start, joined.len()));
+            }
+            let mut from = 0;
+            while let Some(at) = joined[from..].find(secret.as_str()) {
+                let start = from + at;
+                let end = start + secret.len();
+                for (word, (word_start, word_end)) in line.iter().zip(&spans) {
+                    if *word_end > start && *word_start < end {
+                        cover(&mut shot.image, word.x, word.y, word.width, word.height);
+                    }
+                }
+                found = true;
+                from = end;
+            }
+        }
+        all_found &= found;
+    }
+    all_found
+}
+
+/// Covers a box (with a small margin) in its average colour: nothing of the text is left.
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "OCR boxes are small, non-negative pixel positions inside the image"
+)]
+fn cover(image: &mut RgbaImage, x: f32, y: f32, width: f32, height: f32) {
+    const MARGIN: f32 = 3.0;
+    let left = (x - MARGIN).max(0.0) as u32;
+    let top = (y - MARGIN).max(0.0) as u32;
+    let right = ((x + width + MARGIN) as u32).min(image.width());
+    let bottom = ((y + height + MARGIN) as u32).min(image.height());
+    if right <= left || bottom <= top {
+        return;
+    }
+    let mut sum = [0u64; 3];
+    let mut count = 0u64;
+    for py in top..bottom {
+        for px in left..right {
+            let pixel = image.get_pixel(px, py);
+            for (total, channel) in sum.iter_mut().zip(pixel.0) {
+                *total += u64::from(channel);
+            }
+            count += 1;
+        }
+    }
+    let average = |total: u64| u8::try_from(total / count.max(1)).unwrap_or(0);
+    let fill = Rgba([average(sum[0]), average(sum[1]), average(sum[2]), 255]);
+    for py in top..bottom {
+        for px in left..right {
+            image.put_pixel(px, py, fill);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -377,6 +465,20 @@ mod tests {
         assert_eq!(
             masked("Set-Card -Number 4111111111111111"),
             "Set-Card -Number ••••1111"
+        );
+    }
+
+    #[test]
+    fn a_covered_box_keeps_nothing_of_the_text() {
+        let mut image = RgbaImage::from_pixel(40, 20, Rgba([255, 255, 255, 255]));
+        image.put_pixel(10, 10, Rgba([0, 0, 0, 255]));
+        cover(&mut image, 8.0, 8.0, 4.0, 4.0);
+        let covered = image.get_pixel(10, 10);
+        assert_eq!(covered, image.get_pixel(6, 6), "one flat colour");
+        assert_eq!(
+            image.get_pixel(0, 0),
+            &Rgba([255, 255, 255, 255]),
+            "outside untouched"
         );
     }
 }

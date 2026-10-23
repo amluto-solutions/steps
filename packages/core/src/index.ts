@@ -1,6 +1,7 @@
 export { FORMAT_VERSION, canReadFormat } from "./format.ts";
 export * from "./step-text/index.ts";
 export * from "./recording.ts";
+export * from "./app-name.ts";
 export * from "./guide.ts";
 export * from "./code.ts";
 export * from "./sort-key.ts";

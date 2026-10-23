@@ -5,7 +5,7 @@ exclude = ["vendor"]
 resolver = "3"
 
 [workspace.package]
-version = "1.0.0"
+version = "1.0.1"
 edition = "2024"
 rust-version = "1.98"
 authors = ["Amluto Solutions Ltd"]
@@ -41,8 +41,8 @@ crate-type = ["rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-capture = { version = "1.0.0", path = "crates/capture" }
-library = { version = "1.0.0", path = "crates/library" }
+capture = { version = "1.0.1", path = "crates/capture" }
+library = { version = "1.0.1", path = "crates/library" }
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-log = "2"
 tauri-plugin-global-shortcut = "2"
@@ -54,8 +54,11 @@ image = { version = "0.25.10", default-features = false, features = ["png", "jpe
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 webp = { version = "0.3.1", default-features = false }
-zip = { version = "8.6.0", default-features = false, features = ["deflate-flate2"] }
-tauri-plugin-updater = "2"
+zip = { version = "9.0.5", default-features = false, features = ["deflate-flate2"] }
+# Without the plugin's default "zip" feature: it only unpacks Tauri v1's zipped bundles inside the
+# plugin's own install(), which Steps never calls (src/updates.rs downloads, checks and runs the
+# setup itself), and it brought in zip 4, which has no fix for RUSTSEC-2026-0367 to 0369 (#124).
+tauri-plugin-updater = { version = "2", default-features = false, features = ["rustls-tls", "system-proxy"] }
 minisign-verify = "0.3"
 semver = "1"
 # Already in the build (Tauri's runtime, the updater's downloads): the browser link's pipe and

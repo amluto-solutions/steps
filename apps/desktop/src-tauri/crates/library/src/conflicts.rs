@@ -118,6 +118,28 @@ impl Library {
         Ok(())
     }
 
+    /// Forgets the delete notes of these steps, whoever left them. Restoring a version puts its
+    /// steps back on purpose, as one change by the person restoring, so none of them is someone
+    /// else's edit bringing a deleted step back (#58). Notes for steps the version doesn't hold
+    /// stay, so an edit made elsewhere to one of those still comes back flagged.
+    ///
+    /// A note that can't be removed yet (a sync client holding it) is passed over: it only shows
+    /// the banner to settle, which loses nothing, and the others are still forgotten.
+    ///
+    /// # Errors
+    /// `InvalidId`, `GuideNotFound`.
+    pub(crate) fn forget_deletes_of(&self, guide_id: &str, steps: &[Value]) -> Result<()> {
+        let folder = self.guide_dir(guide_id)?.join("deleted");
+        for id in steps
+            .iter()
+            .filter_map(|step| step.get("id").and_then(Value::as_str))
+            .filter(|id| is_safe_segment(id))
+        {
+            let _ = remove_if_there(&folder.join(format!("{id}.json")));
+        }
+        Ok(())
+    }
+
     /// Everything in the guide someone needs to decide about.
     ///
     /// # Errors
@@ -475,6 +497,29 @@ mod tests {
             .unwrap();
         library.forget_own_delete(&id, "s1", "sam-session").unwrap();
         assert_eq!(library.list_conflicts(&id).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn undoing_your_own_delete_after_an_export_saved_a_version_is_not_a_conflict() {
+        // #82: the editor keeps Undo across saves, so the undo can come after the version an
+        // export saves.
+        let (_dir, library, id) = guide();
+        library
+            .save_step(&id, &step("s1", "a0", "Click Run", "Robin"))
+            .unwrap();
+        library.delete_step(&id, "s1").unwrap();
+        library
+            .note_delete(&id, "s1", "Robin", "robin-session")
+            .unwrap();
+        library.save_version(&id, "Exported PDF", "Robin").unwrap();
+        library
+            .save_step(&id, &step("s1", "a0", "Click Run", "Robin"))
+            .unwrap();
+        library
+            .forget_own_delete(&id, "s1", "robin-session")
+            .unwrap();
+        assert!(library.list_conflicts(&id).unwrap().is_empty());
+        assert_eq!(library.load_guide(&id).unwrap().steps.len(), 1);
     }
 
     #[test]

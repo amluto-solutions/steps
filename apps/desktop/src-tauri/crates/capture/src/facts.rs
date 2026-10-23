@@ -3,7 +3,8 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::coords::{PctPoint, PctRect, PxRect};
+use crate::coords::{PctPoint, PctRect, PxRect, rect_to_pct};
+use crate::screenshot::{CaptureMode, Shot};
 
 /// What UI Automation reported about the element under the click.
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
@@ -26,11 +27,20 @@ pub struct ElementFacts {
     /// Physical pixels.
     pub bounds: Option<PxRect>,
     /// The element's parents, nearest first: up to four, stopping below the window or the web
-    /// page (`lookup::ancestors`). What they say about the click is decided in TypeScript
+    /// page (`lookup::parents`). What they say about the click is decided in TypeScript
     /// (docs/spec/02-capture.md#click-naming): a text or unnamed part of a named item is that item.
     pub ancestors: Vec<AncestorFacts>,
     /// Matches the sensitive-field rules; its value is never read.
     pub sensitive: bool,
+    /// A spreadsheet cell with a filter drop-down (Excel's `HasFilterDropdown`): the cell's words,
+    /// the header the filter is on (12/10/2026, #70). `None` for anything else, and left out.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub filter_header: Option<String>,
+    /// The class of the Document the parents stopped at (`lookup::parents`): Word's body is
+    /// `_WwG`, so a page under it is part of the document's text (12/10/2026, #74). `None` when
+    /// they stopped anywhere else, and left out.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub document_class: Option<String>,
 }
 
 /// One of an element's parents.
@@ -53,8 +63,27 @@ pub struct WindowFacts {
     pub elevation: &'static str,
     /// The window is a remote-desktop client (RDP, Citrix, AVD): no element names inside it.
     pub remote_session: bool,
-    /// The program's own name ("Microsoft Edge"), from its version details.
+    /// The program's own name ("Microsoft Edge"), from its version details; `None` when they give
+    /// none, or only the program's file name ("mspaint.exe").
     pub app_name: Option<String>,
+    /// For a store app's frame (drawn by `ApplicationFrameHost.exe`: Calculator, Settings), the
+    /// app it shows, by its package's display name ("Calculator"); left out for other windows and
+    /// when it wasn't found. TypeScript's `appNameOf` names the window's app from these facts.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hosted_app: Option<String>,
+    /// For a frame Windows draws round another program's window, that program's file
+    /// (`TextInputHost.exe` for the input panel Windows 11 shows in a frame of `explorer.exe`'s,
+    /// #109); left out for other windows. TypeScript's click naming knows the input panel by it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hosted_exe: Option<String>,
+    /// For a click in a pop-up (a menu, a drop-down list: a top-level window without a title bar
+    /// of Windows'), the title of the window it came from, as #72 finds it as the button went down
+    /// (`Pressed::owner`; "" when that has none). TypeScript's click naming names a click by it
+    /// when nothing else does, before the pop-up's own title, which isn't on screen (`WinUI`'s
+    /// pop-up host is "Pop-upHost" in en-GB, translated in other languages, #106). Left out for
+    /// any other window, and for a pop-up of the Windows shell's.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub owner_title: Option<String>,
     /// Part of Windows itself (the taskbar, Start, search, the desktop), not an app.
     pub shell: bool,
 }
@@ -74,6 +103,31 @@ pub struct CaptureFacts {
     pub height: u32,
     /// Image file written next to the log, if the sink stores images.
     pub image: Option<String>,
+    /// Where a notification toast shows in the picture, as percentages of it: suggested for
+    /// blurring (docs/spec/08-privacy-and-security.md#suggested-blurs). Absent when none shows.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub notifications: Vec<PctRect>,
+}
+
+impl CaptureFacts {
+    /// A screenshot's facts, taken in `mode`.
+    #[must_use]
+    pub fn of(shot: &Shot, mode: CaptureMode) -> Self {
+        Self {
+            mode: mode.as_str(),
+            rect: shot.rect,
+            monitor: shot.monitor,
+            scale: shot.scale,
+            width: shot.image.width(),
+            height: shot.image.height(),
+            image: None,
+            notifications: shot
+                .notifications
+                .iter()
+                .filter_map(|area| rect_to_pct(&shot.rect, area))
+                .collect(),
+        }
+    }
 }
 
 /// How the UIA lookup went.
@@ -85,6 +139,10 @@ pub struct UiaOutcome {
     pub ms: f64,
     pub retried: bool,
     pub error: Option<String>,
+    /// The element was read under the resting pointer before the click (its pre-read), not
+    /// after it (docs/spec/02-capture.md#on-each-click). Left out when it wasn't.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub pre_read: bool,
 }
 
 /// A page element's step facts, as Steps for Chrome and Edge reads them from the page
@@ -150,6 +208,10 @@ pub struct PageDetails {
 }
 
 /// One recorded click.
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each is a separate fact about the click, read by the journal's schema"
+)]
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ClickRecord {
@@ -173,6 +235,53 @@ pub struct ClickRecord {
     /// Added by the app when Steps for Chrome or Edge said what this click was.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub page: Option<PageDetails>,
+    /// The window's own title-bar button the left button went down on (`close`, `minimise`,
+    /// `maximise` or `restore`), from the window's hit test before it reacted (#48).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title_bar_button: Option<&'static str>,
+    /// The left button went down on the filter drop-down of the spreadsheet header clicked, told
+    /// from the cell's box (12/10/2026, #70). Left out when it didn't.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub filter_button: bool,
+    /// The window clicked was no longer under the click once the screenshot had been taken (it
+    /// closed, or moved away): the picture may show what was behind it there, so the words on it
+    /// never name the click (F019, #48).
+    pub window_gone: bool,
+    /// The items of the open menu the click landed in, as UI Automation read them when the menu
+    /// opened (`menus.rs`, #56): a name read from the screenshot is matched against them in
+    /// TypeScript. Absent off a menu.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub menu_items: Vec<MenuItemFacts>,
+    /// The menu `menu_items` are from still showed as the button went down: it was read in a
+    /// window of its own, which was the window under the pointer then (`menus.rs`, #106). The
+    /// item whose box holds the click is then the one clicked, with or without the screenshot's
+    /// words. Left out otherwise.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub menu_showing: bool,
+}
+
+/// One of a menu's items, with its box on the click's screenshot.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MenuItemFacts {
+    pub name: String,
+    /// Percentages of the screenshot; `None` when it had no box there.
+    #[serde(rename = "box")]
+    pub box_pct: Option<PctRect>,
+}
+
+impl MenuItemFacts {
+    /// A menu's items as a click on `capture` keeps them.
+    #[must_use]
+    pub fn on(capture: &PxRect, items: Vec<crate::menus::MenuItem>) -> Vec<Self> {
+        items
+            .into_iter()
+            .map(|item| Self {
+                box_pct: item.bounds.and_then(|bounds| rect_to_pct(capture, &bounds)),
+                name: item.name,
+            })
+            .collect()
+    }
 }
 
 /// A user-requested screenshot step or the screenshot attached to an Add shortcut step.
@@ -200,6 +309,9 @@ pub struct AppSwitchRecord {
     /// The app a moment after it came forward (F004, F020: "Open" steps had no picture).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub capture: Option<CaptureFacts>,
+    /// No click, tap or key came in the moments before the app came forward, so it may have come
+    /// forward by itself and its step needs review (#67, `switches`).
+    pub unprompted: bool,
 }
 
 /// A validated browser site origin change. Paths, queries and fragments are never retained.
@@ -243,6 +355,26 @@ pub struct DragRecord {
     pub handle_pct: Option<PctPoint>,
 }
 
+/// A drag that drew on a canvas (12/10/2026, #73): the left button went down on Paint's canvas,
+/// with a pencil or brush, and came up at least a drag's distance away. It replaces the click it
+/// began with, as a selection does.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DrawRecord {
+    pub id: u64,
+    /// The click the drawing began with.
+    pub of: u64,
+    /// When the button came up.
+    pub tick_ms: u32,
+    /// The canvas, as the click found it (Paint names it after the tool in use).
+    pub element: ElementFacts,
+    pub window: WindowFacts,
+    /// The window as the button came up, showing what was drawn.
+    pub capture: Option<CaptureFacts>,
+    /// Where the drawing began, on that screenshot.
+    pub from_pct: Option<PctPoint>,
+}
+
 /// How Excel's fill handle was used.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -274,7 +406,8 @@ pub struct InputRecord {
     pub element: ElementFacts,
     /// `None` when withheld; see `withheld`.
     pub value: Option<String>,
-    /// Why the value wasn't read: `sensitive`, `password`, `setting-off`, `unreadable`.
+    /// Why the value wasn't read: `sensitive`, `password`, `setting-off`, `unreadable`, or
+    /// `program` (another program typed into the field as Unicode packets, #91).
     pub withheld: Option<&'static str>,
     /// A screenshot taken as focus arrived in the field, before anything was typed, with the
     /// window and the field's place in it (04/10/2026: typing steps had no picture). Absent
@@ -387,6 +520,9 @@ pub enum Record {
     /// Cells selected by dragging from one to another (04/10/2026), or filled with Excel's fill
     /// handle (08/10/2026); the click it started with is `of`, which the step replaces.
     Drag(DragRecord),
+    /// A pencil or brush dragged across a canvas (12/10/2026, #73); the click it started with
+    /// is `of`, which the step replaces.
+    Draw(DrawRecord),
     Command(CommandRecord),
     Typing(TypingRecord),
     Keys(KeysRecord),
@@ -420,11 +556,94 @@ impl Record {
             Self::Navigation(navigation) => Some(navigation.tick_ms),
             Self::Input(input) => Some(input.tick_ms),
             Self::Drag(drag) => Some(drag.tick_ms),
+            Self::Draw(draw) => Some(draw.tick_ms),
             Self::Command(command) => Some(command.tick_ms),
             Self::Typing(typing) => Some(typing.tick_ms),
             Self::Keys(keys) => Some(keys.tick_ms),
             Self::Double { tick_ms, .. } | Self::Touch { tick_ms, .. } => Some(*tick_ms),
             Self::Missed { .. } | Self::State { .. } => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn window(hosted_app: Option<&str>) -> WindowFacts {
+        WindowFacts {
+            title: "Calculator".into(),
+            exe: Some("ApplicationFrameHost.exe".into()),
+            pid: 7,
+            frame: PxRect::default(),
+            elevation: "notElevated",
+            remote_session: false,
+            app_name: Some("Application Frame Host".into()),
+            hosted_app: hosted_app.map(str::to_string),
+            hosted_exe: None,
+            owner_title: None,
+            shell: false,
+        }
+    }
+
+    /// `packages/core/src/recording.ts` reads it as `documentClass`, absent unless the parents
+    /// stopped at a Document (#74).
+    #[test]
+    fn an_element_says_the_class_of_the_document_it_is_in() {
+        let page = ElementFacts {
+            control_type: "Custom".into(),
+            name: "Page 1".into(),
+            document_class: Some("_WwG".into()),
+            ..ElementFacts::default()
+        };
+        let json = serde_json::to_value(&page).unwrap();
+        assert_eq!(json["documentClass"], "_WwG");
+        let json = serde_json::to_value(ElementFacts::default()).unwrap();
+        assert!(json.get("documentClass").is_none(), "{json}");
+    }
+
+    /// `packages/core/src/recording.ts` reads it as `hostedApp`, absent for other windows (#50).
+    #[test]
+    fn a_store_apps_frame_says_which_app_it_shows() {
+        let json = serde_json::to_value(window(Some("Calculator"))).unwrap();
+        assert_eq!(json["hostedApp"], "Calculator");
+        assert_eq!(json["appName"], "Application Frame Host");
+        let json = serde_json::to_value(window(None)).unwrap();
+        assert!(json.get("hostedApp").is_none(), "{json}");
+    }
+
+    /// `packages/core/src/recording.ts` reads it as `hostedExe`, absent for other windows (#109).
+    #[test]
+    fn a_frame_says_which_program_it_shows() {
+        let panel = WindowFacts {
+            exe: Some("explorer.exe".into()),
+            hosted_exe: Some("TextInputHost.exe".into()),
+            ..window(None)
+        };
+        let json = serde_json::to_value(panel).unwrap();
+        assert_eq!(json["hostedExe"], "TextInputHost.exe");
+        let json = serde_json::to_value(window(None)).unwrap();
+        assert!(json.get("hostedExe").is_none(), "{json}");
+    }
+
+    /// `packages/core/src/recording.ts` reads it as `ownerTitle`, absent for other windows (#106).
+    #[test]
+    fn a_pop_up_says_the_title_of_the_window_it_came_from() {
+        let host = WindowFacts {
+            title: "Pop-upHost".into(),
+            exe: Some("mspaint.exe".into()),
+            owner_title: Some("Untitled - Paint".into()),
+            ..window(None)
+        };
+        let json = serde_json::to_value(host).unwrap();
+        assert_eq!(json["ownerTitle"], "Untitled - Paint");
+        // A window it came from with no title still says the window clicked is a pop-up.
+        let untitled = WindowFacts {
+            owner_title: Some(String::new()),
+            ..window(None)
+        };
+        assert_eq!(serde_json::to_value(untitled).unwrap()["ownerTitle"], "");
+        let json = serde_json::to_value(window(None)).unwrap();
+        assert!(json.get("ownerTitle").is_none(), "{json}");
     }
 }

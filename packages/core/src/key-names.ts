@@ -161,8 +161,10 @@ const ALIASES: Record<string, string> = {
 
 /**
  * The shortcuts a step names as well as presses, `Press "Ctrl + C" (Copy)` (05/10/2026), by
- * what Windows calls them. Only ones that do the same thing in every app: Ctrl + N is a new
- * document in one app and a new window in another, so it isn't here.
+ * what Windows calls them: ones that do the same thing in nearly every app. Ctrl + B, I, U, N
+ * and W were added from the 10/10/2026 test (P16, #71): a reader of `Press "Ctrl + B"` had to know
+ * it was Bold. Ctrl + N is a new document in one app and a new window in another, and Ctrl + W
+ * closes a tab or a document, but "New" and "Close tab" say enough either way.
  */
 export const SHORTCUTS = {
   "Ctrl + A": "selectAll",
@@ -172,6 +174,11 @@ export const SHORTCUTS = {
   "Ctrl + S": "save",
   "Ctrl + P": "print",
   "Ctrl + F": "find",
+  "Ctrl + B": "bold",
+  "Ctrl + I": "italic",
+  "Ctrl + U": "underline",
+  "Ctrl + N": "new",
+  "Ctrl + W": "closeTab",
   "Alt + F4": "close",
   "Ctrl + Shift + Esc": "taskManager",
   "Win + D": "showDesktop",
@@ -182,12 +189,29 @@ export const SHORTCUTS = {
   "Win + V": "clipboardHistory",
   "Shift + Win + S": "snippingTool",
 } as const;
-export type Shortcut = (typeof SHORTCUTS)[keyof typeof SHORTCUTS];
+
+/**
+ * Shortcuts named only in one app, by its program (lower case), since elsewhere they do something
+ * else: in a browser Ctrl + D adds a bookmark and Ctrl + G finds the next match (#71).
+ */
+export const APP_SHORTCUTS = {
+  "excel.exe": { "Ctrl + G": "goTo", "Ctrl + D": "fillDown" },
+} as const;
+
+type AppShortcut = {
+  [
+    App in keyof typeof APP_SHORTCUTS
+  ]: (typeof APP_SHORTCUTS)[App][keyof (typeof APP_SHORTCUTS)[App]];
+}[keyof typeof APP_SHORTCUTS];
+export type Shortcut = (typeof SHORTCUTS)[keyof typeof SHORTCUTS] | AppShortcut;
 
 const MODIFIER_ORDER = ["Ctrl", "Alt", "Shift", "Win"];
 
-/** The shortcut `keys` is, however its keys are spelt or ordered, or null. */
-export function shortcutOf(keys: string): Shortcut | null {
+/**
+ * The shortcut `keys` is, however its keys are spelt or ordered, or null. `app` is the program
+ * the keys went to ("EXCEL.EXE"), for the shortcuts only one app names.
+ */
+export function shortcutOf(keys: string, app?: string | null): Shortcut | null {
   const parts = keys.split(/\s*\+\s*/).map((part) => {
     const named = ALIASES[part] ?? part;
     return named.length === 1 ? named.toUpperCase() : named;
@@ -196,7 +220,10 @@ export function shortcutOf(keys: string): Shortcut | null {
   const rest = parts.filter((part) => !MODIFIER_ORDER.includes(part));
   modifiers.sort((a, b) => MODIFIER_ORDER.indexOf(a) - MODIFIER_ORDER.indexOf(b));
   const canonical = [...modifiers, ...rest].join(" + ");
-  return (SHORTCUTS as Record<string, Shortcut>)[canonical] ?? null;
+  const inApp = (APP_SHORTCUTS as Record<string, Record<string, Shortcut> | undefined>)[
+    app?.toLowerCase() ?? ""
+  ];
+  return inApp?.[canonical] ?? (SHORTCUTS as Record<string, Shortcut>)[canonical] ?? null;
 }
 
 /** A combination such as "Ctrl + S" with each key named as `language`'s keyboards name it. */

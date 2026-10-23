@@ -1,7 +1,5 @@
 {
   "app": {
-    "alreadyOpenTitle": "Steps er allerede åpent",
-    "alreadyOpenBody": "Bare ett Steps kan kjøre om gangen, så vi har hentet dette fram for deg.",
     "name": "Steps",
     "by": "by",
     "logoAlt": "Amluto"
@@ -75,6 +73,8 @@
     "heading": "Veiledningene dine",
     "count_one": "{{count}} veiledning",
     "count_other": "{{count}} veiledninger",
+    "countOf_one": "{{shown}} av {{count}} veiledning",
+    "countOf_other": "{{shown}} av {{count}} veiledninger",
     "steps_one": "{{count}} trinn",
     "steps_other": "{{count}} trinn",
     "search": "Søk i veiledninger",
@@ -204,7 +204,7 @@
       "note": "Til en annen Steps-bruker",
       "pickTitle": "Lagre veiledningen som en Steps-fil",
       "filter": "Steps-veiledning",
-      "done": "Veiledningen er eksportert. Slørede områder er sløret for godt i filen.",
+      "blurredForGood": "Slørede områder er sløret for godt i filen.",
       "originals": "Ta med originaler uten sløring (for intern overlevering)",
       "originalsWarning": "Filen vil inneholde alle skjermbilder uten sløring. Alle som får den, kan se det som var sløret. Bruk dette bare til å gi en veiledning videre til en kollega som må redigere sløringen.",
       "burnedIn": "Slørede områder er sløret for godt i filen. Skjulte inntastede verdier, kommentarer og versjoner utelates."
@@ -472,6 +472,14 @@
       "error": "Kunne ikke lagre, prøver igjen",
       "saved": "Alle endringer er lagret"
     },
+    "leave": {
+      "title": "Vil du forlate uten de siste endringene dine?",
+      "body": "Steps kunne ikke lagre de siste endringene dine og prøver fortsatt. Hvis du forlater nå, kan de gå tapt.",
+      "leave": "Forlat likevel",
+      "close": "Lukk likevel",
+      "quit": "Avslutt likevel",
+      "stay": "Bli"
+    },
     "stepsList": "Trinn",
     "stepCount_one": "{{count}} trinn",
     "stepCount_other": "{{count}} trinn",
@@ -519,6 +527,7 @@
       "typing": "Kontroller dette trinnet: Inntastingen stemmer kanskje ikke helt.",
       "code": "Kontroller dette trinnet: En hemmelighet i det ble ikke funnet i skjermbildet, så den kunne ikke sløres, eller teksten stemmer kanskje ikke helt.",
       "fillEnd": "Kontroller dette trinnet: Opptaket kunne ikke se hvilken celle fyllingen sluttet i. Skriv hvor den endte, eller velg «Ser riktig ut».",
+      "appSwitch": "Kontroller dette trinnet: Ingen klikk eller tastetrykk hentet denne appen fram, så den kan ha kommet fram av seg selv. Slett trinnet hvis veiledningen ikke gikk dit, eller velg «Ser riktig ut».",
       "looksRight": "Ser riktig ut"
     },
     "stepText": "Trinntekst",
@@ -917,6 +926,20 @@
       "inUse": "Brukes allerede for {{name}}.",
       "unavailable": "En annen app bruker allerede denne, så den fungerer ikke akkurat nå.",
       "heldBySteps": "En annen kopi av Steps er åpen og bruker denne. Lukk den, og start deretter denne på nytt.",
+      "commonUse": "Andre apper bruker {{keys}} til «{{use}}». Så lenge Steps har den, fungerer den ikke slik der.",
+      "commonMany": "Mange apper bruker {{keys}} selv. Så lenge Steps har den, fungerer den ikke i dem.",
+      "uses": {
+        "reloadNoCache": "Last inn på nytt uten hurtigbuffer",
+        "reopenTab": "Åpne lukket fane på nytt",
+        "privateWindow": "Nytt privat vindu",
+        "closeWindow": "Lukk vindu",
+        "closeTab": "Lukk fane",
+        "devTools": "Utviklerverktøy",
+        "pastePlain": "Lim inn som ren tekst",
+        "redo": "Gjør om",
+        "saveAs": "Lagre som",
+        "bookmarksBar": "Vis bokmerkelinjen"
+      },
       "failed": "Hurtigtasten kunne ikke lagres.",
       "reset": "Tilbakestill til standard",
       "resetDone": "Hurtigtastene er tilbakestilt.",
@@ -1029,6 +1052,9 @@
     "excludeApp": "Ta aldri opp {{app}}",
     "excludeAppEmpty": "Ta aldri opp denne appen",
     "appExcluded": "{{app}} tas aldri opp",
+    "excludeAppsLike": "Ta aldri opp Windows-apper som {{app}}",
+    "appsLikeExcluded": "Windows-apper som {{app}} tas aldri opp",
+    "waitingForKeys": "Venter på tastene",
     "startAgain": "Start på nytt",
     "startAgainHelp_one": "Fjerner dette trinnet og fortsetter opptaket",
     "startAgainHelp_other": "Fjerner disse {{count}} trinnene og fortsetter opptaket",
@@ -1052,6 +1078,7 @@
     "into": "Tar opp i «{{title}}»",
     "intoFallback": "De nye trinnene kunne ikke legges inn i «{{title}}»: veiledningen ble lukket, eller noen andre redigerer den. De ligger i et eget opptak i stedet.",
     "intoNothing": "Ingenting ble tatt opp, så «{{title}}» er som før.",
+    "nothingRecorded": "Ingenting ble tatt opp, så ingen veiledning ble laget.",
     "startRecording": "Start opptak",
     "startTitle": "Start et opptak",
     "keysChoice": "Ta opp det som skrives",
@@ -1107,6 +1134,7 @@
       "mergeClickIntoTyping": "Slå sammen klikket med inntastingen som følger: {{steps}}",
       "removeDoubleClick": "Fjern et gjentatt klikk: {{steps}}",
       "removeOpenApp": "Fjern et «Åpne»-trinn som neste klikk allerede viser: {{steps}}",
+      "removeOpenBeforeOpen": "Fjern et «Åpne»-trinn som umiddelbart følges av et nytt «Åpne»-trinn: {{steps}}",
       "removeRedirect": "Fjern et «Gå til»-trinn som koblingen bare gikk innom: {{steps}}"
     },
     "apply_one": "Utfør {{count}} endring",
@@ -1327,6 +1355,8 @@
     "found_one": "Fant {{count}} treff i {{steps}} trinn.",
     "found_other": "Fant {{count}} treff i {{steps}} trinn.",
     "nothing": "Ingenting funnet.",
+    "matches_one": "{{count}} treff",
+    "matches_other": "{{count}} treff",
     "unread_one": "{{count}} skjermbilde kunne ikke leses, så det ble ikke søkt i. Sjekk det selv.",
     "unread_other": "{{count}} skjermbilder kunne ikke leses, så de ble ikke søkt i. Sjekk dem selv.",
     "notGuaranteed": "Forslag kan overse ting. Sjekk hvert skjermbilde før du deler veiledningen.",
@@ -1355,17 +1385,18 @@
       "term": "sløringsord",
       "account": "kontonavnet ditt",
       "file": "filnavn",
-      "path": "filsti"
+      "path": "filsti",
+      "notification": "varsel"
     },
     "nextTo": "{{kind}} ved siden av «{{label}}»"
   },
   "zoom": {
     "menu": "Zoom inn på hvert klikk",
-    "menuNote": "Beskjærer svært brede skjermbilder rundt klikket så de blir lette å lese på en side",
+    "menuNote": "Beskjærer skjermbilder som er bredere enn {{width}} piksler til området rundt klikket, så teksten blir større på siden",
     "auto": "Auto",
     "done_one": "Zoomet inn på {{count}} skjermbilde.",
     "done_other": "Zoomet inn på {{count}} skjermbilder.",
-    "nothing": "Ingen skjermbilder trenger zoom: De er allerede lette å lese på en side."
+    "nothing": "Ingenting å zoome inn på: Den beskjærer bare skjermbilder som er bredere enn {{width}} piksler, har et klikk og ikke er beskåret ennå."
   },
   "exportSettings": {
     "folder": "Lagre eksporter i",
@@ -1506,7 +1537,7 @@
       "eyebrow": "Omvisningen er fullført",
       "title": "Da er du klar",
       "body": "Det var omvisningen. Du kan kjøre den på nytt fra Innstillinger når du vil.",
-      "finish": "Fullfør"
+      "gotIt": "Skjønner"
     },
     "pill": {
       "label": "Omvisning",

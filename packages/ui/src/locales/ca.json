@@ -1,7 +1,5 @@
 {
   "app": {
-    "alreadyOpenTitle": "Steps ja és obert",
-    "alreadyOpenBody": "Només es pot executar un Steps alhora, per això hem portat aquest al primer pla.",
     "name": "Steps",
     "by": "by",
     "logoAlt": "Amluto"
@@ -83,6 +81,9 @@
     "count_one": "{{count}} guia",
     "count_many": "{{count}} guies",
     "count_other": "{{count}} guies",
+    "countOf_one": "{{shown}} de {{count}} guia",
+    "countOf_many": "{{shown}} de {{count}} guies",
+    "countOf_other": "{{shown}} de {{count}} guies",
     "steps_one": "{{count}} pas",
     "steps_many": "{{count}} passos",
     "steps_other": "{{count}} passos",
@@ -222,7 +223,7 @@
       "note": "Per a una altra persona que utilitzi Steps",
       "pickTitle": "Desa la guia com a fitxer de Steps",
       "filter": "Guia de Steps",
-      "done": "S'ha exportat la guia. Les zones difuminades queden difuminades per sempre al fitxer.",
+      "blurredForGood": "Les zones difuminades queden difuminades per sempre al fitxer.",
       "originals": "Inclou les originals sense difuminar (per a un traspàs intern)",
       "originalsWarning": "El fitxer contindrà totes les captures de pantalla sense el difuminat. Qualsevol persona que el rebi podrà veure què s'ha difuminat. Feu-ho servir només per passar una guia a un company que n'hagi d'editar el difuminat.",
       "burnedIn": "Les zones difuminades queden difuminades per sempre al fitxer. No s'hi inclouen els valors escrits amagats, els comentaris ni les versions."
@@ -513,6 +514,14 @@
       "error": "No s'ha pogut desar; s'està tornant a provar",
       "saved": "S'han desat tots els canvis"
     },
+    "leave": {
+      "title": "Voleu sortir sense els últims canvis?",
+      "body": "Steps no ha pogut desar els últims canvis i encara ho està intentant. Si sortiu ara, és possible que es perdin.",
+      "leave": "Surt igualment",
+      "close": "Tanca igualment",
+      "quit": "Surt igualment",
+      "stay": "Queda't"
+    },
     "stepsList": "Passos",
     "stepCount_one": "{{count}} pas",
     "stepCount_many": "{{count}} passos",
@@ -565,6 +574,7 @@
       "typing": "Reviseu aquest pas: és possible que el text escrit no coincideixi exactament.",
       "code": "Reviseu aquest pas: no s'ha trobat un secret a la captura de pantalla per difuminar-lo, o és possible que el text no coincideixi exactament.",
       "fillEnd": "Reviseu aquest pas: l'enregistrament no ha pogut determinar en quina cel·la ha acabat l'emplenament. Escriviu fins on ha arribat o trieu «Està bé».",
+      "appSwitch": "Reviseu aquest pas: cap clic ni cap tecla ha portat aquesta aplicació al primer pla, així que pot haver passat al davant per si sola. Suprimiu el pas si la guia no hi va anar, o trieu «Està bé».",
       "looksRight": "Està bé"
     },
     "stepText": "Text del pas",
@@ -968,6 +978,20 @@
       "inUse": "Ja s'utilitza per a {{name}}.",
       "unavailable": "Una altra aplicació ja la fa servir, així que ara mateix no funciona.",
       "heldBySteps": "Una altra còpia de Steps està oberta i ho fa servir. Tanca-la i després reinicia aquesta.",
+      "commonUse": "Altres aplicacions fan servir {{keys}} per a «{{use}}». Mentre Steps la tingui, allà no ho farà.",
+      "commonMany": "Moltes aplicacions fan servir {{keys}} per compte propi. Mentre Steps la tingui, no hi funcionarà.",
+      "uses": {
+        "reloadNoCache": "Torna a carregar sense memòria cau",
+        "reopenTab": "Reobre la pestanya tancada",
+        "privateWindow": "Finestra privada nova",
+        "closeWindow": "Tanca la finestra",
+        "closeTab": "Tanca la pestanya",
+        "devTools": "Eines per a desenvolupadors",
+        "pastePlain": "Enganxa com a text sense format",
+        "redo": "Refés",
+        "saveAs": "Desa com a",
+        "bookmarksBar": "Mostra la barra d'adreces d'interès"
+      },
       "failed": "No s'ha pogut desar la drecera.",
       "reset": "Restableix els valors per defecte",
       "resetDone": "S'han restablert les dreceres.",
@@ -1080,6 +1104,9 @@
     "excludeApp": "No enregistris mai {{app}}",
     "excludeAppEmpty": "No enregistris mai aquesta aplicació",
     "appExcluded": "{{app}} no s'enregistra mai",
+    "excludeAppsLike": "No enregistris mai aplicacions de Windows com {{app}}",
+    "appsLikeExcluded": "Les aplicacions de Windows com {{app}} no s'enregistren mai",
+    "waitingForKeys": "Esperant les tecles",
     "startAgain": "Torna a començar",
     "startAgainHelp_one": "Esborra aquest pas i continua enregistrant",
     "startAgainHelp_many": "Esborra aquests {{count}} passos i continua enregistrant",
@@ -1107,6 +1134,7 @@
     "into": "Enregistrament a «{{title}}»",
     "intoFallback": "Els passos nous no han pogut anar a «{{title}}»: s'ha tancat o algú altre l'està editant. Són en un enregistrament propi.",
     "intoNothing": "No s'ha enregistrat res, així que «{{title}}» es manté tal com estava.",
+    "nothingRecorded": "No s'ha enregistrat res, així que no s'ha creat cap guia.",
     "startRecording": "Inicia l'enregistrament",
     "startTitle": "Inicia un enregistrament",
     "keysChoice": "Enregistra el que s'escriu",
@@ -1163,6 +1191,7 @@
       "mergeClickIntoTyping": "Combina el clic amb el text que s'escriu després: {{steps}}",
       "removeDoubleClick": "Elimina un clic repetit: {{steps}}",
       "removeOpenApp": "Elimina un pas «Obrir» que el clic següent ja mostra: {{steps}}",
+      "removeOpenBeforeOpen": "Elimina un pas «Obrir» seguit tot seguit d'un altre «Obrir»: {{steps}}",
       "removeRedirect": "Elimina un pas «Anar a» per on l'enllaç només ha passat: {{steps}}"
     },
     "apply_one": "Aplica {{count}} canvi",
@@ -1393,6 +1422,9 @@
     "found_many": "S'han trobat {{count}} coincidències en {{steps}} passos.",
     "found_other": "S'han trobat {{count}} coincidències en {{steps}} passos.",
     "nothing": "No s'ha trobat res.",
+    "matches_one": "{{count}} coincidència",
+    "matches_many": "{{count}} de coincidències",
+    "matches_other": "{{count}} coincidències",
     "unread_one": "No s'ha pogut llegir {{count}} captura de pantalla, així que no s'hi ha cercat. Reviseu-la manualment.",
     "unread_many": "No s'han pogut llegir {{count}} captures de pantalla, així que no s'hi ha cercat. Reviseu-les manualment.",
     "unread_other": "No s'han pogut llegir {{count}} captures de pantalla, així que no s'hi ha cercat. Reviseu-les manualment.",
@@ -1426,18 +1458,19 @@
       "term": "paraula per difuminar sempre",
       "account": "el nom del vostre compte",
       "file": "nom de fitxer",
-      "path": "ruta de fitxer"
+      "path": "ruta de fitxer",
+      "notification": "notificació"
     },
     "nextTo": "{{kind}} al costat de «{{label}}»"
   },
   "zoom": {
     "menu": "Amplia cada clic",
-    "menuNote": "Retalla les captures de pantalla molt amples al voltant del clic perquè es llegeixin bé en una pàgina",
+    "menuNote": "Retalla al voltant del clic les captures de pantalla més amples de {{width}} píxels, perquè el text es vegi més gran a la pàgina",
     "auto": "Automàtic",
     "done_one": "S'ha ampliat {{count}} captura de pantalla.",
     "done_many": "S'han ampliat {{count}} captures de pantalla.",
     "done_other": "S'han ampliat {{count}} captures de pantalla.",
-    "nothing": "Cap captura de pantalla no necessita ampliació: ja es llegeixen bé en una pàgina."
+    "nothing": "No hi ha res per ampliar: només es retallen les captures de pantalla més amples de {{width}} píxels que tenen un clic i encara no tenen cap retall."
   },
   "exportSettings": {
     "folder": "Desa les exportacions a",
@@ -1578,7 +1611,7 @@
       "eyebrow": "Recorregut completat",
       "title": "Ja ho teniu tot a punt",
       "body": "Aquest ha estat el recorregut. El podeu tornar a fer des de la Configuració quan vulgueu.",
-      "finish": "Finalitza"
+      "gotIt": "Entesos"
     },
     "pill": {
       "label": "Recorregut",

@@ -32,6 +32,7 @@ const paths = {
   keyboard: "M2.5 6h19v12h-19zM6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10",
   pointer: "M4 3l7.5 17 2.2-7.3L21 10.5z",
   arrow: "M5 19L19 5M10 5h9v9",
+  circle: "M3 12a9 9 0 1 0 18 0a9 9 0 1 0-18 0z",
   box: "M4 5h16v14H4z",
   text: "M5 7V4h14v3M12 4v16M9 20h6",
   blur: "M3 6h18v12H3zM7 10h2M11 10h2M15 10h2M7 14h2M11 14h2M15 14h2",

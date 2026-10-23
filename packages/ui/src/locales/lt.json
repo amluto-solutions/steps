@@ -1,7 +1,5 @@
 {
   "app": {
-    "alreadyOpenTitle": "Steps jau atidaryta",
-    "alreadyOpenBody": "Vienu metu veikia tik viena Steps, todėl jau atidarytąją iškėlėme į priekį.",
     "name": "Steps",
     "by": "by",
     "logoAlt": "Amluto"
@@ -91,6 +89,10 @@
     "count_few": "{{count}} instrukcijos",
     "count_many": "{{count}} instrukcijų",
     "count_other": "{{count}} instrukcijų",
+    "countOf_one": "{{shown}} iš {{count}} instrukcijos",
+    "countOf_few": "{{shown}} iš {{count}} instrukcijų",
+    "countOf_many": "{{shown}} iš {{count}} instrukcijos",
+    "countOf_other": "{{shown}} iš {{count}} instrukcijų",
     "steps_one": "{{count}} žingsnis",
     "steps_few": "{{count}} žingsniai",
     "steps_many": "{{count}} žingsnių",
@@ -240,7 +242,7 @@
       "note": "Kitam Steps naudotojui",
       "pickTitle": "Išsaugoti instrukciją kaip Steps failą",
       "filter": "Steps instrukcija",
-      "done": "Instrukcija eksportuota. Sulietos sritys faile sulietos visam laikui.",
+      "blurredForGood": "Sulietos sritys faile sulietos visam laikui.",
       "originals": "Įtraukti nesulietus originalus (perdavimui organizacijos viduje)",
       "originalsWarning": "Faile bus visos ekrano kopijos be suliejimo. Kiekvienas, gavęs failą, matys, kas buvo sulieta. Naudokite tai tik perduodami instrukciją kolegai, kuriam reikia redaguoti suliejimą.",
       "burnedIn": "Sulietos sritys faile sulietos visam laikui. Paslėptos įvestos reikšmės, komentarai ir versijos neįtraukiami."
@@ -554,6 +556,14 @@
       "error": "Nepavyko išsaugoti, bandoma iš naujo",
       "saved": "Visi pakeitimai išsaugoti"
     },
+    "leave": {
+      "title": "Išeiti be naujausių pakeitimų?",
+      "body": "Nepavyko išsaugoti jūsų naujausių pakeitimų, o Steps vis dar bando. Jei išeisite dabar, jie gali būti prarasti.",
+      "leave": "Vis tiek išeiti",
+      "close": "Vis tiek uždaryti",
+      "quit": "Vis tiek išeiti",
+      "stay": "Pasilikti"
+    },
     "stepsList": "Žingsniai",
     "stepCount_one": "{{count}} žingsnis",
     "stepCount_few": "{{count}} žingsniai",
@@ -611,6 +621,7 @@
       "typing": "Patikrinkite šį žingsnį: įvestas tekstas gali tiksliai nesutapti.",
       "code": "Patikrinkite šį žingsnį: jame esančios slaptos informacijos nepavyko rasti ekrano kopijoje, kad ją būtų galima sulieti, arba tekstas gali tiksliai nesutapti.",
       "fillEnd": "Patikrinkite šį žingsnį: įrašant nepavyko nustatyti, kuriame langelyje baigėsi užpildymas. Parašykite, kur jis baigėsi, arba pasirinkite „Atrodo gerai“.",
+      "appSwitch": "Patikrinkite šį žingsnį: šios programos į priekį neiškėlė nei spustelėjimas, nei klavišo paspaudimas, todėl ji galėjo išsikelti pati. Naikinkite žingsnį, jei instrukcijoje į šią programą nebuvo pereita, arba pasirinkite „Atrodo gerai“.",
       "looksRight": "Atrodo gerai"
     },
     "stepText": "Žingsnio tekstas",
@@ -1019,6 +1030,20 @@
       "inUse": "Jau naudojama: {{name}}.",
       "unavailable": "Šį derinį jau naudoja kita programa, todėl dabar jis neveikia.",
       "heldBySteps": "Kita Steps kopija atidaryta ir naudoja šį derinį. Uždarykite ją, tada iš naujo paleiskite šią.",
+      "commonUse": "Kitos programos naudoja {{keys}} veiksmui „{{use}}“. Kol šį derinį turi Steps, jose tai neveiks.",
+      "commonMany": "Daugelis programų pačios naudoja {{keys}}. Kol šį derinį turi Steps, jose jis neveiks.",
+      "uses": {
+        "reloadNoCache": "Perkrauti be talpyklos",
+        "reopenTab": "Iš naujo atidaryti uždarytą skirtuką",
+        "privateWindow": "Naujas privatus langas",
+        "closeWindow": "Uždaryti langą",
+        "closeTab": "Uždaryti skirtuką",
+        "devTools": "Kūrėjo įrankiai",
+        "pastePlain": "Įklijuoti kaip paprastą tekstą",
+        "redo": "Perdaryti",
+        "saveAs": "Išsaugoti kaip",
+        "bookmarksBar": "Rodyti žymių juostą"
+      },
       "failed": "Nepavyko išsaugoti sparčiojo klavišo.",
       "reset": "Atkurti numatytuosius",
       "resetDone": "Spartieji klavišai atkurti.",
@@ -1131,6 +1156,9 @@
     "excludeApp": "Niekada neįrašyti {{app}}",
     "excludeAppEmpty": "Niekada neįrašyti šios programos",
     "appExcluded": "{{app}} niekada neįrašoma",
+    "excludeAppsLike": "Niekada neįrašyti „Windows“ programų, pvz., {{app}}",
+    "appsLikeExcluded": "„Windows“ programos, pvz., {{app}}, niekada neįrašomos",
+    "waitingForKeys": "Laukiama klavišų",
     "startAgain": "Pradėti iš naujo",
     "startAgainHelp_one": "Išvalo šį {{count}} žingsnį ir tęsia įrašymą",
     "startAgainHelp_few": "Išvalo šiuos {{count}} žingsnius ir tęsia įrašymą",
@@ -1162,6 +1190,7 @@
     "into": "Įrašoma į „{{title}}“",
     "intoFallback": "Naujų žingsnių nepavyko įdėti į instrukciją „{{title}}“: ji buvo uždaryta arba ją redaguoja kas nors kitas. Vietoj to jie yra atskirame įraše.",
     "intoNothing": "Nieko neįrašyta, todėl instrukcija „{{title}}“ nepasikeitė.",
+    "nothingRecorded": "Nieko neįrašyta, todėl instrukcija nesukurta.",
     "startRecording": "Pradėti įrašymą",
     "startTitle": "Pradėti įrašymą",
     "keysChoice": "Įrašyti įvedamą tekstą",
@@ -1219,6 +1248,7 @@
       "mergeClickIntoTyping": "Sujungti spustelėjimą su po jo einančiu teksto įvedimu: {{steps}}",
       "removeDoubleClick": "Pašalinti pakartotinį spustelėjimą: {{steps}}",
       "removeOpenApp": "Pašalinti žingsnį „Atidarykite“, kurį jau rodo kitas spustelėjimas: {{steps}}",
+      "removeOpenBeforeOpen": "Pašalinti žingsnį „Atidarykite“, po kurio iškart eina dar vienas žingsnis „Atidarykite“: {{steps}}",
       "removeRedirect": "Pašalinti žingsnį „Eikite į“, per kurį saitas tik peradresavo: {{steps}}"
     },
     "apply_one": "Taikyti {{count}} pakeitimą",
@@ -1459,6 +1489,10 @@
     "found_many": "Rasta {{count}} atitikmenų, žingsnių: {{steps}}.",
     "found_other": "Rasta {{count}} atitikmenų, žingsnių: {{steps}}.",
     "nothing": "Nieko nerasta.",
+    "matches_one": "{{count}} atitikmuo",
+    "matches_few": "{{count}} atitikmenys",
+    "matches_many": "{{count}} atitikmens",
+    "matches_other": "{{count}} atitikmenų",
     "unread_one": "{{count}} ekrano kopijos nepavyko nuskaityti, todėl joje neieškota. Patikrinkite ją patys.",
     "unread_few": "{{count}} ekrano kopijų nepavyko nuskaityti, todėl jose neieškota. Patikrinkite jas patys.",
     "unread_many": "{{count}} ekrano kopijų nepavyko nuskaityti, todėl jose neieškota. Patikrinkite jas patys.",
@@ -1497,19 +1531,20 @@
       "term": "visada suliejamas žodis",
       "account": "jūsų paskyros pavadinimas",
       "file": "failo pavadinimas",
-      "path": "failo kelias"
+      "path": "failo kelias",
+      "notification": "pranešimas"
     },
     "nextTo": "{{kind}} šalia „{{label}}“"
   },
   "zoom": {
     "menu": "Priartinti kiekvieną spustelėjimą",
-    "menuNote": "Apkarpo labai plačias ekrano kopijas aplink spustelėjimą, kad jos gerai atrodytų puslapyje",
+    "menuNote": "Apkarpo ekrano kopijas, platesnes nei {{width}} pikselių, iki srities aplink spustelėjimą, kad puslapyje tekstas būtų didesnis",
     "auto": "Automatiškai",
     "done_one": "Priartinta {{count}} ekrano kopija.",
     "done_few": "Priartintos {{count}} ekrano kopijos.",
     "done_many": "Priartinta {{count}} ekrano kopijų.",
     "done_other": "Priartinta {{count}} ekrano kopijų.",
-    "nothing": "Nė vienos ekrano kopijos nereikia priartinti: jos jau gerai atrodo puslapyje."
+    "nothing": "Nėra ką priartinti: apkarpomos tik ekrano kopijos, platesnės nei {{width}} pikselių, kuriose yra spustelėjimas ir kurios dar neapkarpytos."
   },
   "exportSettings": {
     "folder": "Eksportuotus failus saugoti",
@@ -1650,7 +1685,7 @@
       "eyebrow": "Apžvalga baigta",
       "title": "Viskas paruošta",
       "body": "Tai ir visa apžvalga. Ją bet kada galėsite paleisti iš naujo parametruose.",
-      "finish": "Baigti"
+      "gotIt": "Supratau"
     },
     "pill": {
       "label": "Apžvalga",

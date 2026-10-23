@@ -8,6 +8,7 @@ import { Icon } from "../components/icons";
 import { Menu, type MenuEntry } from "../components/Menu";
 import { useLatest } from "../useLatest";
 import type { GuideSearchHit, LibraryGuideSummary, StorageUse } from "../library-bridge";
+import { clearPicked, pick, pickAll, pickedIn, startPicking } from "../picking";
 import { formatBytes, freeBytes } from "./storage";
 import { formatUpdated } from "./dates";
 import { needsReview } from "./views";
@@ -33,7 +34,10 @@ export interface BulkActions {
   onMerge?: ((guides: LibraryGuideSummary[]) => void) | undefined;
   /** The formats several guides can be exported in, one review each. */
   exportMenu: (guides: LibraryGuideSummary[]) => MenuEntry[];
-  /** Password locks (04/10/2026): Lock… for any not locked, Remove lock… for any locked. */
+  /**
+   * Password locks (04/10/2026): Lock… acts on those not locked, Remove lock… on those locked.
+   * Each button is there whenever its action is, enabled only when a guide ticked fits.
+   */
   onLock?: ((guides: LibraryGuideSummary[]) => void) | undefined;
   onRemoveLock?: ((guides: LibraryGuideSummary[]) => void) | undefined;
 }
@@ -165,13 +169,14 @@ export function LibraryHome(props: LibraryHomeProps) {
   }, [trimmed, props.guides]);
   const hits = wordingHits?.query === trimmed ? wordingHits.hits : null;
 
-  // ----- Selecting several guides -----
-  const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
+  // ----- Selecting several guides, as in File Explorer (../picking.ts) -----
+  const [picking, setPicking] = useState(() => startPicking());
   /** Select pressed: a click on a card ticks it instead of opening it. */
   const [selectMode, setSelectMode] = useState(false);
-  /** Where a Shift-click's range starts: the last card ticked or unticked. */
-  const anchor = useRef<string | null>(null);
-  // Guides that have gone (moved, to the Bin, deleted elsewhere) simply drop out.
+  // Guides that have gone (moved, to the Bin, deleted elsewhere) simply drop out; those a search
+  // hides stay ticked.
+  const guideIds = props.guides.map((guide) => guide.id);
+  const selected = new Set(pickedIn(picking, guideIds));
   const ticked = props.guides.filter((guide) => selected.has(guide.id));
   const selecting = Boolean(props.bulk) && (selectMode || ticked.length > 0);
   useEffect(() => {
@@ -199,32 +204,14 @@ export function LibraryHome(props: LibraryHomeProps) {
     return [...matching].sort(compare[sort]);
   }, [props.guides, trimmed, hits, sort]);
 
-  const toggle = (id: string) => {
-    anchor.current = id;
-    setSelected((current) => {
-      const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-  /** Shift-click: everything shown from the last card ticked to this one. */
-  const tickRange = (id: string) => {
-    const ids = shown.map((guide) => guide.id);
-    const from = anchor.current === null ? -1 : ids.indexOf(anchor.current);
-    if (from === -1) {
-      toggle(id);
-      return;
-    }
-    const to = ids.indexOf(id);
-    const [start, end] = from < to ? [from, to] : [to, from];
-    setSelected((current) => new Set([...current, ...ids.slice(start, end + 1)]));
-  };
-  const selectAll = () => setSelected(new Set(shown.map((guide) => guide.id)));
+  const shownIds = shown.map((guide) => guide.id);
+  const toggle = (id: string) => setPicking((now) => pick(now, shownIds, id, "toggle"));
+  /** Shift-click: everything shown from the last card ticked or unticked to this one is ticked. */
+  const tickRange = (id: string) => setPicking((now) => pick(now, shownIds, id, "addRange"));
+  const selectAll = () => setPicking((now) => pickAll(now, shownIds));
   const clearSelection = () => {
-    setSelected(new Set());
+    setPicking(clearPicked);
     setSelectMode(false);
-    anchor.current = null;
   };
   /** A card's click: opens it, or with Ctrl, Shift or Select on, ticks it. */
   const clickCard = (event: MouseEvent, guide: LibraryGuideSummary) => {
@@ -317,27 +304,42 @@ export function LibraryHome(props: LibraryHomeProps) {
   return (
     <div className="flex h-full min-w-0 flex-col">
       <div className="flex flex-wrap items-center gap-4 px-7 pt-5 pb-4">
-        <div className="flex flex-1 items-baseline gap-2.5">
+        {/* Its own width first, so a long search box moves to the next line rather than breaking
+            the heading over two. */}
+        <div className="flex flex-auto items-baseline gap-2.5 whitespace-nowrap">
           <h1 ref={heading} tabIndex={-1} className="font-heading text-2xl text-navy">
             {props.heading}
           </h1>
           <span className="text-[13px] text-secondary">
-            {t("library.count", { count: props.guides.length })}
+            {/* A search says how many of the guides it shows (P29), not the whole count. */}
+            {trimmed
+              ? t("library.countOf", { shown: shown.length, count: props.guides.length })
+              : t("library.count", { count: props.guides.length })}
           </span>
         </div>
         <label
           data-tour="search"
-          className="flex h-9 w-64 items-center gap-2 rounded-lg border border-control-line bg-background px-3 text-secondary focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus"
+          className="flex h-9 max-w-full min-w-64 items-center gap-2 rounded-lg border border-control-line bg-background px-3 text-secondary focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus"
         >
           <Icon name="search" size={16} />
           <span className="sr-only">{t("library.search")}</span>
-          <input
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.currentTarget.value)}
-            placeholder={t("library.searchPlaceholder")}
-            className="min-w-0 flex-1 bg-transparent text-sm text-body outline-none placeholder:text-secondary"
-          />
+          {/* As wide as the language's placeholder (P38: German's was cut to "…durc"): a hidden
+              copy shares the input’s cell and sets its width, with room for the clear button. */}
+          <span className="grid min-w-0 flex-1">
+            <span
+              aria-hidden="true"
+              className="invisible col-start-1 row-start-1 overflow-hidden pe-5 text-sm whitespace-pre"
+            >
+              {t("library.searchPlaceholder")}
+            </span>
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.currentTarget.value)}
+              placeholder={t("library.searchPlaceholder")}
+              className="col-start-1 row-start-1 w-full min-w-0 bg-transparent text-sm text-body outline-none placeholder:text-secondary"
+            />
+          </span>
         </label>
         <label className="flex items-center gap-2 text-[13px] text-secondary">
           {t("library.sort")}
@@ -375,8 +377,23 @@ export function LibraryHome(props: LibraryHomeProps) {
           aria-label={t("library.selection.label")}
           className="card mx-7 mb-3 flex flex-wrap items-center gap-2 py-2 pr-2 pl-4"
         >
-          <strong className="text-sm text-navy">
-            {t("library.selection.count", { count: ticked.length })}
+          {/* As wide as the count can get, so a bar that wraps doesn't move its buttons when the
+              count gains a digit or another plural form (P28). */}
+          <strong className="inline-grid text-sm text-navy tabular-nums">
+            <span className="col-start-1 row-start-1">
+              {t("library.selection.count", { count: ticked.length })}
+            </span>
+            {/* The one form and the most a selection can be, which may be the same. */}
+            {(["one", "most"] as const).map((which) => (
+              <span
+                key={which}
+                aria-hidden="true"
+                data-widest={t("library.selection.count", {
+                  count: which === "one" ? 1 : props.guides.length,
+                })}
+                className="invisible col-start-1 row-start-1 after:content-[attr(data-widest)]"
+              />
+            ))}
           </strong>
           <button type="button" className="btn btn-quiet h-8 px-2" onClick={selectAll}>
             {t("library.selection.all")}
@@ -460,22 +477,24 @@ export function LibraryHome(props: LibraryHomeProps) {
               </button>
             )}
           />
-          {props.bulk.onLock && ticked.some((guide) => !guide.locked) && (
+          {/* Both lock buttons are always there, disabled when no guide ticked fits (P28):
+              one appearing shifted every button, so a click aimed at Merge opened Lock…. */}
+          {props.bulk.onLock && (
             <button
               type="button"
               className="btn h-8"
-              disabled={props.busy}
+              disabled={props.busy || !ticked.some((guide) => !guide.locked)}
               onClick={() => runTicked((guides) => props.bulk?.onLock?.(guides))}
             >
               <Icon name="lock" size={16} />
               {t("locks.lock")}
             </button>
           )}
-          {props.bulk.onRemoveLock && ticked.some((guide) => guide.locked) && (
+          {props.bulk.onRemoveLock && (
             <button
               type="button"
               className="btn h-8"
-              disabled={props.busy}
+              disabled={props.busy || !ticked.some((guide) => guide.locked)}
               onClick={() => runTicked((guides) => props.bulk?.onRemoveLock?.(guides))}
             >
               <Icon name="lock" size={16} />
@@ -630,72 +649,90 @@ export function LibraryHome(props: LibraryHomeProps) {
                     </span>
                     <FoundIn found={hits?.get(guide.id) ?? null} />
                   </button>
-                  <div className="flex items-center gap-1.5 py-2 pr-1.5 pl-3.5 text-xs text-secondary">
-                    <span className="shrink-0 whitespace-nowrap">
-                      {t("library.steps", { count: guide.stepCount })}
-                      {guide.sizeBytes !== undefined && ` · ${formatBytes(guide.sizeBytes)}`}
-                    </span>
-                    <span aria-hidden="true">·</span>
-                    <span className="min-w-0 flex-1 truncate">
-                      {formatUpdated(guide.updatedAt, t)}
-                    </span>
-                    {needsReview(guide) && (
-                      <span className="chip bg-warning-soft text-warning">
-                        {t("library.needsReview")}
-                      </span>
+                  {/* Pinned to the card's foot, so cards side by side line up whatever they show. */}
+                  <div className="mt-auto flex flex-col gap-1.5 py-2 pr-1.5 pl-3.5 text-xs text-secondary">
+                    {/* The badges and tag have a row of their own (P38): beside the date they cut
+                        it to "Edite…". */}
+                    {(needsReview(guide) ||
+                      (guide.openComments ?? 0) > 0 ||
+                      guide.locked ||
+                      guide.tags[0]) && (
+                      <div className="flex min-w-0 flex-wrap items-center gap-1 pr-2">
+                        {needsReview(guide) && (
+                          <span className="chip bg-warning-soft text-warning">
+                            {t("library.needsReview")}
+                          </span>
+                        )}
+                        {(guide.openComments ?? 0) > 0 && (
+                          <span
+                            className="chip gap-1"
+                            title={t("comments.openCount", { count: guide.openComments })}
+                          >
+                            <Icon name="comment" size={12} />
+                            <span className="sr-only">
+                              {t("comments.openCount", { count: guide.openComments })}
+                            </span>
+                            <span aria-hidden="true">{guide.openComments}</span>
+                          </span>
+                        )}
+                        {guide.locked && (
+                          <span className="chip" title={lockedBy(guide.locked)}>
+                            <Icon name="lock" size={12} />
+                            <span className="sr-only">{lockedBy(guide.locked)}</span>
+                          </span>
+                        )}
+                        {guide.tags[0] && (
+                          <span className="chip max-w-full min-w-0" title={guide.tags[0]}>
+                            <span className="min-w-0 truncate">{guide.tags[0]}</span>
+                          </span>
+                        )}
+                      </div>
                     )}
-                    {(guide.openComments ?? 0) > 0 && (
-                      <span
-                        className="chip shrink-0 gap-1"
-                        title={t("comments.openCount", { count: guide.openComments })}
-                      >
-                        <Icon name="comment" size={12} />
-                        <span className="sr-only">
-                          {t("comments.openCount", { count: guide.openComments })}
+                    <div className="flex items-center gap-1.5">
+                      {/* Each part stays whole: a narrow card puts the date on a line of its own
+                          rather than cutting it short, and wraps it only if it's wider than that. */}
+                      <span className="min-w-0 flex-1">
+                        <span className="inline-block max-w-full">
+                          {t("library.steps", { count: guide.stepCount })}
+                          {guide.sizeBytes !== undefined && ` · ${formatBytes(guide.sizeBytes)}`}
+                        </span>{" "}
+                        <span aria-hidden="true">·</span>{" "}
+                        <span className="inline-block max-w-full">
+                          {formatUpdated(guide.updatedAt, t)}
                         </span>
-                        <span aria-hidden="true">{guide.openComments}</span>
                       </span>
-                    )}
-                    {guide.locked && (
-                      <span className="chip shrink-0" title={lockedBy(guide.locked)}>
-                        <Icon name="lock" size={12} />
-                        <span className="sr-only">{lockedBy(guide.locked)}</span>
-                      </span>
-                    )}
-                    {guide.tags[0] && (
-                      <span className="chip max-w-20 truncate">{guide.tags[0]}</span>
-                    )}
-                    <Menu
-                      label={t("export.menu")}
-                      entries={props.exportMenu(guide)}
-                      width={300}
-                      trigger={(trigger) => (
-                        <button
-                          type="button"
-                          {...trigger}
-                          title={t("export.button")}
-                          data-tour="export"
-                          aria-label={t("export.guide", { title: guide.title })}
-                          className="icon-btn size-8 border border-line text-link"
-                        >
-                          <Icon name="download" size={16} />
-                        </button>
-                      )}
-                    />
-                    <Menu
-                      label={t("library.guideActions")}
-                      entries={props.guideMenu(guide)}
-                      trigger={(trigger) => (
-                        <button
-                          type="button"
-                          {...trigger}
-                          aria-label={t("library.guideActionsFor", { title: guide.title })}
-                          className="icon-btn size-8"
-                        >
-                          <Icon name="more" size={18} strokeWidth={3} />
-                        </button>
-                      )}
-                    />
+                      <Menu
+                        label={t("export.menu")}
+                        entries={props.exportMenu(guide)}
+                        width={300}
+                        trigger={(trigger) => (
+                          <button
+                            type="button"
+                            {...trigger}
+                            title={t("export.button")}
+                            data-tour="export"
+                            aria-label={t("export.guide", { title: guide.title })}
+                            className="icon-btn size-8 border border-line text-link"
+                          >
+                            <Icon name="download" size={16} />
+                          </button>
+                        )}
+                      />
+                      <Menu
+                        label={t("library.guideActions")}
+                        entries={props.guideMenu(guide)}
+                        trigger={(trigger) => (
+                          <button
+                            type="button"
+                            {...trigger}
+                            aria-label={t("library.guideActionsFor", { title: guide.title })}
+                            className="icon-btn size-8"
+                          >
+                            <Icon name="more" size={18} strokeWidth={3} />
+                          </button>
+                        )}
+                      />
+                    </div>
                   </div>
                 </li>
               );

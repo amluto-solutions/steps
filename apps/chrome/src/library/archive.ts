@@ -50,8 +50,8 @@ export const IMPORT_LIMITS = {
 };
 export type ImportLimits = typeof IMPORT_LIMITS;
 
-const rejected = (rule: string) =>
-  new LibraryError("importRejected", `This file can't be imported: ${rule}`);
+/** Only the rule: the app's own words say "That file can't be imported:" before it (P38). */
+const rejected = (rule: string) => new LibraryError("importRejected", rule);
 
 const json = (value: unknown) => new TextEncoder().encode(`${JSON.stringify(value, null, 2)}\n`);
 const obj = (value: unknown): Json =>

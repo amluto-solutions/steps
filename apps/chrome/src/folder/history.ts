@@ -22,6 +22,7 @@ import {
   stepCount,
 } from "./files";
 import { readSteps, type FolderLibrary } from "./library";
+import { forgetDeletesOf } from "./sharing";
 
 /**
  * Saved versions and "Apply blur permanently", as the desktop's `versions.rs` and `redact.rs`.
@@ -134,6 +135,8 @@ export async function loadVersion(
  * "Before restoring <date>" so a restore can itself be undone. The version's step files are
  * written over the guide's, then the ones it doesn't have are removed (the browser can't swap
  * folders, as the desktop does): if that stops part-way, the version saved first has everything.
+ * The steps it puts back lose their delete notes, so none is flagged as brought back by someone
+ * else.
  */
 export async function restoreVersion(
   library: FolderLibrary,
@@ -165,7 +168,11 @@ export async function restoreVersion(
   for (const entry of await steps.entries())
     if (!kept.has(entry.name)) await steps.remove(entry.name, true);
   await writeJson(folder, "guide.json", guide);
-  return library.loadGuide(guideId);
+  const restored = await library.loadGuide(guideId);
+  // Only once the steps are back: had the notes gone first and the restore then stopped
+  // part-way, a step deleted here and edited elsewhere would stay in the guide unflagged.
+  await forgetDeletesOf(library, guideId, restored.steps);
+  return restored;
 }
 
 // ---------- Apply blur permanently ----------

@@ -265,6 +265,18 @@ export function createBrowserLibrary(options: BrowserLibraryOptions): LibraryBri
     if (libraryId !== BROWSER_LIBRARY_ID) throw errors.notInBrowser();
   };
 
+  /** A guide as a `.amlsteps` file, blur burned in unless the originals are asked for. */
+  const amlstepsOf = async (libraryId: string, guideId: string, includeOriginals: boolean) => {
+    checkLibrary(libraryId);
+    await requireGuide(guideId);
+    return exportArchive(
+      await browserSource(db, guideId),
+      codec,
+      includeOriginals,
+      options.appVersion,
+    );
+  };
+
   /** Every guide's data, read in one transaction, for trash, duplicate and restore. */
   const readAll = async (guideId: string) => {
     const tx = db.transaction(GUIDE_STORES, "readonly");
@@ -785,15 +797,14 @@ export function createBrowserLibrary(options: BrowserLibraryOptions): LibraryBri
     },
 
     async exportAmlsteps(libraryId, guideId, destination, includeOriginals) {
-      checkLibrary(libraryId);
-      await requireGuide(guideId);
-      const bytes = await exportArchive(
-        await browserSource(db, guideId),
-        codec,
-        includeOriginals,
-        options.appVersion,
-      );
+      const bytes = await amlstepsOf(libraryId, guideId, includeOriginals);
       await options.files.write(destination, bytes, "application/zip");
+    },
+
+    // The browser has one export folder, its downloads, so the folder named is that.
+    async exportAmlstepsTo(libraryId, guideId, _folder, name, includeOriginals) {
+      const bytes = await amlstepsOf(libraryId, guideId, includeOriginals);
+      return options.files.download(name, bytes, "application/zip");
     },
 
     async importAmlsteps(libraryId, source) {

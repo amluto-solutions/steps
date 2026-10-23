@@ -179,7 +179,7 @@ describe("the product tour", () => {
     await waitFor(() => expect(screen.queryByTestId("tour-card")).toBeNull());
   });
 
-  it("finishes after the last step", async () => {
+  it("finishes after the last step, with one Finish (#87)", async () => {
     writeTour({ status: "active", step: "settings" });
     renderTour();
     expect(await title()).toBe("Settings");
@@ -187,7 +187,11 @@ describe("the product tour", () => {
     expect(await title()).toBe("You’re all set");
     expect(confetti).toHaveBeenCalledTimes(1);
     expect(readTour()).toEqual({ status: "finished", step: null });
-    press("Finish");
+    // The last step's Finish was the one: the card after it only closes.
+    expect(screen.queryByRole("button", { name: "Finish" })).toBeNull();
+    expect(document.activeElement?.textContent).toBe("Got it");
+    await expectNoSeriousAxeViolations(document.body);
+    press("Got it");
     await waitFor(() => expect(screen.queryByTestId("tour-card")).toBeNull());
   });
 

@@ -1,7 +1,5 @@
 {
   "app": {
-    "alreadyOpenTitle": "Steps est déjà ouvert",
-    "alreadyOpenBody": "Une seule instance de Steps s'exécute à la fois ; nous avons donc mis celle-ci au premier plan pour vous.",
     "name": "Steps",
     "by": "by",
     "logoAlt": "Amluto"
@@ -83,6 +81,9 @@
     "count_one": "{{count}} guide",
     "count_many": "{{count}} guides",
     "count_other": "{{count}} guides",
+    "countOf_one": "{{shown}} sur {{count}} guide",
+    "countOf_many": "{{shown}} sur {{count}} guides",
+    "countOf_other": "{{shown}} sur {{count}} guides",
     "steps_one": "{{count}} étape",
     "steps_many": "{{count}} étapes",
     "steps_other": "{{count}} étapes",
@@ -222,7 +223,7 @@
       "note": "Pour une autre personne qui utilise Steps",
       "pickTitle": "Enregistrer le guide comme fichier Steps",
       "filter": "Guide Steps",
-      "done": "Guide exporté. Les zones floutées le sont définitivement dans le fichier.",
+      "blurredForGood": "Les zones floutées le sont définitivement dans le fichier.",
       "originals": "Inclure les originaux non floutés (pour une transmission en interne)",
       "originalsWarning": "Le fichier contiendra chaque capture d'écran sans son flou. Toute personne qui le reçoit pourra voir ce qui a été flouté. Utilisez cette option uniquement pour transmettre un guide à un collègue qui doit modifier le flou.",
       "burnedIn": "Les zones floutées le sont définitivement dans le fichier. Les valeurs saisies masquées, les commentaires et les versions ne sont pas inclus."
@@ -513,6 +514,14 @@
       "error": "Échec de l'enregistrement, nouvel essai",
       "saved": "Toutes les modifications sont enregistrées"
     },
+    "leave": {
+      "title": "Quitter sans vos dernières modifications ?",
+      "body": "Steps n'a pas pu enregistrer vos dernières modifications et réessaie. Si vous quittez maintenant, elles risquent d'être perdues.",
+      "leave": "Quitter quand même",
+      "close": "Fermer quand même",
+      "quit": "Quitter quand même",
+      "stay": "Rester"
+    },
     "stepsList": "Étapes",
     "stepCount_one": "{{count}} étape",
     "stepCount_many": "{{count}} étapes",
@@ -565,6 +574,7 @@
       "typing": "Vérifiez cette étape : la saisie ne correspond peut-être pas exactement.",
       "code": "Vérifiez cette étape : un secret n'a pas été trouvé dans la capture d'écran pour être flouté, ou le texte ne correspond peut-être pas exactement.",
       "fillEnd": "Vérifiez cette étape : l'enregistrement n'a pas pu déterminer la cellule où la recopie s'est arrêtée. Indiquez jusqu'où elle est allée, ou choisissez « C'est bon ».",
+      "appSwitch": "Vérifiez cette étape : aucun clic ni aucune touche n'a amené cette application au premier plan, elle a donc pu y passer d'elle-même. Supprimez l'étape si le guide n'est pas passé par là, ou choisissez « C'est bon ».",
       "looksRight": "C'est bon"
     },
     "stepText": "Texte de l'étape",
@@ -968,6 +978,20 @@
       "inUse": "Déjà utilisé pour {{name}}.",
       "unavailable": "Une autre application l'utilise déjà : il ne fonctionne donc pas pour le moment.",
       "heldBySteps": "Une autre copie de Steps est ouverte et l'utilise. Fermez-la, puis redémarrez celle-ci.",
+      "commonUse": "D'autres applications utilisent {{keys}} pour « {{use}} ». Tant que Steps l'utilise, cette commande n'y fonctionnera pas.",
+      "commonMany": "De nombreuses applications utilisent elles-mêmes {{keys}}. Tant que Steps l'utilise, ce raccourci n'y fonctionnera pas.",
+      "uses": {
+        "reloadNoCache": "Actualiser sans le cache",
+        "reopenTab": "Rouvrir l'onglet fermé",
+        "privateWindow": "Nouvelle fenêtre de navigation privée",
+        "closeWindow": "Fermer la fenêtre",
+        "closeTab": "Fermer l'onglet",
+        "devTools": "Outils de développement",
+        "pastePlain": "Coller en texte brut",
+        "redo": "Rétablir",
+        "saveAs": "Enregistrer sous",
+        "bookmarksBar": "Afficher la barre de favoris"
+      },
       "failed": "Impossible d'enregistrer ce raccourci.",
       "reset": "Rétablir les valeurs par défaut",
       "resetDone": "Raccourcis réinitialisés.",
@@ -1080,6 +1104,9 @@
     "excludeApp": "Ne jamais enregistrer {{app}}",
     "excludeAppEmpty": "Ne jamais enregistrer cette application",
     "appExcluded": "{{app}} n'est jamais enregistré",
+    "excludeAppsLike": "Ne jamais enregistrer les applications Windows comme {{app}}",
+    "appsLikeExcluded": "Les applications Windows comme {{app}} ne sont jamais enregistrées",
+    "waitingForKeys": "En attente des touches",
     "startAgain": "Recommencer",
     "startAgainHelp_one": "Efface {{count}} étape et continue l'enregistrement",
     "startAgainHelp_many": "Efface ces {{count}} étapes et continue l'enregistrement",
@@ -1107,6 +1134,7 @@
     "into": "Enregistrement dans « {{title}} »",
     "intoFallback": "Les nouvelles étapes n'ont pas pu être ajoutées à « {{title}} » : le guide a été fermé, ou quelqu'un d'autre le modifie. Elles forment à la place un enregistrement distinct.",
     "intoNothing": "Rien n'a été enregistré, « {{title}} » est donc inchangé.",
+    "nothingRecorded": "Rien n'a été enregistré, aucun guide n'a donc été créé.",
     "startRecording": "Démarrer l'enregistrement",
     "startTitle": "Démarrer un enregistrement",
     "keysChoice": "Enregistrer la saisie",
@@ -1163,6 +1191,7 @@
       "mergeClickIntoTyping": "Fusionner le clic avec la saisie qui le suit : {{steps}}",
       "removeDoubleClick": "Supprimer un clic répété : {{steps}}",
       "removeOpenApp": "Supprimer une étape « Ouvrir » que le clic suivant montre déjà : {{steps}}",
+      "removeOpenBeforeOpen": "Supprimer une étape « Ouvrir » suivie aussitôt d'une autre étape « Ouvrir » : {{steps}}",
       "removeRedirect": "Supprimer une étape « Aller à » par laquelle le lien n'a fait que passer : {{steps}}"
     },
     "apply_one": "Appliquer {{count}} modification",
@@ -1393,6 +1422,9 @@
     "found_many": "{{count}} occurrences trouvées dans {{steps}} étapes.",
     "found_other": "{{count}} occurrences trouvées dans {{steps}} étapes.",
     "nothing": "Aucun résultat.",
+    "matches_one": "{{count}} correspondance",
+    "matches_many": "{{count}} de correspondances",
+    "matches_other": "{{count}} correspondances",
     "unread_one": "{{count}} capture d'écran n'a pas pu être lue : elle n'a donc pas été analysée. Vérifiez-la vous-même.",
     "unread_many": "{{count}} captures d'écran n'ont pas pu être lues : elles n'ont donc pas été analysées. Vérifiez-les vous-même.",
     "unread_other": "{{count}} captures d'écran n'ont pas pu être lues : elles n'ont donc pas été analysées. Vérifiez-les vous-même.",
@@ -1426,18 +1458,19 @@
       "term": "mot à toujours flouter",
       "account": "votre nom de compte",
       "file": "nom de fichier",
-      "path": "chemin de fichier"
+      "path": "chemin de fichier",
+      "notification": "notification"
     },
     "nextTo": "{{kind}} à côté de « {{label}} »"
   },
   "zoom": {
     "menu": "Zoomer sur chaque clic",
-    "menuNote": "Recadre les captures d'écran très larges autour du clic pour qu'elles restent lisibles sur une page",
+    "menuNote": "Recadre autour du clic les captures d'écran de plus de {{width}} pixels de large, pour un texte plus grand sur la page",
     "auto": "Auto",
     "done_one": "Zoom appliqué à {{count}} capture d'écran.",
     "done_many": "Zoom appliqué à {{count}} captures d'écran.",
     "done_other": "Zoom appliqué à {{count}} captures d'écran.",
-    "nothing": "Aucune capture d'écran n'a besoin d'être zoomée : elles sont déjà lisibles sur une page."
+    "nothing": "Rien à zoomer : seules sont recadrées les captures d'écran de plus de {{width}} pixels de large qui ont un clic et n'ont pas encore de recadrage."
   },
   "exportSettings": {
     "folder": "Enregistrer les exports dans",
@@ -1578,7 +1611,7 @@
       "eyebrow": "Visite terminée",
       "title": "Tout est prêt",
       "body": "La visite est terminée. Vous pouvez la relancer depuis les Paramètres quand vous voulez.",
-      "finish": "Terminer"
+      "gotIt": "J'ai compris"
     },
     "pill": {
       "label": "Visite",

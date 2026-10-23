@@ -21,12 +21,11 @@ import { localKeys, type GuideStep } from "@amluto-steps/core";
 
 import { Icon, type IconName } from "../components/icons";
 import { Menu, type MenuEntry, type MenuItem } from "../components/Menu";
+import { Tip } from "../components/Tip";
+import type { PickHow } from "../picking";
 
 export type Selection =
   { kind: "details" } | { kind: "intro" } | { kind: "outro" } | { kind: "step"; id: string };
-
-/** How a click with Ctrl or Shift adds to the steps picked, as in File Explorer. */
-export type PickHow = "toggle" | "range" | "addRange";
 
 interface StepRailProps {
   steps: GuideStep[];
@@ -331,43 +330,48 @@ export function StepRail(props: StepRailProps) {
       </div>
       {props.picked.size > 1 && (
         // What can be done to the picked steps at once (08/10/2026); each also has its shortcut.
+        // The count has a line of its own, so it's never cut short beside the buttons (#84).
         <div
           role="toolbar"
           aria-label={t("editor.group.count", { count: props.picked.size })}
-          className="mx-2 mb-1 flex items-center gap-0.5 rounded-xl bg-selected px-2 py-1"
+          className="mx-2 mb-1 flex flex-col gap-0.5 rounded-xl bg-selected px-2 pt-1.5 pb-1"
         >
-          <span
-            className="min-w-0 flex-1 truncate text-xs font-semibold text-body"
-            aria-live="polite"
-          >
+          <span className="px-1 text-xs font-semibold text-body" aria-live="polite">
             {t("editor.group.count", { count: props.picked.size })}
           </span>
-          {props.groupActions.map((action) => (
-            <button
-              key={action.label}
-              type="button"
-              className={`icon-btn size-7 shrink-0 ${action.danger ? "text-recording" : ""}`}
-              aria-label={action.label}
-              title={
-                action.keys
-                  ? `${action.label} (${localKeys(action.keys, i18n.language)})`
-                  : action.label
-              }
-              disabled={action.disabled}
-              onClick={action.onSelect}
-            >
-              {action.icon && <Icon name={action.icon} size={16} />}
-            </button>
-          ))}
-          <button
-            type="button"
-            className="icon-btn size-7 shrink-0"
-            aria-label={t("editor.group.clear")}
-            title={`${t("editor.group.clear")} (Esc)`}
-            onClick={props.onClearPicked}
-          >
-            <Icon name="close" size={16} />
-          </button>
+          <span className="flex items-center gap-0.5">
+            {props.groupActions.map((action) => (
+              <Tip
+                key={action.label}
+                text={
+                  action.keys
+                    ? `${action.label} (${localKeys(action.keys, i18n.language)})`
+                    : action.label
+                }
+              >
+                <button
+                  type="button"
+                  className={`icon-btn size-7 ${action.danger ? "text-recording" : ""}`}
+                  aria-label={action.label}
+                  disabled={action.disabled}
+                  onClick={action.onSelect}
+                >
+                  {action.icon && <Icon name={action.icon} size={16} />}
+                </button>
+              </Tip>
+            ))}
+            <span className="flex-1" />
+            <Tip text={`${t("editor.group.clear")} (Esc)`}>
+              <button
+                type="button"
+                className="icon-btn size-7"
+                aria-label={t("editor.group.clear")}
+                onClick={props.onClearPicked}
+              >
+                <Icon name="close" size={16} />
+              </button>
+            </Tip>
+          </span>
         </div>
       )}
       <DndContext

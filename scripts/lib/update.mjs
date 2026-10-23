@@ -50,6 +50,23 @@ export function changelogNotes(changelog, version) {
 }
 
 /**
+ * The release date in the version's heading, `## 1.2.3 (dd/mm/yyyy)`, or null. CHANGELOG.md is the
+ * one place a release's date is written: release.json's pub_date (which the website shows) and
+ * winget's ReleaseDate are taken from it (docs/decisions.md, Distribution and IT). Midday UTC, so
+ * the day is the same in every time zone people read it in, bar the date line's far edges.
+ */
+export function changelogDate(changelog, version) {
+  const escaped = version.replace(/\./g, "\\.");
+  const heading = new RegExp(`^##\\s+${escaped}\\s+\\((\\d{2})/(\\d{2})/(\\d{4})\\)\\s*$`, "m");
+  const match = heading.exec(changelog.replace(/\r\n/g, "\n"));
+  if (!match) return null;
+  const [day, month, year] = [match[1], match[2], match[3]].map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day, 12));
+  // Date.UTC rolls 31/02 over into March; a date that doesn't exist is a typo, not a release date.
+  return date.getUTCDate() === day && date.getUTCMonth() === month - 1 ? date : null;
+}
+
+/**
  * The update folder's .htaccess on SiteGround. The update manifest (a .json) must never be kept by a
  * cache (a stale copy hides a new version for as long as it lives), and the folder is never listed.
  */

@@ -25,15 +25,16 @@ use zbus::zvariant::{OwnedObjectPath, OwnedValue, Value};
 
 use crate::coords::PxRect;
 use crate::facts::{AncestorFacts, ElementFacts, InputRecord};
-pub use crate::lookup::{FocusOptions, Lookup};
 use crate::lookup::{
-    Replies, Reply, await_worker_ready, fingerprint, fit_value, is_editable, origin_from_address,
-    reading_blocked,
+    Answer, LookupError, PacketsAtFocus, Replies, Reply, StartError, await_worker_ready,
+    fingerprint, is_editable, origin_from_address, reading_blocked, typed_before_focus,
+    value_before_typing, value_on_leave,
 };
+pub use crate::lookup::{FocusOptions, Lookup};
 use crate::navigation::BarRead;
 use crate::platform::window::WindowInfo;
 use crate::screen_text::TerminalKind;
-use crate::sensitive::{looks_sensitive, mask_value};
+use crate::sensitive::looks_sensitive;
 
 // ---------- the bus ----------
 
@@ -452,6 +453,9 @@ fn facts_for(
         bounds,
         ancestors: Vec::new(),
         sensitive: false,
+        // Excel's filter drop-downs (#70) are a Windows matter.
+        filter_header: None,
+        document_class: None,
     };
     facts.sensitive = is_password
         || looks_sensitive(
@@ -520,14 +524,11 @@ fn deepest_at(bus: &Bus, top: &Element, x: i32, y: i32) -> Element {
 /// well inside the lookup's 150 ms.
 const RETRY_WAITS: [Duration; 2] = [Duration::from_millis(30), Duration::from_millis(50)];
 
-fn element_at(bus: &Bus, x: i32, y: i32) -> Result<(ElementFacts, bool), String> {
-    let window = crate::platform::window::root_window_at(x, y)
-        .ok_or_else(|| "no window at the point".to_string())?;
-    let client = crate::platform::window::client_area(window.hwnd)
-        .ok_or_else(|| "the window has gone".to_string())?;
-    let top = bus
-        .top_level(&window)
-        .ok_or_else(|| "the app doesn't answer AT-SPI".to_string())?;
+fn element_at(bus: &Bus, x: i32, y: i32) -> Result<(ElementFacts, bool), LookupError> {
+    let window = crate::platform::window::root_window_at(x, y).ok_or(LookupError::NoWindow)?;
+    let client =
+        crate::platform::window::client_area(window.hwnd).ok_or(LookupError::WindowGone)?;
+    let top = bus.top_level(&window).ok_or(LookupError::NoAccessibility)?;
     let origin = window_origin(bus, Some(&top), client.left, client.top);
     let (local_x, local_y) = (x - origin.0, y - origin.1);
 
@@ -550,16 +551,22 @@ fn element_at(bus: &Bus, x: i32, y: i32) -> Result<(ElementFacts, bool), String>
     let mut current = element;
     let parents = std::iter::from_fn(|| {
         current = bus.parent(&current)?;
-        Some(AncestorFacts {
-            control_type: control_type(
-                &bus.role_name(&current),
-                bus.states(&current).has(State::Editable),
-            )
-            .to_string(),
-            name: bus.string_property(&current, "Name"),
-        })
+        let role = bus.role_name(&current);
+        Some((
+            AncestorFacts {
+                control_type: control_type(&role, bus.states(&current).has(State::Editable))
+                    .to_string(),
+                name: bus.string_property(&current, "Name"),
+            },
+            // AT-SPI has no class names, so a Document's is never told here.
+            String::new(),
+            role == "password text",
+        ))
     });
-    facts.ancestors = crate::lookup::ancestors(parents);
+    let parents = crate::lookup::parents_marked(parents);
+    facts.ancestors = parents.ancestors;
+    // A part of a password box is kept out as the box is (#97 third review).
+    facts.sensitive |= parents.in_password;
     Ok((facts, retried))
 }
 
@@ -600,8 +607,9 @@ impl UiaClient {
     /// focus-leave.
     ///
     /// # Errors
-    /// If there's no session bus or accessibility bus.
-    pub fn start(focus: Option<(Sender<InputRecord>, FocusOptions)>) -> Result<Self, String> {
+    /// If the worker thread can't be started, there's no session bus or accessibility bus, or it
+    /// isn't ready within five seconds.
+    pub fn start(focus: Option<(Sender<InputRecord>, FocusOptions)>) -> Result<Self, StartError> {
         let entered = focus
             .as_ref()
             .map_or_else(crate::lookup::FieldSlot::default, |(_, options)| {
@@ -615,14 +623,8 @@ impl UiaClient {
         let cancelled = Arc::new(AtomicBool::new(false));
         let thread = std::thread::Builder::new()
             .name("amluto-atspi".into())
-            .spawn(move || worker(&request_rx, &reply_tx, &ready_tx))
-            .map_err(|error| error.to_string())?;
-        await_worker_ready(
-            &ready_rx,
-            &cancelled,
-            STARTUP_TIMEOUT,
-            "AT-SPI did not become ready within five seconds",
-        )?;
+            .spawn(move || worker(&request_rx, &reply_tx, &ready_tx))?;
+        await_worker_ready(&ready_rx, &cancelled, STARTUP_TIMEOUT, "AT-SPI")?;
         let origin_thread = std::thread::Builder::new()
             .name("amluto-atspi-origin".into())
             .spawn(move || origin_worker(&origin_request_rx, &origin_tx))
@@ -648,6 +650,29 @@ impl UiaClient {
     /// Linux doesn't check it again.
     pub fn request(&self, id: u64, x: i32, y: i32, _hwnd: isize) {
         let _ = self.requests.send(Request::At { id, x, y });
+    }
+
+    /// Asks for the element a click names. There is no pre-read on Linux yet
+    /// (docs/spec/02-capture.md#on-each-click): it is read after the click.
+    pub fn request_click(&self, id: u64, x: i32, y: i32, hwnd: isize, _pressed: u32) {
+        self.request(id, x, y, hwnd);
+    }
+
+    /// The open menu a click landed in. Menus aren't read as they open on Linux yet
+    /// (docs/spec/02-capture.md#on-each-click), so none.
+    #[must_use]
+    #[allow(
+        clippy::unused_self,
+        reason = "the same call as Windows' UI Automation client, which keeps the menus"
+    )]
+    pub fn menu_for_click(
+        &self,
+        _x: i32,
+        _y: i32,
+        _hwnd: isize,
+        _pressed: u32,
+    ) -> Option<crate::menus::ClickedMenu> {
+        None
     }
 
     /// Requests the current address-bar origin from a Chrome or Edge window.
@@ -704,12 +729,12 @@ impl Drop for UiaClient {
 fn worker(
     requests: &Receiver<Request>,
     replies: &Sender<Reply>,
-    ready: &Sender<Result<(), String>>,
+    ready: &Sender<Result<(), StartError>>,
 ) {
     let bus = match Bus::connect() {
         Ok(bus) => bus,
         Err(error) => {
-            let _ = ready.send(Err(error));
+            let _ = ready.send(Err(StartError::NoBus(error)));
             return;
         }
     };
@@ -720,7 +745,12 @@ fn worker(
                 let started = Instant::now();
                 // A panic in a lookup loses that click's name, not the thread.
                 let result = catch_unwind(AssertUnwindSafe(|| element_at(&bus, x, y)))
-                    .unwrap_or_else(|_| Err("the lookup failed".into()));
+                    .unwrap_or(Err(LookupError::Panicked))
+                    .map(|(facts, retried)| Answer {
+                        facts,
+                        retried,
+                        pre_read: false,
+                    });
                 let _ = replies.send(Reply {
                     id,
                     result,
@@ -877,6 +907,8 @@ struct Focused {
     editable: bool,
     pid: u32,
     since_tick_ms: u32,
+    /// Unicode packets seen as focus arrived (none on Linux: see `unicode_packets`).
+    packets: PacketsAtFocus,
     window_pid: u32,
     window_exe: Option<String>,
     window: Option<WindowInfo>,
@@ -1023,14 +1055,14 @@ fn on_focus_changed(
                 (None, Some("setting-off"))
             }
         } else {
-            match read_value(bus, &previous.element) {
-                // Masked here, so the unmasked value never leaves the worker.
-                Some(value) if Some(&value) != previous.initial.as_ref() => {
-                    (Some(fit_value(mask_value(&value))), None)
-                }
-                Some(_) => (None, None),
-                None => (None, Some("unreadable")),
-            }
+            let packets = previous
+                .packets
+                .typed_since(crate::platform::input::unicode_packets());
+            value_on_leave(
+                read_value(bus, &previous.element),
+                previous.initial.as_ref(),
+                packets,
+            )
         };
         let record = InputRecord {
             tick_ms,
@@ -1087,7 +1119,7 @@ fn remember(bus: &Bus, element: &Element, options: &FocusOptions) -> Focused {
     let code_editor = window
         .as_ref()
         .and_then(WindowInfo::exe_name)
-        .is_some_and(crate::typing::is_code_editor);
+        .is_some_and(crate::programs::is_code_editor);
     // Chrome's and Edge's address bar, as `find_omnibox` finds it: what's typed there is the
     // address, kept only as the "Go to" step's site, never as a typing step.
     let address_bar = is_omnibox(bus, element);
@@ -1102,13 +1134,30 @@ fn remember(bus: &Bus, element: &Element, options: &FocusOptions) -> Focused {
         let mut note = note
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        note.generation = note.generation.wrapping_add(1);
-        note.window = window.as_ref().map_or(0, |window| window.hwnd);
-        note.facts = facts.clone();
-        note.field = value_now.is_some() || address_bar;
-        note.address_bar = address_bar;
-        note.tick_ms = crate::platform::display::now_tick();
+        note.focus_now(crate::typing::FocusUpdate {
+            window: window.as_ref().map_or(0, |window| window.hwnd),
+            facts: facts.clone(),
+            // Keys typed here make no step: the value is read when focus leaves, or, in the
+            // address bar, the "Go to" step says where it went.
+            field: value_now.is_some() || address_bar,
+            address_bar,
+            tick_ms: crate::platform::display::now_tick(),
+            // Which program the element is in: keys are put down to it only when that's the
+            // window they went to (10/10/2026).
+            pid,
+        });
     }
+    // Keys typed straight after the click that moved focus here may be in the value already
+    // (#97): then it isn't what the field held before, and the value as focus leaves is the
+    // step's, never taken as unchanged.
+    let typed_first = typed_before_focus(
+        crate::platform::display::now_tick(),
+        crate::platform::input::typed_after_press(),
+        facts.bounds,
+        window.as_ref().map(|window| window.hwnd),
+        |x, y| crate::platform::window::root_window_at(x, y).map(|window| window.hwnd),
+    );
+    let value_now = value_before_typing(value_now, typed_first);
     let fingerprint = if options.record_values {
         None
     } else {
@@ -1119,6 +1168,7 @@ fn remember(bus: &Bus, element: &Element, options: &FocusOptions) -> Focused {
     } else {
         None
     };
+    let since_tick_ms = crate::platform::display::now_tick();
     Focused {
         element: element.clone(),
         facts,
@@ -1126,7 +1176,8 @@ fn remember(bus: &Bus, element: &Element, options: &FocusOptions) -> Focused {
         fingerprint,
         editable,
         pid,
-        since_tick_ms: crate::platform::display::now_tick(),
+        since_tick_ms,
+        packets: PacketsAtFocus::at(since_tick_ms, crate::platform::input::unicode_packets()),
         window_pid: window.as_ref().map_or(0, |window| window.pid),
         window_exe: window
             .as_ref()
@@ -1173,6 +1224,44 @@ impl ScreenText {
 
     /// Excel's formula bar: there's no Excel on Linux.
     pub fn formula_bar(&mut self, _hwnd: isize) -> Option<String> {
+        None
+    }
+
+    /// A combo box's edit with the keyboard: the Windows common file dialog's File name box (#61)
+    /// and Excel's Name Box (#69) are all it's asked for, and Linux has neither.
+    #[must_use]
+    pub fn combo_box_edit(
+        &self,
+        _hwnd: isize,
+        _extra_terms: &[String],
+    ) -> Option<crate::screen_text::ComboBoxEdit> {
+        None
+    }
+
+    /// A text box watched for dictation (#91): Windows voice typing is Windows-only, so Linux
+    /// watches none.
+    pub fn watch_text_box(
+        &mut self,
+        _facts: &crate::facts::ElementFacts,
+        _pid: u32,
+        _extra_terms: &[String],
+    ) -> Option<String> {
+        None
+    }
+
+    /// The watched text box's text: none on Linux (see [`Self::watch_text_box`]).
+    pub fn text_box_text(&mut self) -> Option<String> {
+        None
+    }
+
+    /// Stops watching: nothing is watched on Linux.
+    pub fn forget_text_box(&mut self) {}
+
+    /// Whether the element with focus holds a password (#97 fourth review): AT-SPI has no call
+    /// that says which element has focus short of walking the whole window, so it isn't read, and
+    /// typing after a click that couldn't say what it went to keeps no value.
+    #[must_use]
+    pub fn focused_secret(&self, _extra_terms: &[String]) -> Option<bool> {
         None
     }
 }

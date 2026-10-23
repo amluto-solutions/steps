@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { askConfirm } from "../app/ask";
 import { useTranslation } from "react-i18next";
 import type { Block, Finding, GuideStep, OcrLine } from "@amluto-steps/core";
@@ -19,8 +27,10 @@ import { DateField } from "../components/DateField";
 import { Icon, type IconName } from "../components/icons";
 import { useLatest } from "../useLatest";
 import { Menu, type MenuEntry } from "../components/Menu";
+import { Tip } from "../components/Tip";
+import { useFit } from "../components/fit";
 import type { ToastMessage } from "../components/Toast";
-import type { EditorDoc } from "./document";
+import type { EditorDoc, History } from "./document";
 import {
   blankStep,
   deleteSteps,
@@ -46,7 +56,19 @@ import { ImageEditor, type ImageTool } from "./ImageEditor";
 import { RichTextEditor } from "./RichTextEditor";
 import { ReadOnlyContext } from "./readOnly";
 import { SuggestedBlurs } from "./SuggestedBlurs";
-import { StepRail, type PickHow, type Selection } from "./StepRail";
+import { StepRail, type Selection } from "./StepRail";
+import {
+  clearPicked,
+  currentIn,
+  pick,
+  pickAll,
+  pickedIn,
+  pickOne,
+  show,
+  startPicking,
+  type PickHow,
+} from "../picking";
+import { cachedImages } from "./image-cache";
 import { applySuggestions, tidySuggestions, type TidySuggestion } from "./tidy";
 import { AltTextField } from "./AltTextField";
 import { TypedValueField } from "./TypedValueField";
@@ -60,11 +82,16 @@ import {
 } from "./languages";
 import { LanguageToneDialog } from "./LanguageToneDialog";
 import { FindBlurDialog } from "./FindBlurDialog";
-import { applySmartZoom } from "./zoom";
+import { applySmartZoom, ZOOM_ABOVE_PX } from "./zoom";
 import { Retake } from "./Retake";
 import { blurFoundEdit, findOpenInGuide, notPersonalEdit, openFindings } from "./suggestions";
 import { screenWords, type Area, type TextReader } from "../screen-words";
-import { useGuideEditor, type EditorHooks, type GuideStore } from "./useGuideEditor";
+import {
+  useGuideEditor,
+  type EditorHooks,
+  type GuideStore,
+  type SaveState,
+} from "./useGuideEditor";
 import {
   addMenu,
   groupActions,
@@ -96,13 +123,21 @@ export interface EditorView {
 
 export interface GuideEditorProps {
   initial: EditorDoc;
+  /** Undo and redo to start with: those of the unsaved recording this guide was saved from. */
+  initialHistory?: History | undefined;
   store: GuideStore;
   author: string;
   /** A stopped recording not yet in a library shows Save and Discard. */
   mode: "draft" | "saved";
   busy: boolean;
   onBack: () => void;
-  onSave?: ((flush: () => Promise<void>, doc: EditorDoc) => void) | undefined;
+  /**
+   * Told how saving is going, as the save status shows it, and "saved" when the editor closes:
+   * while a save is failing, leaving asks first (docs/spec/04-editor.md#leaving-the-editor).
+   */
+  onSaveState?: ((state: SaveState) => void) | undefined;
+  /** Save guide, with the editor's undo and redo for the saved guide to keep (#82). */
+  onSave?: ((flush: () => Promise<void>, doc: EditorDoc, history: History) => void) | undefined;
   /** Saves a version of a saved guide first, as Language and tone does before rewording. */
   saveVersion?: ((note: string) => Promise<void>) | undefined;
   /**
@@ -110,7 +145,9 @@ export interface GuideEditorProps {
    * Save (01/10/2026). A one-off: the default library stays as it is.
    */
   saveTargets?: { id: string; name: string; isDefault: boolean }[] | undefined;
-  onSaveTo?: ((flush: () => Promise<void>, doc: EditorDoc, libraryId: string) => void) | undefined;
+  onSaveTo?:
+    | ((flush: () => Promise<void>, doc: EditorDoc, libraryId: string, history: History) => void)
+    | undefined;
   onDiscard?: (() => void) | undefined;
   /** The Export menu (built by the app, which knows the formats and where files go). */
   exportMenu: (doc: EditorDoc, flush: () => Promise<void>, editor: EditorHooks) => MenuEntry[];
@@ -176,54 +213,39 @@ const isTextField = (target: EventTarget | null) =>
  * list on the left, the selected step on the right. Every change goes through the undo layer and
  * is saved file by file straight away.
  */
-/**
- * Full screenshots are large data URLs (a long guide's would be hundreds of megabytes), so only
- * the most recently used are kept; thumbnails are small and more are kept.
- */
-const MAX_CACHED = { full: 24, thumbnail: 400 };
-
-function trimImageCache(cache: Map<string, string>) {
-  for (const [kind, suffix] of [
-    ["full", ":f"],
-    ["thumbnail", ":t"],
-  ] as const) {
-    const keys = [...cache.keys()].filter((key) => key.endsWith(suffix));
-    for (const key of keys.slice(0, Math.max(0, keys.length - MAX_CACHED[kind]))) cache.delete(key);
-  }
-}
-
-/** A store's screenshots and thumbnails, the most recently used kept in memory. */
-function cachedImages(store: GuideStore) {
-  const cache = new Map<string, string>();
-  return async (mediaId: string, thumbnail: boolean) => {
-    const key = `${mediaId}:${thumbnail ? "t" : "f"}`;
-    const cached = cache.get(key);
-    if (cached) {
-      // Most recently used last, so the oldest go first when the cache is trimmed.
-      cache.delete(key);
-      cache.set(key, cached);
-      return cached;
-    }
-    const data = await store.loadImage(mediaId, thumbnail);
-    cache.set(key, data);
-    trimImageCache(cache);
-    return data;
-  };
-}
-
 export function GuideEditor(props: GuideEditorProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const onLockLostRef = useLatest(props.onLockLost);
   const editorDocRef = useRef(props.initial);
-  const editor = useGuideEditor(props.initial, props.store, props.author, {
-    readOnly: props.readOnly === true,
-    onRefused: props.onRefused,
-    onLockLost: () => onLockLostRef.current?.(editorDocRef.current),
-  });
+  const editor = useGuideEditor(
+    props.initial,
+    props.store,
+    props.author,
+    {
+      readOnly: props.readOnly === true,
+      onRefused: props.onRefused,
+      onLockLost: () => onLockLostRef.current?.(editorDocRef.current),
+    },
+    props.initialHistory,
+  );
   const { doc, apply } = editor;
+  /**
+   * Someone else is editing, or the guide is locked with a password: the editing controls look
+   * disabled (#81). Buttons are `disabled`; text stays focusable and selectable, `readOnly`.
+   */
+  const readOnly = props.readOnly === true;
   useEffect(() => {
     editorDocRef.current = doc;
   }, [doc]);
+  // How saving is going, for whoever would close the editor (a failing save asks first), and
+  // "saved" once it has closed: nothing is left to ask about. Told as the badge changes, in the
+  // same commit: an effect after paint left a moment when the badge said "Couldn't save" and a
+  // way out didn't ask yet (a flaky #80 test under load).
+  const onSaveStateRef = useLatest(props.onSaveState);
+  useLayoutEffect(() => {
+    onSaveStateRef.current?.(editor.saveState);
+  }, [editor.saveState, onSaveStateRef]);
+  useEffect(() => () => onSaveStateRef.current?.("saved"), [onSaveStateRef]);
 
   // ----- The language shown (docs/spec/04-editor.md#languages) -----
   const main = mainLanguage(doc.guide);
@@ -242,10 +264,12 @@ export function GuideEditor(props: GuideEditorProps) {
   const notWritten = (stepId: string | null, field: string) =>
     missing.has(`${stepId ?? ""}:${field}`);
   const [languageTone, setLanguageTone] = useState(false);
-  const [chosen, setSelection] = useState<Selection>(() => {
-    const first = props.initial.steps[0];
-    return first ? { kind: "step", id: first.id } : { kind: "details" };
-  });
+  // The step on screen and the steps picked with it, with Ctrl and Shift as in File Explorer
+  // (08/10/2026, ../picking.ts); while no step is on screen, a page (the details, intro or outro).
+  const [picking, setPicking] = useState(() =>
+    startPicking({ current: props.initial.steps[0]?.id ?? null }),
+  );
+  const [page, setPage] = useState<Selection>({ kind: "details" });
   const [tool, setTool] = useState<ImageTool>("select");
   // The step whose empty note was just opened with Add a note. Per step: one flag for every step
   // left an empty note open, and focused, on each step reached after (08/10/2026: the arrow keys
@@ -268,68 +292,45 @@ export function GuideEditor(props: GuideEditorProps) {
     return map;
   }, [doc.steps]);
 
-  // A step that disappears (undo of an insert, say) falls back to the first step.
-  const chosenIndex =
-    chosen.kind === "step" ? doc.steps.findIndex((step) => step.id === chosen.id) : -1;
-  const firstStep = doc.steps[0];
-  const selection: Selection =
-    chosen.kind === "step" && chosenIndex < 0
-      ? firstStep
-        ? { kind: "step", id: firstStep.id }
-        : { kind: "details" }
-      : chosen;
-  const selectedIndex =
-    selection.kind === "step" ? doc.steps.findIndex((step) => step.id === selection.id) : -1;
+  const order = useMemo(() => doc.steps.map((step) => step.id), [doc.steps]);
+  // A step that disappears (undo of an insert, say) falls back to the first step, else the details.
+  const shownId = currentIn(picking, order);
+  const pageShown = picking.current === null;
+  const selection = useMemo<Selection>(
+    () =>
+      shownId !== null ? { kind: "step", id: shownId } : pageShown ? page : { kind: "details" },
+    [shownId, pageShown, page],
+  );
+  const selectedIndex = shownId === null ? -1 : order.indexOf(shownId);
   const selected = selectedIndex >= 0 ? doc.steps[selectedIndex] : undefined;
   /** The selected step's words in the language shown. */
   const selectedText = selected && (view.steps[selectedIndex] ?? selected);
 
-  // Steps picked to act on together, with Ctrl and Shift as in File Explorer (08/10/2026). The
-  // step on screen is always one of them; the anchor is where a Shift range starts.
-  const [pickedIds, setPicked] = useState<readonly string[]>([]);
-  const [anchor, setAnchor] = useState<string | null>(null);
-  const picked = useMemo(() => {
-    const live = new Set(doc.steps.map((step) => step.id));
-    const ids = pickedIds.filter((id) => live.has(id));
-    return ids.length > 1 ? ids : [];
-  }, [pickedIds, doc.steps]);
-  const pickedSet = useMemo(() => new Set(picked), [picked]);
-  /** Shows a step on its own: what a plain click or arrow does. */
-  const choose = useCallback((next: Selection) => {
-    setSelection(next);
-    setPicked([]);
-    setAnchor(next.kind === "step" ? next.id : null);
-  }, []);
-  /** The steps from the anchor to `id`, in guide order. */
-  const rangeTo = useCallback(
-    (id: string) => {
-      const ids = doc.steps.map((step) => step.id);
-      const from = ids.indexOf(anchor ?? selected?.id ?? id);
-      const to = ids.indexOf(id);
-      if (from < 0 || to < 0) return [id];
-      return ids.slice(Math.min(from, to), Math.max(from, to) + 1);
-    },
-    [doc.steps, selected?.id, anchor],
+  // The screenshot tools keep to one line (#84): where their labels don't fit, Make it a circle,
+  // Replace and Retake show as icons first, then the tools too, each with a tooltip.
+  const imageTools = useRef<HTMLDivElement>(null);
+  const toolsFit = useFit(
+    imageTools,
+    2,
+    [i18n.language, selected?.id, selected?.highlight?.shape, readOnly].join(":"),
   );
-  const pick = useCallback(
-    (id: string, how: PickHow) => {
-      const now = picked.length ? picked : selected ? [selected.id] : [];
-      if (how === "toggle") {
-        setAnchor(id);
-        if (now.includes(id)) {
-          const left = now.filter((item) => item !== id);
-          setPicked(left);
-          // The step on screen stays one of the picked.
-          const last = left.at(-1);
-          if (selected?.id === id && last) setSelection({ kind: "step", id: last });
-          return;
-        }
-        setPicked([...now, id]);
-      } else if (how === "range") setPicked(rangeTo(id));
-      else setPicked([...new Set([...now, ...rangeTo(id)])]);
-      setSelection({ kind: "step", id });
-    },
-    [picked, selected, rangeTo],
+
+  // Steps picked to act on together: none, or two or more.
+  const picked = useMemo(() => pickedIn(picking, order), [picking, order]);
+  const pickedSet = useMemo(() => new Set(picked), [picked]);
+  /** Shows a step on its own, or a page: what a plain click or arrow does. */
+  const choose = useCallback((next: Selection) => {
+    if (next.kind !== "step") setPage(next);
+    setPicking((now) => pickOne(now, next.kind === "step" ? next.id : null));
+  }, []);
+  /** Shows a step or a page and keeps the steps picked: Previous, Next, a comment's step. */
+  const setSelection = useCallback((next: Selection) => {
+    if (next.kind !== "step") setPage(next);
+    setPicking((now) => show(now, next.kind === "step" ? next.id : null));
+  }, []);
+  const onPick = useCallback(
+    (id: string, how: PickHow) => setPicking((now) => pick(now, order, id, how)),
+    [order],
   );
 
   // Memoised by hand, as is `words` below: each holds a cache, so must stay the same object from
@@ -374,7 +375,7 @@ export function GuideEditor(props: GuideEditorProps) {
     const redactions = JSON.parse(selectedBlur) as Area[];
     const highlight = JSON.parse(selectedMark) as Area | null;
     void words.wordsOf({ media: { id: selectedMedia }, redactions, highlight }).then((lines) => {
-      // Unreadable: no suggestions here, and the export review says it wasn't checked.
+      // Unreadable: no suggestions from its words, and the export review says it wasn't checked.
       if (!cancelled && lines !== "unavailable")
         setShownWords({ key: `${selectedMedia}|${selectedBlur}|${selectedMark}`, lines });
     });
@@ -383,9 +384,15 @@ export function GuideEditor(props: GuideEditorProps) {
     };
   }, [selectedMedia, selectedBlur, selectedMark, words]);
 
+  // A notification toast the screenshot showed is suggested before, or without, its words (P35).
   const findings: Finding[] =
-    selected && selectedMedia && shownWords?.key === shownKey
-      ? openFindings(selected, shownWords.lines, props.blurTerms, readFindingSettings())
+    selected && selectedMedia
+      ? openFindings(
+          selected,
+          shownWords?.key === shownKey ? shownWords.lines : [],
+          props.blurTerms,
+          readFindingSettings(),
+        )
       : [];
 
   /** Adds blur areas to several steps as one undo step (Find & Blur, Blur all). */
@@ -446,6 +453,9 @@ export function GuideEditor(props: GuideEditorProps) {
 
   const remove = useCallback(
     (ids: string[]) => {
+      // A refused delete (a read-only or locked guide) leaves the view where it is (#81).
+      const edit = apply((current, stamp) => deleteSteps(current, ids, stamp));
+      if (!edit) return;
       // Deleting the step on screen moves to its neighbour, not back to the top.
       if (selection.kind === "step" && ids.includes(selection.id)) {
         const remaining = doc.steps.filter((step) => !ids.includes(step.id));
@@ -461,15 +471,13 @@ export function GuideEditor(props: GuideEditorProps) {
           target?.focus();
         });
       }
-      const edit = apply((current, stamp) => deleteSteps(current, ids, stamp));
-      if (!edit) return;
       props.notify({
         text: t("editor.deleted", { count: ids.length }),
         action: { label: t("common.undo"), run: () => editor.undo() },
       });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- editor.undo is stable
-    [apply, props.notify, t, selection, selectedIndex, doc.steps],
+    [apply, props.notify, t, selection, selectedIndex, doc.steps, setSelection],
   );
 
   /** What the step and Add menus, and pictures added as steps, change the guide through. */
@@ -616,12 +624,12 @@ export function GuideEditor(props: GuideEditorProps) {
       const keys = pressedKeys(event);
       if (keys === "Ctrl + A") {
         event.preventDefault();
-        setPicked(doc.steps.map((step) => step.id));
+        setPicking((now) => pickAll(now, order));
         return;
       }
       if (keys === "Escape" && picked.length) {
         event.preventDefault();
-        setPicked([]);
+        setPicking(clearPicked);
         return;
       }
       const step = { ArrowUp: -1, ArrowLeft: -1, ArrowDown: 1, ArrowRight: 1 }[event.key];
@@ -631,11 +639,8 @@ export function GuideEditor(props: GuideEditorProps) {
       event.preventDefault();
       // From the steps list, the focus goes with the step, as the list's own Up and Down do.
       const inList = document.activeElement?.hasAttribute("data-step-button") ?? false;
-      if (event.shiftKey) {
-        if (!anchor) setAnchor(selected.id);
-        setPicked(rangeTo(next.id));
-        setSelection({ kind: "step", id: next.id });
-      } else choose({ kind: "step", id: next.id });
+      if (event.shiftKey) onPick(next.id, "range");
+      else choose({ kind: "step", id: next.id });
       if (inList)
         window.requestAnimationFrame(() =>
           document.querySelector<HTMLElement>(`[data-step-button="${next.id}"]`)?.focus(),
@@ -643,7 +648,7 @@ export function GuideEditor(props: GuideEditorProps) {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [selected, selectedIndex, doc.steps, menuEditor, picked, choose, rangeTo, anchor]);
+  }, [selected, selectedIndex, doc.steps, menuEditor, picked, choose, onPick, order]);
 
   const hasValues = doc.steps.some((step) => step.textParts.value);
   const guideMenu: MenuEntry[] = [
@@ -660,7 +665,7 @@ export function GuideEditor(props: GuideEditorProps) {
     {
       label: t("zoom.menu"),
       icon: "crop",
-      note: t("zoom.menuNote"),
+      note: t("zoom.menuNote", { width: ZOOM_ABOVE_PX }),
       onSelect: () => {
         const made = apply((current, stamp) => applySmartZoom(current, stamp));
         props.notify(
@@ -669,7 +674,7 @@ export function GuideEditor(props: GuideEditorProps) {
                 text: t("zoom.done", { count: made.changes.length }),
                 action: { label: t("common.undo"), run: () => editor.undo() },
               }
-            : { text: t("zoom.nothing") },
+            : { text: t("zoom.nothing", { width: ZOOM_ABOVE_PX }) },
         );
       },
     },
@@ -898,6 +903,7 @@ export function GuideEditor(props: GuideEditorProps) {
               // A long title is cut off by the header: the whole of it shows on hover (F052).
               title={view.guide.title}
               lang={language}
+              readOnly={readOnly}
               onChange={(event) => {
                 const title = event.currentTarget.value;
                 apply((current, stamp) =>
@@ -911,7 +917,7 @@ export function GuideEditor(props: GuideEditorProps) {
                   ),
                 );
               }}
-              className="h-10 min-w-0 flex-1 rounded-lg border border-transparent bg-transparent px-2 font-heading text-[19px] font-bold text-navy hover:border-panel focus:border-line"
+              className={`h-10 min-w-0 flex-1 truncate rounded-lg border border-transparent bg-transparent px-2 font-heading text-[19px] font-bold text-navy ${readOnly ? "" : "hover:border-panel focus:border-line"}`}
             />
           </label>
           <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2.5">
@@ -1027,6 +1033,7 @@ export function GuideEditor(props: GuideEditorProps) {
                 undo: editor.undo,
                 redo: editor.redo,
                 showStep: (id) => setSelection({ kind: "step", id }),
+                history: editor.latestHistory,
               })}
               width={300}
               trigger={(trigger) => (
@@ -1043,7 +1050,7 @@ export function GuideEditor(props: GuideEditorProps) {
                   type="button"
                   className={`btn btn-primary ${saveAs ? "rounded-r-none" : ""}`}
                   disabled={props.busy}
-                  onClick={() => props.onSave?.(editor.flush, doc)}
+                  onClick={() => props.onSave?.(editor.flush, doc, editor.history)}
                 >
                   {props.busy && <Spinner />}
                   {t("editor.save")}
@@ -1057,7 +1064,8 @@ export function GuideEditor(props: GuideEditorProps) {
                         label: target.name,
                         icon: "folder" as const,
                         ...(target.isDefault ? { note: t("editor.defaultLibrary") } : {}),
-                        onSelect: () => saveAs.onSaveTo(editor.flush, doc, target.id),
+                        onSelect: () =>
+                          saveAs.onSaveTo(editor.flush, doc, target.id, editor.history),
                       })),
                     ]}
                     width={280}
@@ -1086,11 +1094,11 @@ export function GuideEditor(props: GuideEditorProps) {
             selection={selection}
             onSelect={choose}
             picked={pickedSet}
-            onPick={pick}
+            onPick={onPick}
             groupActions={
               selected && picked.length > 1 ? groupActions(menuEditor, selected, selectedIndex) : []
             }
-            onClearPicked={() => setPicked([])}
+            onClearPicked={() => setPicking(clearPicked)}
             onMove={(id, toIndex) =>
               apply((current, stamp) => moveStep(current, id, toIndex, stamp))
             }
@@ -1204,6 +1212,7 @@ export function GuideEditor(props: GuideEditorProps) {
               <BlockPanel
                 step={selectedText}
                 language={language}
+                readOnly={readOnly}
                 notWritten={
                   notWritten(selected.id, "heading") || notWritten(selected.id, "body")
                     ? main
@@ -1237,6 +1246,7 @@ export function GuideEditor(props: GuideEditorProps) {
                   <button
                     type="button"
                     className="btn btn-danger h-8 px-3"
+                    disabled={readOnly}
                     onClick={() => remove([selected.id])}
                   >
                     <Icon name="trash" size={15} />
@@ -1273,6 +1283,7 @@ export function GuideEditor(props: GuideEditorProps) {
                     <button
                       type="button"
                       className="btn h-8 shrink-0 px-3"
+                      disabled={readOnly}
                       onClick={() =>
                         apply((current, stamp) => markChecked(current, selected.id, stamp))
                       }
@@ -1288,6 +1299,7 @@ export function GuideEditor(props: GuideEditorProps) {
                     lang={language}
                     value={selectedText?.actionText ?? selected.actionText}
                     placeholder={t("editor.stepTextPlaceholder")}
+                    readOnly={readOnly}
                     // A step's wording is one line: Enter finishes it (F033).
                     onKeyDown={(event) => {
                       if (event.key === "Enter") {
@@ -1301,7 +1313,7 @@ export function GuideEditor(props: GuideEditorProps) {
                         setStepTextIn(current, selected.id, text, language, stamp),
                       );
                     }}
-                    className="field-sizing-content min-h-10 resize-none rounded-lg border border-transparent bg-transparent px-2 py-1.5 text-[20px] leading-snug text-navy hover:border-panel focus:border-line"
+                    className={`field-sizing-content min-h-10 resize-none rounded-lg border border-transparent bg-transparent px-2 py-1.5 text-[20px] leading-snug text-navy ${readOnly ? "" : "hover:border-panel focus:border-line"}`}
                   />
                 </label>
                 {notWritten(selected.id, "actionText") && (
@@ -1312,6 +1324,7 @@ export function GuideEditor(props: GuideEditorProps) {
                     <TypedValueField
                       key={selected.id}
                       value={selected.textParts.value ?? ""}
+                      readOnly={readOnly}
                       onChange={(value) =>
                         apply((current, stamp) => setTypedValue(current, selected.id, value, stamp))
                       }
@@ -1322,6 +1335,7 @@ export function GuideEditor(props: GuideEditorProps) {
                           <input
                             type="checkbox"
                             checked={selected.showValue}
+                            disabled={readOnly}
                             onChange={async (event) => {
                               const show = event.currentTarget.checked;
                               // Hiding never asks: the value comes out of hand-edited wording too.
@@ -1365,7 +1379,8 @@ export function GuideEditor(props: GuideEditorProps) {
                         </label>
                         <button
                           type="button"
-                          className="text-link underline"
+                          className="text-link underline disabled:cursor-not-allowed disabled:opacity-55"
+                          disabled={readOnly}
                           onClick={() => {
                             const inWording = selected.textEdited && typedValueInText(selected);
                             const edit = apply((current, stamp) =>
@@ -1425,6 +1440,7 @@ export function GuideEditor(props: GuideEditorProps) {
                   <button
                     type="button"
                     className="btn btn-quiet self-start px-2 text-link"
+                    disabled={readOnly}
                     onClick={() => setNotesOpenFor(selected.id)}
                   >
                     <Icon name="plus" size={15} />
@@ -1433,63 +1449,88 @@ export function GuideEditor(props: GuideEditorProps) {
                 )}
                 <div className="card flex min-h-[320px] flex-auto shrink-0 flex-col overflow-hidden">
                   <div
+                    ref={imageTools}
                     role="toolbar"
                     aria-label={t("editor.imageTools")}
-                    className="flex flex-wrap items-center gap-0.5 border-b border-panel p-1.5"
+                    className={`flex items-center gap-0.5 border-b border-panel p-1.5 ${toolsFit >= 2 ? "flex-wrap" : "flex-nowrap"}`}
                   >
                     {TOOLS.map(({ tool: name, icon }) => (
-                      <button
-                        key={name}
-                        type="button"
-                        aria-pressed={tool === name}
-                        disabled={!selected.media?.id}
-                        onClick={() => setTool(name)}
-                        className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] disabled:opacity-40 ${tool === name ? "bg-selected font-semibold text-link" : "text-secondary hover:bg-subtle"}`}
-                      >
-                        <Icon name={icon} size={15} />
-                        {t(`editor.tools.${name}`)}
-                      </button>
+                      <Tip key={name} text={t(`editor.tools.${name}`)} off={toolsFit < 2}>
+                        <button
+                          type="button"
+                          aria-pressed={tool === name}
+                          disabled={!selected.media?.id || readOnly}
+                          onClick={() => setTool(name)}
+                          className={`inline-flex h-8 items-center gap-1.5 rounded-lg text-[13px] whitespace-nowrap disabled:opacity-40 ${toolsFit >= 2 ? "px-2" : "px-2.5"} ${tool === name ? "bg-selected font-semibold text-link" : "text-secondary hover:bg-subtle"}`}
+                        >
+                          <Icon name={icon} size={15} />
+                          <span className={toolsFit >= 2 ? "sr-only" : undefined}>
+                            {t(`editor.tools.${name}`)}
+                          </span>
+                        </button>
+                      </Tip>
                     ))}
                     <span className="flex-1" />
                     {selected.highlight && (
+                      <Tip
+                        text={
+                          selected.highlight.shape === "circle"
+                            ? t("editor.tools.makeBox")
+                            : t("editor.tools.makeCircle")
+                        }
+                        off={toolsFit < 1}
+                      >
+                        <button
+                          type="button"
+                          className={`inline-flex h-8 items-center gap-1.5 rounded-lg text-[13px] whitespace-nowrap text-secondary hover:bg-subtle disabled:opacity-40 ${toolsFit >= 1 ? "px-2" : "px-2.5"}`}
+                          disabled={readOnly}
+                          onClick={() =>
+                            apply((current, stamp) =>
+                              updateStep(
+                                current,
+                                selected.id,
+                                {
+                                  highlight: selected.highlight
+                                    ? {
+                                        ...selected.highlight,
+                                        shape:
+                                          selected.highlight.shape === "circle" ? "box" : "circle",
+                                      }
+                                    : null,
+                                },
+                                t("editor.undo.shape"),
+                                stamp,
+                              ),
+                            )
+                          }
+                        >
+                          {/* The shape it becomes. */}
+                          <Icon
+                            name={selected.highlight.shape === "circle" ? "box" : "circle"}
+                            size={15}
+                          />
+                          <span className={toolsFit >= 1 ? "sr-only" : undefined}>
+                            {selected.highlight.shape === "circle"
+                              ? t("editor.tools.makeBox")
+                              : t("editor.tools.makeCircle")}
+                          </span>
+                        </button>
+                      </Tip>
+                    )}
+                    <Tip text={t("editor.tools.replace")} off={toolsFit < 1}>
                       <button
                         type="button"
-                        className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] text-secondary hover:bg-subtle"
-                        onClick={() =>
-                          apply((current, stamp) =>
-                            updateStep(
-                              current,
-                              selected.id,
-                              {
-                                highlight: selected.highlight
-                                  ? {
-                                      ...selected.highlight,
-                                      shape:
-                                        selected.highlight.shape === "circle" ? "box" : "circle",
-                                    }
-                                  : null,
-                              },
-                              t("editor.undo.shape"),
-                              stamp,
-                            ),
-                          )
-                        }
+                        disabled={!props.store.importImage || readOnly}
+                        title={props.store.importImage ? undefined : t("editor.saveFirstForImages")}
+                        className={`inline-flex h-8 items-center gap-1.5 rounded-lg text-[13px] whitespace-nowrap text-secondary hover:bg-subtle disabled:opacity-40 ${toolsFit >= 1 ? "px-2" : "px-2.5"}`}
+                        onClick={() => document.getElementById("editor-replace-input")?.click()}
                       >
-                        {selected.highlight.shape === "circle"
-                          ? t("editor.tools.makeBox")
-                          : t("editor.tools.makeCircle")}
+                        <Icon name="image" size={15} />
+                        <span className={toolsFit >= 1 ? "sr-only" : undefined}>
+                          {t("editor.tools.replace")}
+                        </span>
                       </button>
-                    )}
-                    <button
-                      type="button"
-                      disabled={!props.store.importImage}
-                      title={props.store.importImage ? undefined : t("editor.saveFirstForImages")}
-                      className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] text-secondary hover:bg-subtle disabled:opacity-40"
-                      onClick={() => document.getElementById("editor-replace-input")?.click()}
-                    >
-                      <Icon name="image" size={15} />
-                      {t("editor.tools.replace")}
-                    </button>
+                    </Tip>
                     <input
                       id="editor-replace-input"
                       aria-label={t("editor.tools.replace")}
@@ -1552,10 +1593,13 @@ export function GuideEditor(props: GuideEditorProps) {
                     {props.store.retakeImage && (
                       <Retake
                         retake={props.store.retakeImage}
+                        disabled={readOnly}
+                        compact={toolsFit >= 1}
                         notify={props.notify}
                         onRetaken={(media) => {
                           // Marks, blur and crop stay: a retake is usually the same window, and
-                          // dropping blur areas silently would be the riskier mistake.
+                          // dropping blur areas silently would be the riskier mistake. Where a
+                          // toast showed goes with the picture (#96): the new one's, or none.
                           apply((current, stamp) =>
                             updateStep(
                               current,
@@ -1567,6 +1611,9 @@ export function GuideEditor(props: GuideEditorProps) {
                                   height: media.height,
                                   scale: 1,
                                   captureRect: null,
+                                  ...(media.notifications?.length
+                                    ? { notifications: media.notifications }
+                                    : {}),
                                 },
                               },
                               t("editor.undo.retake"),
@@ -1580,6 +1627,7 @@ export function GuideEditor(props: GuideEditorProps) {
                   </div>
                   <SuggestedBlurs
                     findings={findings}
+                    readOnly={readOnly}
                     onBlur={(items) => {
                       setPointed(null);
                       blurFound([{ stepId: selected.id, findings: items }]);
@@ -1612,7 +1660,8 @@ export function GuideEditor(props: GuideEditorProps) {
                       imageUrl={
                         imageUrl && imageUrl.id === selected.media?.id ? imageUrl.url : null
                       }
-                      tool={tool}
+                      // Read-only: nothing new is drawn; marks can still be picked out.
+                      tool={readOnly ? "select" : tool}
                       onToolChange={setTool}
                       suggestions={findings.map((finding) => finding.rect)}
                       activeSuggestion={pointed?.stepId === selected.id ? pointed.index : null}
@@ -1629,6 +1678,7 @@ export function GuideEditor(props: GuideEditorProps) {
                       <AltTextField
                         key={language}
                         step={selectedText ?? selected}
+                        readOnly={readOnly}
                         onChange={(altText) =>
                           apply((current, stamp) =>
                             setAltTextIn(
@@ -1812,6 +1862,7 @@ const BLOCK_LOOK = {
 function BlockPanel({
   step,
   language,
+  readOnly,
   notWritten,
   onChange,
   onDelete,
@@ -1819,6 +1870,7 @@ function BlockPanel({
   /** The block in the language shown. */
   step: GuideStep;
   language: string;
+  readOnly: boolean;
   /** The main language, when the block isn't written in the one shown yet. */
   notWritten: string | null;
   onChange: (block: Block, coalesceKey?: string) => void;
@@ -1842,6 +1894,7 @@ function BlockPanel({
           {t("editor.blockType")}
           <select
             value={block.type}
+            disabled={readOnly}
             onChange={(event) =>
               onChange({ ...block, type: event.currentTarget.value as Block["type"] })
             }
@@ -1855,7 +1908,12 @@ function BlockPanel({
           </select>
         </label>
         <span className="flex-1" />
-        <button type="button" className="btn btn-danger h-8 px-3" onClick={onDelete}>
+        <button
+          type="button"
+          className="btn btn-danger h-8 px-3"
+          disabled={readOnly}
+          onClick={onDelete}
+        >
           <Icon name="trash" size={15} />
           {t("editor.deleteBlock")}
         </button>
@@ -1867,6 +1925,7 @@ function BlockPanel({
         lang={language}
         aria-label={t("editor.blockHeading")}
         placeholder={t("editor.blockHeading")}
+        readOnly={readOnly}
         onChange={(event) =>
           onChange({ ...block, heading: event.currentTarget.value }, `heading:${step.id}`)
         }

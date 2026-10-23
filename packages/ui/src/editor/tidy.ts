@@ -6,7 +6,12 @@ import type { Stamp } from "./edits";
 /** One "Tidy guide" suggestion (docs/spec/04-editor.md#tidy-guide). */
 export interface TidySuggestion {
   id: string;
-  kind: "mergeClickIntoTyping" | "removeDoubleClick" | "removeOpenApp" | "removeRedirect";
+  kind:
+    | "mergeClickIntoTyping"
+    | "removeDoubleClick"
+    | "removeOpenApp"
+    | "removeOpenBeforeOpen"
+    | "removeRedirect";
   /** The steps it touches, for showing in the list. */
   stepIds: string[];
   changes: Change[];
@@ -66,10 +71,12 @@ export function tidySuggestions(doc: EditorDoc, stamp: Stamp): TidySuggestion[] 
       continue;
     }
 
-    // The same click twice in quick succession.
+    // The same click twice in quick succession. Not two strokes drawn on a canvas (#73): each
+    // drew something of its own.
     if (
       step.action === "click" &&
       next.action === "click" &&
+      next.textParts.verb !== "draw" &&
       step.actionText === next.actionText &&
       Math.abs(time(next) - time(step)) <= DOUBLE_CLICK_MS
     ) {
@@ -94,6 +101,19 @@ export function tidySuggestions(doc: EditorDoc, stamp: Stamp): TidySuggestion[] 
       suggestions.push({
         id: `redirect:${step.id}`,
         kind: "removeRedirect",
+        stepIds: [step.id],
+        changes: [{ kind: "step", id: step.id, before: step, after: null }],
+      });
+      continue;
+    }
+
+    // `Open "<app>"` with another "Open" straight after it: nothing was done in that app, so the
+    // guide never needed to go there (the 10/10/2026 test: an app that came forward by itself,
+    // then the one being used again). Only the first goes; the next is judged by what follows it.
+    if (isAppSwitch(step) && isAppSwitch(next)) {
+      suggestions.push({
+        id: `openOpen:${step.id}`,
+        kind: "removeOpenBeforeOpen",
         stepIds: [step.id],
         changes: [{ kind: "step", id: step.id, before: step, after: null }],
       });

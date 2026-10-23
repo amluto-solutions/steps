@@ -1,7 +1,5 @@
 {
   "app": {
-    "alreadyOpenTitle": "Steps is al geopend",
-    "alreadyOpenBody": "Er kan maar één Steps tegelijk draaien, dus we hebben deze voor je naar voren gehaald.",
     "name": "Steps",
     "by": "door",
     "logoAlt": "Amluto"
@@ -75,6 +73,8 @@
     "heading": "Je handleidingen",
     "count_one": "{{count}} handleiding",
     "count_other": "{{count}} handleidingen",
+    "countOf_one": "{{shown}} van {{count}} handleiding",
+    "countOf_other": "{{shown}} van {{count}} handleidingen",
     "steps_one": "{{count}} stap",
     "steps_other": "{{count}} stappen",
     "search": "Handleidingen zoeken",
@@ -204,7 +204,7 @@
       "note": "Voor een andere Steps-gebruiker",
       "pickTitle": "De handleiding opslaan als Steps-bestand",
       "filter": "Steps-handleiding",
-      "done": "Handleiding geëxporteerd. Vervaagde gebieden zijn in het bestand definitief vervaagd.",
+      "blurredForGood": "Vervaagde gebieden zijn in het bestand definitief vervaagd.",
       "originals": "Onvervaagde originelen meenemen (voor interne overdracht)",
       "originalsWarning": "Het bestand bevat elke schermopname zonder vervaging. Iedereen die het krijgt, kan zien wat er vervaagd was. Gebruik dit alleen om een handleiding over te dragen aan een collega die de vervaging moet bewerken.",
       "burnedIn": "Vervaagde gebieden zijn in het bestand definitief vervaagd. Verborgen getypte waarden, opmerkingen en versies worden weggelaten."
@@ -472,6 +472,14 @@
       "error": "Opslaan mislukt, opnieuw proberen",
       "saved": "Alle wijzigingen opgeslagen"
     },
+    "leave": {
+      "title": "Zonder je laatste wijzigingen verlaten?",
+      "body": "Steps kon je laatste wijzigingen niet opslaan en blijft het proberen. Als je nu weggaat, gaan ze mogelijk verloren.",
+      "leave": "Toch verlaten",
+      "close": "Toch sluiten",
+      "quit": "Toch afsluiten",
+      "stay": "Blijven"
+    },
     "stepsList": "Stappen",
     "stepCount_one": "{{count}} stap",
     "stepCount_other": "{{count}} stappen",
@@ -519,6 +527,7 @@
       "typing": "Controleer deze stap: de getypte tekst klopt misschien niet precies.",
       "code": "Controleer deze stap: een geheim gegeven daarin is niet gevonden in de schermopname om te vervagen, of de tekst klopt misschien niet precies.",
       "fillEnd": "Controleer deze stap: de opname kon niet zien in welke cel het doorvoeren eindigde. Schrijf op waar het eindigde, of kies “Klopt”.",
+      "appSwitch": "Controleer deze stap: geen klik of toetsaanslag heeft deze app naar voren gebracht, dus de app kan uit zichzelf naar voren zijn gekomen. Verwijder de stap als de handleiding daar niet naartoe ging, of kies “Klopt”.",
       "looksRight": "Klopt"
     },
     "stepText": "Tekst van stap",
@@ -917,6 +926,20 @@
       "inUse": "Wordt al gebruikt voor {{name}}.",
       "unavailable": "Een andere app gebruikt deze al, dus hij werkt nu niet.",
       "heldBySteps": "Een andere kopie van Steps is open en gebruikt deze. Sluit die, en start deze daarna opnieuw.",
+      "commonUse": "Andere apps gebruiken {{keys}} voor “{{use}}”. Zolang Steps deze heeft, werkt die daar niet.",
+      "commonMany": "Veel apps gebruiken {{keys}} zelf. Zolang Steps deze heeft, werkt die er niet in.",
+      "uses": {
+        "reloadNoCache": "Opnieuw laden zonder cache",
+        "reopenTab": "Gesloten tabblad opnieuw openen",
+        "privateWindow": "Nieuw privévenster",
+        "closeWindow": "Venster sluiten",
+        "closeTab": "Tabblad sluiten",
+        "devTools": "Ontwikkelaarstools",
+        "pastePlain": "Plakken als platte tekst",
+        "redo": "Opnieuw",
+        "saveAs": "Opslaan als",
+        "bookmarksBar": "Favorietenbalk weergeven"
+      },
       "failed": "Die sneltoets kon niet worden opgeslagen.",
       "reset": "Standaardwaarden herstellen",
       "resetDone": "Sneltoetsen hersteld.",
@@ -1029,6 +1052,9 @@
     "excludeApp": "{{app}} nooit opnemen",
     "excludeAppEmpty": "Deze app nooit opnemen",
     "appExcluded": "{{app}} wordt nooit opgenomen",
+    "excludeAppsLike": "Windows-apps zoals {{app}} nooit opnemen",
+    "appsLikeExcluded": "Windows-apps zoals {{app}} worden nooit opgenomen",
+    "waitingForKeys": "Wacht op de toetsen",
     "startAgain": "Opnieuw beginnen",
     "startAgainHelp_one": "Wist deze stap en neemt verder op",
     "startAgainHelp_other": "Wist deze {{count}} stappen en neemt verder op",
@@ -1052,6 +1078,7 @@
     "into": "Opnemen in “{{title}}”",
     "intoFallback": "De nieuwe stappen konden niet in “{{title}}” komen: de handleiding is gesloten of iemand anders bewerkt haar. Ze staan nu in een eigen opname.",
     "intoNothing": "Er is niets opgenomen, dus “{{title}}” is ongewijzigd.",
+    "nothingRecorded": "Er is niets opgenomen, dus er is geen handleiding gemaakt.",
     "startRecording": "Opname starten",
     "startTitle": "Een opname starten",
     "keysChoice": "Getypte tekst opnemen",
@@ -1107,6 +1134,7 @@
       "mergeClickIntoTyping": "De klik samenvoegen met het typen dat erop volgt: {{steps}}",
       "removeDoubleClick": "Een herhaalde klik verwijderen: {{steps}}",
       "removeOpenApp": "Een stap “Openen” verwijderen die de volgende klik al laat zien: {{steps}}",
+      "removeOpenBeforeOpen": "Een stap “Openen” verwijderen die meteen wordt gevolgd door nog een stap “Openen”: {{steps}}",
       "removeRedirect": "Een stap “Ga naar” verwijderen waar de koppeling alleen langskwam: {{steps}}"
     },
     "apply_one": "{{count}} wijziging toepassen",
@@ -1327,6 +1355,8 @@
     "found_one": "{{count}} overeenkomst gevonden in {{steps}} stappen.",
     "found_other": "{{count}} overeenkomsten gevonden in {{steps}} stappen.",
     "nothing": "Niets gevonden.",
+    "matches_one": "{{count}} overeenkomst",
+    "matches_other": "{{count}} overeenkomsten",
     "unread_one": "{{count}} schermopname kon niet worden gelezen, dus die is niet doorzocht. Controleer die zelf.",
     "unread_other": "{{count}} schermopnamen konden niet worden gelezen, dus die zijn niet doorzocht. Controleer ze zelf.",
     "notGuaranteed": "Suggesties kunnen dingen missen. Controleer elke schermopname voordat je de handleiding deelt.",
@@ -1355,17 +1385,18 @@
       "term": "woord om altijd te vervagen",
       "account": "je accountnaam",
       "file": "bestandsnaam",
-      "path": "bestandspad"
+      "path": "bestandspad",
+      "notification": "melding"
     },
     "nextTo": "{{kind}} naast “{{label}}”"
   },
   "zoom": {
     "menu": "Inzoomen op elke klik",
-    "menuNote": "Snijdt heel brede schermopnamen bij rond de klik, zodat ze goed leesbaar zijn op een pagina",
+    "menuNote": "Snijdt schermopnamen die breder zijn dan {{width}} pixels bij tot het gebied rond de klik, zodat de tekst op de pagina groter wordt",
     "auto": "Automatisch",
     "done_one": "Ingezoomd op {{count}} schermopname.",
     "done_other": "Ingezoomd op {{count}} schermopnamen.",
-    "nothing": "Geen schermopnamen om in te zoomen: ze zijn al goed leesbaar op een pagina."
+    "nothing": "Niets om in te zoomen: alleen schermopnamen die breder zijn dan {{width}} pixels, een klik hebben en nog niet zijn bijgesneden, worden bijgesneden."
   },
   "exportSettings": {
     "folder": "Exports opslaan in",
@@ -1506,7 +1537,7 @@
       "eyebrow": "Rondleiding voltooid",
       "title": "Je bent er klaar voor",
       "body": "Dat was de rondleiding. Je kunt hem altijd opnieuw doen vanuit Instellingen.",
-      "finish": "Voltooien"
+      "gotIt": "Begrepen"
     },
     "pill": {
       "label": "Rondleiding",

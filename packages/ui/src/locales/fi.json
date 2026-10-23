@@ -1,7 +1,5 @@
 {
   "app": {
-    "alreadyOpenTitle": "Steps on jo auki",
-    "alreadyOpenBody": "Vain yksi Steps voi olla käynnissä kerrallaan, joten nostimme tämän etualalle puolestasi.",
     "name": "Steps",
     "by": "by",
     "logoAlt": "Amluto"
@@ -75,6 +73,8 @@
     "heading": "Ohjeesi",
     "count_one": "{{count}} ohje",
     "count_other": "{{count}} ohjetta",
+    "countOf_one": "{{shown}} / {{count}} ohje",
+    "countOf_other": "{{shown}} / {{count}} ohjetta",
     "steps_one": "{{count}} vaihe",
     "steps_other": "{{count}} vaihetta",
     "search": "Hae ohjeita",
@@ -204,7 +204,7 @@
       "note": "Toiselle Steps-käyttäjälle",
       "pickTitle": "Tallenna ohje Steps-tiedostona",
       "filter": "Steps-ohje",
-      "done": "Ohje vietiin. Sumennetut alueet on sumennettu tiedostoon pysyvästi.",
+      "blurredForGood": "Sumennetut alueet on sumennettu tiedostoon pysyvästi.",
       "originals": "Sisällytä sumentamattomat alkuperäiset (sisäistä luovutusta varten)",
       "originalsWarning": "Tiedosto sisältää jokaisen näyttökuvan ilman sumennusta. Kuka tahansa sen saava näkee, mitä sumennettiin. Käytä tätä vain, kun luovutat ohjeen kollegalle, jonka pitää muokata sumennuksia.",
       "burnedIn": "Sumennetut alueet on sumennettu tiedostoon pysyvästi. Piilotetut kirjoitetut arvot, kommentit ja versiot jätetään pois."
@@ -472,6 +472,14 @@
       "error": "Tallennus epäonnistui, yritetään uudelleen",
       "saved": "Kaikki muutokset tallennettu"
     },
+    "leave": {
+      "title": "Poistutaanko ilman viimeisimpiä muutoksia?",
+      "body": "Steps ei voinut tallentaa viimeisimpiä muutoksiasi ja yrittää yhä uudelleen. Jos poistut nyt, ne voivat kadota.",
+      "leave": "Poistu silti",
+      "close": "Sulje silti",
+      "quit": "Lopeta silti",
+      "stay": "Jää"
+    },
     "stepsList": "Vaiheet",
     "stepCount_one": "{{count}} vaihe",
     "stepCount_other": "{{count}} vaihetta",
@@ -519,6 +527,7 @@
       "typing": "Tarkista tämä vaihe: kirjoitus ei ehkä täsmää.",
       "code": "Tarkista tämä vaihe: salaisuutta ei löytynyt näyttökuvasta sumennettavaksi, tai teksti ei ehkä täsmää.",
       "fillEnd": "Tarkista tämä vaihe: nauhoitus ei pystynyt päättelemään, mihin soluun täyttö päättyi. Kirjoita, mihin se ulottui, tai valitse ”Näyttää oikealta”.",
+      "appSwitch": "Tarkista tämä vaihe: mikään napsautus tai näppäinpainallus ei tuonut tätä sovellusta etualalle, joten se on voinut tulla esiin itsestään. Poista vaihe, jos ohje ei siirtynyt sinne, tai valitse ”Näyttää oikealta”.",
       "looksRight": "Näyttää oikealta"
     },
     "stepText": "Vaiheen teksti",
@@ -917,6 +926,20 @@
       "inUse": "Jo käytössä: {{name}}.",
       "unavailable": "Toinen sovellus käyttää jo tätä, joten se ei toimi juuri nyt.",
       "heldBySteps": "Toinen Steps-kopio on auki ja käyttää tätä. Sulje se ja käynnistä sitten tämä uudelleen.",
+      "commonUse": "Muut sovellukset käyttävät pikanäppäintä {{keys}} toimintoon ”{{use}}”. Kun Steps käyttää sitä, se ei toimi niissä.",
+      "commonMany": "Monet sovellukset käyttävät pikanäppäintä {{keys}} itse. Kun Steps käyttää sitä, se ei toimi niissä.",
+      "uses": {
+        "reloadNoCache": "Lataa uudelleen ilman välimuistia",
+        "reopenTab": "Avaa suljettu välilehti uudelleen",
+        "privateWindow": "Uusi yksityinen ikkuna",
+        "closeWindow": "Sulje ikkuna",
+        "closeTab": "Sulje välilehti",
+        "devTools": "Kehittäjätyökalut",
+        "pastePlain": "Liitä pelkkänä tekstinä",
+        "redo": "Tee uudelleen",
+        "saveAs": "Tallenna nimellä",
+        "bookmarksBar": "Näytä kirjanmerkkipalkki"
+      },
       "failed": "Pikanäppäintä ei voitu tallentaa.",
       "reset": "Palauta oletukset",
       "resetDone": "Pikanäppäimet palautettu.",
@@ -1029,6 +1052,9 @@
     "excludeApp": "Älä koskaan nauhoita sovellusta {{app}}",
     "excludeAppEmpty": "Älä koskaan nauhoita tätä sovellusta",
     "appExcluded": "Sovellusta {{app}} ei koskaan nauhoiteta",
+    "excludeAppsLike": "Älä koskaan nauhoita Windows-sovelluksia, kuten {{app}}",
+    "appsLikeExcluded": "Windows-sovelluksia, kuten {{app}}, ei koskaan nauhoiteta",
+    "waitingForKeys": "Odotetaan näppäimiä",
     "startAgain": "Aloita alusta",
     "startAgainHelp_one": "Tyhjentää tämän {{count}} vaiheen ja jatkaa nauhoitusta",
     "startAgainHelp_other": "Tyhjentää nämä {{count}} vaihetta ja jatkaa nauhoitusta",
@@ -1052,6 +1078,7 @@
     "into": "Nauhoitetaan ohjeeseen ”{{title}}”",
     "intoFallback": "Uusia vaiheita ei voitu lisätä ohjeeseen ”{{title}}”: se suljettiin tai joku muu muokkaa sitä. Vaiheet ovat sen sijaan omassa nauhoituksessaan.",
     "intoNothing": "Mitään ei nauhoitettu, joten ”{{title}}” on ennallaan.",
+    "nothingRecorded": "Mitään ei nauhoitettu, joten ohjetta ei luotu.",
     "startRecording": "Aloita nauhoitus",
     "startTitle": "Aloita nauhoitus",
     "keysChoice": "Nauhoita näppäilyt",
@@ -1107,6 +1134,7 @@
       "mergeClickIntoTyping": "Yhdistä napsautus sitä seuraavaan kirjoitukseen: {{steps}}",
       "removeDoubleClick": "Poista toistettu napsautus: {{steps}}",
       "removeOpenApp": "Poista Avaa-vaihe, jonka seuraava napsautus jo näyttää: {{steps}}",
+      "removeOpenBeforeOpen": "Poista Avaa-vaihe, jota heti seuraa toinen Avaa-vaihe: {{steps}}",
       "removeRedirect": "Poista Siirry-vaihe, jonka kautta linkki vain kulki: {{steps}}"
     },
     "apply_one": "Tee {{count}} muutos",
@@ -1327,6 +1355,8 @@
     "found_one": "Löytyi {{count}} osuma {{steps}} vaiheessa.",
     "found_other": "Löytyi {{count}} osumaa {{steps}} vaiheessa.",
     "nothing": "Mitään ei löytynyt.",
+    "matches_one": "{{count}} osuma",
+    "matches_other": "{{count}} osumaa",
     "unread_one": "{{count}} näyttökuva jäi lukematta, joten siitä ei haettu. Tarkista se itse.",
     "unread_other": "{{count}} näyttökuvaa jäi lukematta, joten niistä ei haettu. Tarkista ne itse.",
     "notGuaranteed": "Ehdotukset voivat jättää jotain huomaamatta. Tarkista jokainen näyttökuva ennen ohjeen jakamista.",
@@ -1355,17 +1385,18 @@
       "term": "aina sumennettava sana",
       "account": "tilisi nimi",
       "file": "tiedostonimi",
-      "path": "tiedostopolku"
+      "path": "tiedostopolku",
+      "notification": "ilmoitus"
     },
     "nextTo": "{{kind}} otsikon ”{{label}}” vieressä"
   },
   "zoom": {
     "menu": "Lähennä jokaiseen napsautukseen",
-    "menuNote": "Rajaa hyvin leveät näyttökuvat napsautuksen ympäriltä, jotta ne näkyvät sivulla hyvin",
+    "menuNote": "Rajaa yli {{width}} pikselin levyiset näyttökuvat napsautuksen ympäristöön, jotta teksti näkyy sivulla suurempana",
     "auto": "Automaattinen",
     "done_one": "{{count}} näyttökuva lähennettiin.",
     "done_other": "{{count}} näyttökuvaa lähennettiin.",
-    "nothing": "Mitään näyttökuvaa ei tarvitse lähentää: ne näkyvät jo sivulla hyvin."
+    "nothing": "Ei mitään lähennettävää: se rajaa vain yli {{width}} pikselin levyiset näyttökuvat, joissa on napsautus ja joita ei ole vielä rajattu."
   },
   "exportSettings": {
     "folder": "Tallenna viennit kansioon",
@@ -1506,7 +1537,7 @@
       "eyebrow": "Esittely valmis",
       "title": "Kaikki valmista",
       "body": "Siinä oli esittely. Voit katsoa sen uudelleen asetuksista milloin haluat.",
-      "finish": "Valmis"
+      "gotIt": "Selvä"
     },
     "pill": {
       "label": "Esittely",

@@ -52,6 +52,89 @@ describe("recording fact schema", () => {
     ).toThrow();
   });
 
+  it("keeps where a notification toast shows on a screenshot, for every kind of capture", () => {
+    const notifications = [{ x: 80.2, y: 75, w: 18.9, h: 19.4 }];
+    const withToast = {
+      ...manualScreenshot,
+      record: {
+        ...manualScreenshot.record,
+        capture: { ...manualScreenshot.record.capture, notifications },
+      },
+    };
+    expect(recordingFactSchema.parse(withToast)).toEqual(withToast);
+    const click = {
+      ...manualScreenshot,
+      record: {
+        kind: "click",
+        id: 2,
+        tickMs: 120,
+        button: "left",
+        injected: false,
+        x: 10,
+        y: 10,
+        window: manualScreenshot.record.window,
+        capture: { ...manualScreenshot.record.capture, notifications },
+        clickPct: { x: 10, y: 10 },
+        element: null,
+        elementPct: null,
+        uia: { status: "timeout", ms: 350, retried: false, error: null },
+        screenshotMs: 20,
+        queueDelayMs: 1,
+      },
+    };
+    expect(recordingFactSchema.parse(click)).toEqual(click);
+    const keys = {
+      ...manualScreenshot,
+      record: {
+        kind: "keys",
+        id: 3,
+        tickMs: 130,
+        window: manualScreenshot.record.window,
+        capture: { ...manualScreenshot.record.capture, notifications },
+        ctrl: true,
+        alt: false,
+        shift: false,
+        win: false,
+        vkey: 83,
+        key: null,
+      },
+    };
+    expect(recordingFactSchema.parse(keys)).toEqual(keys);
+  });
+
+  it("keeps the items of a menu a click landed in, as long as the recorder keeps them (#56)", () => {
+    const click = (menuItems: unknown[]) => ({
+      ...manualScreenshot,
+      record: {
+        kind: "click",
+        id: 2,
+        tickMs: 120,
+        button: "left",
+        injected: false,
+        x: 10,
+        y: 10,
+        window: manualScreenshot.record.window,
+        capture: manualScreenshot.record.capture,
+        clickPct: { x: 10, y: 10 },
+        element: null,
+        elementPct: null,
+        uia: { status: "error", ms: 3, retried: false, error: null },
+        screenshotMs: 20,
+        queueDelayMs: 1,
+        menuItems,
+      },
+    });
+    // The recorder cuts a name at 200 characters, each of which may be two units here.
+    const longest = "📁".repeat(200);
+    const items = [
+      { name: "Format Cells…", box: { x: 40.5, y: 49.8, w: 14.2, h: 2.4 } },
+      { name: longest, box: null },
+    ];
+    expect(recordingFactSchema.parse(click(items))).toEqual(click(items));
+    const tooMany = Array.from({ length: 65 }, () => ({ name: "Recent", box: null }));
+    expect(() => recordingFactSchema.parse(click(tooMany))).toThrow();
+  });
+
   it("rejects unsafe session identifiers and unknown manual purposes", () => {
     expect(() =>
       recordingFactSchema.parse({ ...manualScreenshot, sessionId: "../outside" }),

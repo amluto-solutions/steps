@@ -2,9 +2,10 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Icon } from "../components/icons";
+import { Tip } from "../components/Tip";
 import type { ToastMessage } from "../components/Toast";
 import { errorMessage } from "../errors";
-import type { MediaInfo } from "../library-bridge";
+import type { RetakenImage } from "../library-bridge";
 import { ModalDialog } from "../ModalDialog";
 
 const DELAY_KEY = "amluto-steps-retake-delay";
@@ -39,11 +40,14 @@ export function Retake({
   onRetaken,
   notify,
   disabled,
+  compact = false,
 }: {
-  retake: (delayMs: number) => Promise<MediaInfo>;
-  onRetaken: (media: MediaInfo) => void;
+  retake: (delayMs: number) => Promise<RetakenImage>;
+  onRetaken: (media: RetakenImage) => void;
   notify: (message: Omit<ToastMessage, "id">) => void;
   disabled?: boolean;
+  /** Shown as its icon alone, with a tooltip, where the tools have no room for its label. */
+  compact?: boolean;
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -64,15 +68,19 @@ export function Retake({
 
   return (
     <>
-      <button
-        type="button"
-        disabled={disabled || busy}
-        className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] text-secondary hover:bg-subtle disabled:opacity-40"
-        onClick={() => setOpen(true)}
-      >
-        <Icon name="restart" size={15} />
-        {busy ? t("editor.retake.working") : t("editor.retake.button")}
-      </button>
+      <Tip text={t("editor.retake.button")} off={!compact}>
+        <button
+          type="button"
+          disabled={disabled || busy}
+          className={`inline-flex h-8 items-center gap-1.5 rounded-lg text-[13px] whitespace-nowrap text-secondary hover:bg-subtle disabled:opacity-40 ${compact ? "px-2" : "px-2.5"}`}
+          onClick={() => setOpen(true)}
+        >
+          <Icon name="restart" size={15} />
+          <span className={compact ? "sr-only" : undefined}>
+            {busy ? t("editor.retake.working") : t("editor.retake.button")}
+          </span>
+        </button>
+      </Tip>
       {open && (
         <div className="fixed inset-0 z-[800] grid place-items-center bg-scrim/50 p-4">
           <ModalDialog

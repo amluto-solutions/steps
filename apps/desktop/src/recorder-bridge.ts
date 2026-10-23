@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import {
+  barPlaceSchema,
   linkStatusSchema,
   recordingFactSchema,
   recordingSettingsSchema,
@@ -27,7 +28,6 @@ import type {
   HotkeyBinding,
   Hotkeys,
   LinkStatus,
-  MediaInfo,
   Policy,
   RecorderBridge,
   RecorderError,
@@ -37,6 +37,7 @@ import type {
   Recording,
   RecordingJournal,
   RecoverySession,
+  RetakenImage,
   SettingsFiles,
   Support,
   TextReader,
@@ -124,7 +125,7 @@ const recording: Recording = {
   },
   captureNow: () => invoke("recorder_capture_now"),
   addShortcut: () => invoke("recorder_add_shortcut"),
-  closeShortcutPopup: () => invoke("recorder_close_shortcut_popup"),
+  closeShortcutPopup: (added) => invoke("recorder_close_shortcut_popup", { added }),
   heartbeat: () => invoke("recorder_bar_heartbeat"),
 };
 
@@ -157,7 +158,7 @@ const journal: RecordingJournal = {
   },
   loadImage: (sessionId, name) => invoke<string>("recorder_load_image", { sessionId, name }),
   retakeDraftImage: (sessionId, delayMs, excluded, quality) =>
-    invoke<MediaInfo>("recorder_retake_draft_image", { sessionId, delayMs, excluded, quality }),
+    invoke<RetakenImage>("recorder_retake_draft_image", { sessionId, delayMs, excluded, quality }),
   copyMedia: async (sessionId, into, media) => {
     await invoke("recorder_copy_media", { sessionId, into, media });
   },
@@ -189,12 +190,28 @@ const windows: AppWindows = {
     await main.show();
     await main.setFocus();
   },
-  onAlreadyOpen: (handler) => listen("steps://already-open", () => handler()),
+  // Windows draws the title bar light or dark from the window's theme (DWM); null follows the PC.
+  setWindowTheme: async (theme) => {
+    await getCurrentWindow().setTheme(theme);
+  },
   resizeBar: async (width, height) => {
     await getCurrentWindow().setSize(new LogicalSize(Math.ceil(width), Math.ceil(height)));
   },
   moveBar: async (place) => {
     await invoke("recorder_move_bar", { place });
+  },
+  barPlace: async () => barPlaceSchema.parse(await invoke<unknown>("recorder_bar_place")),
+  askBeforeClose: async (asking) => {
+    await invoke("main_window_ask_before_close", { asking });
+  },
+  onCloseAsked: (handler) => listen("steps://close-asked", () => handler()),
+  // As the close button does when nothing holds it: hidden to the tray, never destroyed.
+  closeMain: async () => {
+    await getCurrentWindow().hide();
+  },
+  onQuitAsked: (handler) => listen("steps://quit-asked", () => handler()),
+  quitApp: async () => {
+    await invoke("main_window_quit");
   },
 };
 
@@ -340,6 +357,9 @@ const exportFiles: ExportFiles = {
   },
   previewWalkthrough: async (html) => {
     await invoke("export_preview", html);
+  },
+  logExportFailure: async (format, reason) => {
+    await invoke("export_log_failure", { format, reason });
   },
 };
 

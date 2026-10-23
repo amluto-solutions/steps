@@ -3,15 +3,15 @@
 use std::sync::atomic::Ordering;
 
 use capture::coords::PxRect;
-use library::MediaInfo;
 use serde_json::{Value, json};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use super::recording::{RecordingSettings, StartOptions};
 use super::{
-    CaptureMonitor, CommandError, GuideDocument, RecorderPreferences, RecorderService,
-    RecorderSnapshot, RecoverySession, STEP_EVENT, publish_state, unix_millis,
+    CaptureMonitor, GuideDocument, RecorderPreferences, RecorderService, RecorderSnapshot,
+    RecoverySession, RetakenMedia, STEP_EVENT, publish_state, unix_millis,
 };
+use crate::error::CommandError;
 
 // Every command that takes the recorder's lock is `async`: Tauri runs plain command functions on
 // the main thread, and a background thread holding the lock may be waiting for the main thread
@@ -124,7 +124,7 @@ pub fn recorder_set_capture_mode(
 /// It stays on the screen. Applied at once, even mid-recording.
 /// Where "Move to" puts the recording bar: along the top of its screen, where its menu has room
 /// to open below it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum BarPlace {
     Left,
@@ -132,8 +132,14 @@ pub enum BarPlace {
     Right,
 }
 
+/// How wide a maximised window's minimise, maximise and close buttons are together, in logical
+/// pixels: Windows 11 draws each 46 wide, and Office, Chrome and Edge match it. Top right stops
+/// short of them (P40, 10/10/2026: the bar covered Word's).
+const CAPTION_BUTTONS_WIDTH: f64 = 3.0 * 46.0;
+
 /// The bar's top-left corner in a screen's work area (the screen less the taskbar), a small margin
-/// in from the edge. All in physical pixels.
+/// in from the edge; at the right, a margin short of a maximised window's caption buttons. All in
+/// physical pixels.
 fn bar_position(
     area: (i32, i32, u32, u32),
     bar_width: u32,
@@ -145,11 +151,13 @@ fn bar_position(
     // 16 logical pixels at this screen's scale; clamped first, so the cast can't overflow.
     #[allow(clippy::cast_possible_truncation)]
     let margin = (16.0 * scale).round().clamp(0.0, 1_000.0) as i32;
+    #[allow(clippy::cast_possible_truncation)]
+    let caption_buttons = (CAPTION_BUTTONS_WIDTH * scale).round().clamp(0.0, 10_000.0) as i32;
     let room = wide(width).saturating_sub(wide(bar_width));
     let x = match place {
         BarPlace::Left => margin,
         BarPlace::Centre => room / 2,
-        BarPlace::Right => room.saturating_sub(margin),
+        BarPlace::Right => room.saturating_sub(margin).saturating_sub(caption_buttons),
     };
     (
         left.saturating_add(x.clamp(0, room.max(0))),
@@ -168,6 +176,36 @@ pub fn recorder_move_bar(app: AppHandle, place: BarPlace) -> Result<(), CommandE
         )
     })?;
     place_bar(&bar, place).map_err(|error| CommandError::new("barMove", error.to_string()))
+}
+
+/// Where "Move the bar" last put the bar, and the corner it put it at.
+static LAST_BAR_PLACE: std::sync::Mutex<Option<(BarPlace, (i32, i32))>> =
+    std::sync::Mutex::new(None);
+
+/// The place the bar is at now: the one it was last put at, until it's dragged from there. Its
+/// width doesn't matter: the bar grows and shrinks from its top-left corner as menus open.
+fn place_now(last: Option<(BarPlace, (i32, i32))>, corner: (i32, i32)) -> Option<BarPlace> {
+    last.filter(|(_, placed)| *placed == corner)
+        .map(|(place, _)| place)
+}
+
+/// Which of Top left, Top centre and Top right the bar is at, for its menu to mark; null once
+/// it's been dragged elsewhere.
+#[tauri::command(async)]
+pub fn recorder_bar_place(app: AppHandle) -> Result<Option<BarPlace>, CommandError> {
+    let bar = app.get_webview_window("recorder-bar").ok_or_else(|| {
+        CommandError::new(
+            "recorderBarUnavailable",
+            "The recording indicator is unavailable.",
+        )
+    })?;
+    let corner = bar
+        .outer_position()
+        .map_err(|error| CommandError::new("barMove", error.to_string()))?;
+    let last = *LAST_BAR_PLACE
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    Ok(place_now(last, (corner.x, corner.y)))
 }
 
 /// Puts the recording bar at `place` along the top of the screen it's on.
@@ -192,7 +230,15 @@ pub(super) fn place_bar(bar: &tauri::WebviewWindow, place: BarPlace) -> tauri::R
         monitor.scale_factor(),
         place,
     );
-    bar.set_position(tauri::PhysicalPosition::new(x, y))
+    bar.set_position(tauri::PhysicalPosition::new(x, y))?;
+    // Read back rather than assumed: Windows can adjust where a window lands.
+    let corner = bar
+        .outer_position()
+        .map_or((x, y), |corner| (corner.x, corner.y));
+    *LAST_BAR_PLACE
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some((place, corner));
+    Ok(())
 }
 
 /// Where the person last left the bar, for the next recording in this run of Steps.
@@ -290,7 +336,7 @@ pub fn recorder_finalize(
     let target = library_id
         .map(|id| {
             libraries
-                .library(&service, &id)
+                .library(&id)
                 .map(|library| library.root().to_path_buf())
         })
         .transpose()?;
@@ -355,14 +401,7 @@ pub fn recorder_copy_media(
                     new_id: item.new_media_id,
                 })
                 .collect();
-            crate::library::add_recording_media(
-                &libraries,
-                &service,
-                &locks,
-                &library_id,
-                &guide_id,
-                &copies,
-            )
+            crate::library::add_recording_media(&libraries, &locks, &library_id, &guide_id, &copies)
         }
     }
 }
@@ -402,7 +441,7 @@ pub fn recorder_get_session_steps(
 }
 
 /// Retake for an unsaved recording: a new screenshot of the window in front after the countdown,
-/// stored with the recording's other screenshots.
+/// stored with the recording's other screenshots, with where a toast showed on it.
 #[tauri::command(rename_all = "camelCase")]
 pub async fn recorder_retake_draft_image(
     app: AppHandle,
@@ -411,12 +450,15 @@ pub async fn recorder_retake_draft_image(
     delay_ms: u64,
     excluded: Vec<String>,
     quality: Option<library::ScreenshotQuality>,
-) -> Result<MediaInfo, CommandError> {
+) -> Result<RetakenMedia, CommandError> {
     let service = service.inner().clone();
     let quality = crate::policy::screenshot_quality(quality.unwrap_or_default());
     tauri::async_runtime::spawn_blocking(move || {
-        let image = service.retake(&app, delay_ms, &excluded)?;
-        service.store_draft_image(&session_id, image, quality)
+        let retaken = service.retake(&app, delay_ms, &excluded)?;
+        Ok(RetakenMedia {
+            media: service.store_draft_image(&session_id, retaken.image, quality)?,
+            notifications: retaken.notifications,
+        })
     })
     .await
     .map_err(|error| CommandError::new("screenshotFailed", error.to_string()))?
@@ -431,8 +473,16 @@ pub fn recorder_load_image(
     service.image_data(&session_id, &name)
 }
 
+/// Closes the shortcut popup, `added` when its keys were saved as a step, so the bar stops
+/// waiting for them and counts the step.
 #[tauri::command]
-pub fn recorder_close_shortcut_popup(app: AppHandle) -> Result<(), CommandError> {
+pub fn recorder_close_shortcut_popup(
+    app: AppHandle,
+    service: State<'_, RecorderService>,
+    added: bool,
+) -> Result<(), CommandError> {
+    // Not waiting any more, even when the popup can't be hidden: the keys came or were cancelled.
+    service.shortcut_done(&app, added);
     let popup = app.get_webview_window("shortcut-popup").ok_or_else(|| {
         CommandError::new("shortcutPopupUnavailable", "The popup is unavailable.")
     })?;
@@ -543,7 +593,7 @@ pub fn recorder_load_draft(
 
 #[cfg(test)]
 mod tests {
-    use super::{BarPlace, bar_position};
+    use super::{BarPlace, bar_position, place_now};
 
     #[test]
     fn the_bar_moves_along_the_top_of_the_work_area() {
@@ -551,7 +601,6 @@ mod tests {
         let area = (0, 0, 1920, 1040);
         assert_eq!(bar_position(area, 600, 1.5, BarPlace::Left), (24, 24));
         assert_eq!(bar_position(area, 600, 1.5, BarPlace::Centre), (660, 24));
-        assert_eq!(bar_position(area, 600, 1.5, BarPlace::Right), (1296, 24));
         // A second screen to the left, and a bar wider than it.
         assert_eq!(
             bar_position((-1280, 0, 1280, 984), 600, 1.0, BarPlace::Left),
@@ -561,5 +610,28 @@ mod tests {
             bar_position((0, 0, 500, 400), 600, 1.0, BarPlace::Right),
             (0, 16)
         );
+    }
+
+    #[test]
+    fn at_top_right_the_bar_keeps_clear_of_a_maximised_windows_caption_buttons() {
+        // Minimise, maximise and close are 46 logical px wide each (138 px together), along the
+        // top right of a maximised window: 207 px at 150%. The bar stops a margin short of them.
+        let (x, y) = bar_position((0, 0, 1920, 1040), 600, 1.5, BarPlace::Right);
+        assert_eq!((x, y), (1089, 24));
+        assert!(x + 600 <= 1920 - 207);
+        // At 100% on a second screen to the right.
+        assert_eq!(
+            bar_position((1920, 0, 1280, 984), 400, 1.0, BarPlace::Right),
+            (1920 + 1280 - 400 - 16 - 138, 16)
+        );
+    }
+
+    #[test]
+    fn the_bar_is_at_the_place_it_was_moved_to_until_it_is_dragged() {
+        let moved = Some((BarPlace::Right, (1089, 24)));
+        assert_eq!(place_now(moved, (1089, 24)), Some(BarPlace::Right));
+        // Dragged since, even a little: no place in the menu is current.
+        assert_eq!(place_now(moved, (1090, 24)), None);
+        assert_eq!(place_now(None, (660, 24)), None);
     }
 }

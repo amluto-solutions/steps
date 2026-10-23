@@ -84,14 +84,18 @@ export function ShortcutPopup({ recorder }: { recorder: Recording & RecordingJou
     };
   }, [recorder]);
 
-  const close = useCallback(async () => {
-    setFact(null);
-    try {
-      await recorder.closeShortcutPopup();
-    } catch {
-      setError(t("recorder.errorTitle"));
-    }
-  }, [recorder, t]);
+  /** Closes the popup; `added` when its keys were saved as a step, which the recorder counts. */
+  const close = useCallback(
+    async (added: boolean) => {
+      setFact(null);
+      try {
+        await recorder.closeShortcutPopup(added);
+      } catch {
+        setError(t("recorder.errorTitle"));
+      }
+    },
+    [recorder, t],
+  );
 
   const save = useCallback(
     async (combo: string) => {
@@ -105,14 +109,18 @@ export function ShortcutPopup({ recorder }: { recorder: Recording & RecordingJou
       const step = factToStep(displayFact, words, DEFAULT_RECORDING_SETTINGS);
       if (!step) return;
       step.action = "keypress";
-      step.actionText = renderPhrase({ key: "press", keys: combo }, words.language, words.tone);
+      step.actionText = renderPhrase(
+        { key: "press", keys: combo, app: step.context.app },
+        words.language,
+        words.tone,
+      );
       step.textParts = { verb: "Press", target: combo, kind: "shortcut" };
       step.reviewRequired = false;
       setBusy(true);
       setError(null);
       try {
         await recorder.appendStep(fact.sessionId, step);
-        await close();
+        await close(true);
       } catch {
         setError(t("recorder.saveFailed"));
       } finally {
@@ -139,7 +147,7 @@ export function ShortcutPopup({ recorder }: { recorder: Recording & RecordingJou
       event.preventDefault();
       event.stopPropagation();
       if (event.key === "Escape" && !hasModifier && !event.shiftKey) {
-        void close();
+        void close(false);
         return;
       }
       // Ctrl, Alt, Shift or Win on its own is the start of a combination, not one: pressing Alt
@@ -177,7 +185,7 @@ export function ShortcutPopup({ recorder }: { recorder: Recording & RecordingJou
           className="icon-btn"
           aria-label={t("common.close")}
           disabled={busy}
-          onClick={() => void close()}
+          onClick={() => void close(false)}
         >
           <Icon name="close" size={16} />
         </button>
@@ -203,7 +211,7 @@ export function ShortcutPopup({ recorder }: { recorder: Recording & RecordingJou
       )}
       <div className="flex items-center gap-2.5 border-t border-subtle px-5 py-3.5">
         <span className="flex-1 text-xs text-secondary">{t("recorder.shortcutPrivacy")}</span>
-        <button type="button" className="btn" disabled={busy} onClick={() => void close()}>
+        <button type="button" className="btn" disabled={busy} onClick={() => void close(false)}>
           {t("recorder.cancel")}
         </button>
         <button

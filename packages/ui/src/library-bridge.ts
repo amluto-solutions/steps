@@ -86,6 +86,15 @@ export interface MediaInfo {
   height: number;
 }
 
+/**
+ * A retaken screenshot, stored as an image, and where a notification toast still showed on it, as
+ * % of it (docs/spec/04-editor.md#editing-steps, #96): left out when none did. They become the
+ * step's `media.notifications`, suggested for blurring, in place of the old picture's.
+ */
+export interface RetakenImage extends MediaInfo {
+  notifications?: { x: number; y: number; w: number; h: number }[];
+}
+
 export interface TrashEntry {
   trashId: string;
   guideId: string;
@@ -214,7 +223,7 @@ export interface GuideFiles {
     delayMs: number,
     excluded: string[],
     quality?: "balanced" | "original",
-  ): Promise<MediaInfo>;
+  ): Promise<RetakenImage>;
   loadImage(
     libraryId: string,
     guideId: string,
@@ -349,6 +358,19 @@ export interface StepsFiles {
     destination: string,
     includeOriginals: boolean,
   ): Promise<void>;
+  /**
+   * Saves the guide as an `.amlsteps` file in the export folder, as the other exports are
+   * (12/10/2026, #88): under `name`, or with " (2)" and so on added when that's taken, never
+   * replacing a file. Answers where it went (a file name only in Steps for Chrome, whose exports
+   * go to the browser's downloads).
+   */
+  exportAmlstepsTo(
+    libraryId: string,
+    guideId: string,
+    folder: string,
+    name: string,
+    includeOriginals: boolean,
+  ): Promise<string>;
   importAmlsteps(libraryId: string, source: string): Promise<LibraryGuideSummary>;
   /** Steps for Chrome: a folder to export into, asked for once; null when cancelled or unavailable. */
   pickExportFolder?(title: string): Promise<string | null>;

@@ -9,7 +9,7 @@
 use std::fs;
 use std::path::Path;
 
-use crate::recorder::CommandError;
+use crate::error::CommandError;
 
 /// A kind of small JSON file the user picks: its extension, the most it may hold, and what to
 /// call it when refusing something else. Brand files (`.amlbrand`) use the same rules.

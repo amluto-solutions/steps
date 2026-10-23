@@ -101,12 +101,11 @@ describe("editing in the language shown", () => {
 });
 
 describe("Language and tone", () => {
-  it("previews each step: reworded, already so, changed by hand, or nothing to reword", () => {
+  it("previews each step, reworded, already so or changed by hand, and leaves blocks out", () => {
     const preview = rewordings(doc(), "en", "plain");
     expect(preview.map((item) => [item.status, item.after])).toEqual([
       ["change", 'Select the "Save" button'],
       ["edited", 'Select the "Save" button'],
-      ["none", ""],
     ]);
     expect(rewordings(doc(), "en", "casual")[0]?.status).toBe("same");
   });

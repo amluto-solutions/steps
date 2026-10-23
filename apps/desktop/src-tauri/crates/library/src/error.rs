@@ -84,6 +84,19 @@ impl LibraryError {
         }
     }
 
+    /// What the UI shows as `{{detail}}` after its own words for this `code`. For an import
+    /// rejection and a storage error that's only the rule or the cause, since the UI's words
+    /// already say "That file can't be imported:" or "That couldn't be saved or read:"; the whole
+    /// message as well said it twice (10/10/2026 test, P38). Others keep their whole message.
+    #[must_use]
+    pub fn detail(&self) -> String {
+        match self {
+            Self::ImportRejected(rule) => rule.clone(),
+            Self::Storage(cause) => cause.to_string(),
+            _ => self.to_string(),
+        }
+    }
+
     /// Shorthand for an import rejection naming the rule that failed.
     pub(crate) fn rejected(rule: impl Into<String>) -> Self {
         Self::ImportRejected(rule.into())
@@ -92,3 +105,31 @@ impl LibraryError {
 
 /// Result alias for library operations.
 pub type Result<T> = std::result::Result<T, LibraryError>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_detail_leaves_out_what_the_ui_says_itself() {
+        // The UI words these as "That file can't be imported: {detail}"; the Rust lead-in as
+        // well read "That file can't be imported: This file can't be imported: …" (P38).
+        let rejected = LibraryError::rejected("../evil.txt climbs out of its folder (..)");
+        assert_eq!(
+            rejected.detail(),
+            "../evil.txt climbs out of its folder (..)"
+        );
+        let storage = LibraryError::Storage(std::io::Error::other("the disk is full"));
+        assert_eq!(storage.detail(), "the disk is full");
+    }
+
+    #[test]
+    fn an_error_without_ui_words_of_its_own_keeps_its_whole_message() {
+        let invalid = LibraryError::Invalid("Choose a full folder path.".into());
+        assert_eq!(invalid.detail(), "Choose a full folder path.");
+        assert_eq!(
+            LibraryError::GuideNotFound.detail(),
+            "The guide was not found. It may have been moved or deleted."
+        );
+    }
+}

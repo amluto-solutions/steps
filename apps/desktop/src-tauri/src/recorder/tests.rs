@@ -52,6 +52,15 @@ impl Drop for CleanupBlocker {
     }
 }
 
+/// Sets the recorder up with `app_data` as its app-data folder and no name yet, as `initialize`
+/// leaves it on a first run.
+fn set_up(service: &RecorderService, app_data: &Path) {
+    service
+        .user
+        .initialize(|| Ok::<_, ()>((app_data.to_path_buf(), String::new())))
+        .unwrap();
+}
+
 #[test]
 fn manual_media_ids_are_safe_for_the_javascript_bridge() {
     let id = manual_media_id();
@@ -72,8 +81,8 @@ fn interrupted_sessions_can_be_reopened_for_review_one_after_another() {
         .unwrap();
         fs::write(directory.join("events/0001.json"), b"{}").unwrap();
     }
-    let service = RecorderService::default();
-    lock(&service.inner).app_data = Some(root.path().to_path_buf());
+    let service = RecorderService::new(User::default());
+    set_up(&service, root.path());
 
     let snapshot = service.recover_session("session-1").unwrap();
     assert_eq!(snapshot.session_id.as_deref(), Some("session-1"));
@@ -109,8 +118,8 @@ fn finished_session_counts_disappear_when_guide_is_saved_or_discarded() {
 #[test]
 fn published_guide_can_finish_cleanup_after_the_whole_journal_folder_is_removed() {
     let root = tempfile::tempdir().unwrap();
-    let service = RecorderService::default();
-    lock(&service.inner).app_data = Some(root.path().to_path_buf());
+    let service = RecorderService::new(User::default());
+    set_up(&service, root.path());
     let library = root.path().join("library");
     service
         .set_preferences(RecorderPreferences {
@@ -148,8 +157,8 @@ fn published_guide_can_finish_cleanup_after_the_whole_journal_folder_is_removed(
 #[test]
 fn stopped_empty_session_is_recoverable_and_step_files_ignore_temporary_writes() {
     let root = tempfile::tempdir().unwrap();
-    let service = RecorderService::default();
-    lock(&service.inner).app_data = Some(root.path().to_path_buf());
+    let service = RecorderService::new(User::default());
+    set_up(&service, root.path());
     service
         .set_preferences(RecorderPreferences {
             display_name: "Robin".into(),
@@ -182,8 +191,8 @@ fn stopped_empty_session_is_recoverable_and_step_files_ignore_temporary_writes()
 #[test]
 fn save_as_publishes_to_the_chosen_library_and_keeps_the_default() {
     let root = tempfile::tempdir().unwrap();
-    let service = RecorderService::default();
-    lock(&service.inner).app_data = Some(root.path().to_path_buf());
+    let service = RecorderService::new(User::default());
+    set_up(&service, root.path());
     let default = root.path().join("library");
     let shared = root.path().join("shared");
     service
@@ -214,8 +223,8 @@ fn save_as_publishes_to_the_chosen_library_and_keeps_the_default() {
 #[test]
 fn published_guide_survives_cleanup_failure_and_retry_preserves_its_contents() {
     let root = tempfile::tempdir().unwrap();
-    let service = RecorderService::default();
-    lock(&service.inner).app_data = Some(root.path().to_path_buf());
+    let service = RecorderService::new(User::default());
+    set_up(&service, root.path());
     let library = root.path().join("library");
     service
         .set_preferences(RecorderPreferences {
@@ -269,8 +278,8 @@ fn published_guide_survives_cleanup_failure_and_retry_preserves_its_contents() {
 #[test]
 fn retry_never_replaces_an_unrelated_guide_or_deletes_its_source_session() {
     let root = tempfile::tempdir().unwrap();
-    let service = RecorderService::default();
-    lock(&service.inner).app_data = Some(root.path().to_path_buf());
+    let service = RecorderService::new(User::default());
+    set_up(&service, root.path());
     let library = root.path().join("library");
     service
         .set_preferences(RecorderPreferences {
@@ -289,7 +298,7 @@ fn retry_never_replaces_an_unrelated_guide_or_deletes_its_source_session() {
         service
             .finalize("session-1", &json!({"id":"guide-1"}), None)
             .unwrap_err()
-            .code,
+            .code(),
         "guideExists"
     );
     assert_eq!(fs::read(destination.join("guide.json")).unwrap(), existing);
@@ -299,8 +308,8 @@ fn retry_never_replaces_an_unrelated_guide_or_deletes_its_source_session() {
 #[test]
 fn interrupted_setup_and_finalization_do_not_hide_recoverable_sessions() {
     let root = tempfile::tempdir().unwrap();
-    let service = RecorderService::default();
-    lock(&service.inner).app_data = Some(root.path().to_path_buf());
+    let service = RecorderService::new(User::default());
+    set_up(&service, root.path());
     let library = root.path().join("library");
     service
         .set_preferences(RecorderPreferences {
@@ -349,8 +358,8 @@ fn interrupted_setup_and_finalization_do_not_hide_recoverable_sessions() {
 #[test]
 fn preferences_survive_restart_and_replacement_without_moving_existing_guides() {
     let root = tempfile::tempdir().unwrap();
-    let service = RecorderService::default();
-    lock(&service.inner).app_data = Some(root.path().to_path_buf());
+    let service = RecorderService::new(User::default());
+    set_up(&service, root.path());
     let first = root.path().join("first-library");
     let second = root.path().join("second-library");
     service
@@ -420,7 +429,7 @@ fn invalid_paths_and_active_recordings_cannot_change_preferences() {
         );
     }
     let root = tempfile::tempdir().unwrap();
-    let service = RecorderService::default();
+    let service = RecorderService::new(User::default());
     lock(&service.inner)
         .machine
         .lock()
@@ -433,8 +442,62 @@ fn invalid_paths_and_active_recordings_cannot_change_preferences() {
             library_folder: root.path().join("library"),
         })
         .unwrap_err();
-    assert_eq!(error.code, "recordingActive");
+    assert_eq!(error.code(), "recordingActive");
     assert!(!root.path().join("library").exists());
+}
+
+#[test]
+fn the_library_moves_the_default_library_folder_only_while_nothing_is_recording() {
+    let root = tempfile::tempdir().unwrap();
+    let user = User::default();
+    let service = RecorderService::new(user.clone());
+    user.initialize(|| Ok::<_, ()>((root.path().to_path_buf(), "Robin".to_string())))
+        .unwrap();
+    let folder = service.default_library_folder();
+    let first = root.path().join("first");
+
+    folder.set(first.clone()).unwrap();
+    assert_eq!(folder.get(), Some(first.clone()));
+    // Saved with the name as it is: the settings file keeps the two together.
+    let saved = read_preferences(root.path(), root.path().join("default"));
+    assert_eq!(saved.display_name, "Robin");
+    assert_eq!(saved.library_folder, first);
+
+    lock(&lock(&service.inner).machine).start().unwrap();
+    assert_eq!(
+        folder.set(root.path().join("second")).unwrap_err().code(),
+        "recordingActive"
+    );
+    assert_eq!(folder.get(), Some(first));
+}
+
+#[test]
+fn the_name_saved_in_settings_is_the_one_the_library_reads() {
+    let root = tempfile::tempdir().unwrap();
+    let user = User::default();
+    let service = RecorderService::new(user.clone());
+    user.initialize(|| Ok::<_, ()>((root.path().to_path_buf(), String::new())))
+        .unwrap();
+
+    service
+        .set_preferences(RecorderPreferences {
+            display_name: "  Robin  ".into(),
+            library_folder: root.path().join("library"),
+        })
+        .unwrap();
+    assert_eq!(user.display_name(), "Robin");
+
+    // A change refused while recording leaves the name as it was.
+    lock(&lock(&service.inner).machine).start().unwrap();
+    assert!(
+        service
+            .set_preferences(RecorderPreferences {
+                display_name: "Sam".into(),
+                library_folder: root.path().join("library"),
+            })
+            .is_err()
+    );
+    assert_eq!(user.display_name(), "Robin");
 }
 
 #[test]
@@ -442,8 +505,8 @@ fn a_stopped_recording_waiting_as_a_draft_doesnt_hold_the_settings() {
     // 07/10/2026: a recording keeps the settings it started with, so one waiting to be saved
     // or discarded no longer locks them, as one left from an earlier run never did.
     let root = tempfile::tempdir().unwrap();
-    let service = RecorderService::default();
-    lock(&service.inner).app_data = Some(root.path().to_path_buf());
+    let service = RecorderService::new(User::default());
+    set_up(&service, root.path());
     lock(&service.inner).session = Some(Session {
         id: "session-1".into(),
         directory: root.path().join("recordings/session-1"),
@@ -465,8 +528,8 @@ fn a_stopped_recording_waiting_as_a_draft_doesnt_hold_the_settings() {
 #[test]
 fn recovered_steps_and_guides_keep_the_original_recording_author() {
     let root = tempfile::tempdir().unwrap();
-    let service = RecorderService::default();
-    lock(&service.inner).app_data = Some(root.path().to_path_buf());
+    let service = RecorderService::new(User::default());
+    set_up(&service, root.path());
     let library = root.path().join("library");
     service
         .set_preferences(RecorderPreferences {
@@ -504,7 +567,7 @@ fn recovered_steps_and_guides_keep_the_original_recording_author() {
 #[test]
 fn a_damaged_or_copied_guide_does_not_break_the_library_list() {
     let root = tempfile::tempdir().unwrap();
-    let service = RecorderService::default();
+    let service = RecorderService::new(User::default());
     let guides = root.path().join("library/guides");
     lock(&service.inner).library = Some(root.path().join("library"));
     let guide = |folder: &str, id: &str, with_steps: bool| {
@@ -540,8 +603,8 @@ fn a_damaged_or_copied_guide_does_not_break_the_library_list() {
 #[test]
 fn a_save_that_fails_part_way_leaves_no_staging_folder() {
     let root = tempfile::tempdir().unwrap();
-    let service = RecorderService::default();
-    lock(&service.inner).app_data = Some(root.path().to_path_buf());
+    let service = RecorderService::new(User::default());
+    set_up(&service, root.path());
     let library = root.path().join("library");
     service
         .set_preferences(RecorderPreferences {
@@ -568,8 +631,8 @@ fn a_save_that_fails_part_way_leaves_no_staging_folder() {
 }
 
 fn draft_test_service(root: &Path) -> (RecorderService, PathBuf, PathBuf) {
-    let service = RecorderService::default();
-    lock(&service.inner).app_data = Some(root.to_path_buf());
+    let service = RecorderService::new(User::default());
+    set_up(&service, root);
     let library = root.join("library");
     service
         .set_preferences(RecorderPreferences {
@@ -675,27 +738,27 @@ fn a_recording_made_into_an_unsaved_one_copies_its_screenshots_there() {
             &[pair("click-2", "rec-c"), pair("click-1", "click-1")],
         )
         .unwrap_err();
-    assert_eq!(taken.code, "storageError");
+    assert_eq!(taken.code(), "storageError");
     assert!(!open.join("media/rec-c.webp").exists());
     assert_eq!(
         service
             .copy_media_to_draft("session-1", "session-2", &[pair("click-9", "rec-d")])
             .unwrap_err()
-            .code,
+            .code(),
         "imageNotFound"
     );
     assert_eq!(
         service
             .copy_media_to_draft("session-1", "session-2", &[pair("click-1", "../out")])
             .unwrap_err()
-            .code,
+            .code(),
         "invalidImage"
     );
     assert_eq!(
         service
             .media_files("session-1", &["..\\x"])
             .unwrap_err()
-            .code,
+            .code(),
         "invalidImage"
     );
     assert_eq!(
@@ -712,7 +775,7 @@ fn draft_edits_need_a_draft_and_safe_ids() {
         service
             .save_draft_step("session-1", &json!({"id": "capture-1"}))
             .unwrap_err()
-            .code,
+            .code(),
         "noDraft"
     );
     service
@@ -722,14 +785,14 @@ fn draft_edits_need_a_draft_and_safe_ids() {
         service
             .save_draft_step("session-1", &json!({"id": "../escape"}))
             .unwrap_err()
-            .code,
+            .code(),
         "invalidStep"
     );
     assert_eq!(
         service
             .delete_draft_step("session-1", "..\\escape")
             .unwrap_err()
-            .code,
+            .code(),
         "invalidStep"
     );
     // Saving the whole draft again replaces it rather than merging.
@@ -851,8 +914,8 @@ fn events_from_before_start_again_are_discarded_even_when_processed_late() {
 #[test]
 fn a_published_recording_is_not_saved_again_after_the_default_library_changes() {
     let root = tempfile::tempdir().unwrap();
-    let service = RecorderService::default();
-    lock(&service.inner).app_data = Some(root.path().to_path_buf());
+    let service = RecorderService::new(User::default());
+    set_up(&service, root.path());
     let first = root.path().join("first");
     service
         .set_preferences(RecorderPreferences {
@@ -905,7 +968,7 @@ fn a_published_recording_is_not_saved_again_after_the_default_library_changes() 
 
 #[test]
 fn resuming_after_the_bar_went_quiet_needs_the_bar_to_answer() {
-    let service = RecorderService::default();
+    let service = RecorderService::new(User::default());
     assert!(!service.indicator_alive());
     service.heartbeat.store(unix_millis(), Ordering::SeqCst);
     assert!(service.indicator_alive());
@@ -914,8 +977,8 @@ fn resuming_after_the_bar_went_quiet_needs_the_bar_to_answer() {
 #[test]
 fn only_screenshots_used_by_a_step_are_published() {
     let root = tempfile::tempdir().unwrap();
-    let service = RecorderService::default();
-    lock(&service.inner).app_data = Some(root.path().to_path_buf());
+    let service = RecorderService::new(User::default());
+    set_up(&service, root.path());
     let library = root.path().join("library");
     service
         .set_preferences(RecorderPreferences {
@@ -991,12 +1054,9 @@ fn saved_screenshots_load_and_unsafe_names_are_refused() {
     let media = library.join("guides/guide-1/media");
     fs::create_dir_all(&media).unwrap();
     fs::write(media.join("click-1.webp"), b"RIFF").unwrap();
-    let service = RecorderService::default();
-    {
-        let mut inner = lock(&service.inner);
-        inner.app_data = Some(root.path().join("app-data"));
-        inner.library = Some(library);
-    }
+    let service = RecorderService::new(User::default());
+    set_up(&service, &root.path().join("app-data"));
+    lock(&service.inner).library = Some(library);
 
     let data = service.image_data("guide-1", "click-1.webp").unwrap();
     assert!(data.starts_with("data:image/webp;base64,"), "{data}");

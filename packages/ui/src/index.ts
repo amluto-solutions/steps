@@ -75,6 +75,7 @@ export type {
   StorageUse,
   LibraryInfo,
   MediaInfo,
+  RetakenImage,
   ReviewComment,
   RawGuideDocument,
   TrashEntry,

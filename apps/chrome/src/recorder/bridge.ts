@@ -284,14 +284,38 @@ function recordingJournal(
   };
 }
 
-/** One page and no bar window: nothing to move or bring forward. */
-const windows: AppWindows = {
-  minimizeMain: done,
-  showMain: done,
-  onAlreadyOpen: nothing,
-  resizeBar: done,
-  moveBar: done,
-};
+/**
+ * One page and no bar window: nothing to move or bring forward, and the browser draws its own
+ * frame. While a save is failing, closing
+ * or reloading the page gets the browser's own "Leave site?" (`beforeunload`); the browser asks
+ * by itself, so the page is never told and has nothing to close.
+ */
+export function pageWindows(
+  page:
+    | Pick<EventTarget, "addEventListener" | "removeEventListener">
+    | undefined = typeof globalThis.addEventListener === "function" ? globalThis : undefined,
+): AppWindows {
+  const hold = (event: Event) => event.preventDefault();
+  return {
+    minimizeMain: done,
+    showMain: done,
+    setWindowTheme: done,
+    resizeBar: done,
+    moveBar: done,
+    // No bar window: nothing to mark.
+    barPlace: () => Promise.resolve(null),
+    askBeforeClose(asking) {
+      if (asking) page?.addEventListener("beforeunload", hold);
+      else page?.removeEventListener("beforeunload", hold);
+      return done();
+    },
+    onCloseAsked: nothing,
+    closeMain: done,
+    // No tray, so no Quit: closing the tab is the browser's to ask about.
+    onQuitAsked: nothing,
+    quitApp: done,
+  };
+}
 
 /** The Chrome Web Store updates the extension itself. */
 const updates: Updates = {
@@ -446,7 +470,7 @@ export function chromeRecorder({
     ...settings,
     ...recording(settings.getPolicy),
     ...recordingJournal(journal, target, settings.getPreferences),
-    ...windows,
+    ...pageWindows(),
     ...noHotkeys(),
     ...updates,
     ...brands(files),

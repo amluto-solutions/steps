@@ -44,3 +44,6 @@ apps/website/scripts/deploy.local.json
 # exports it starts from.
 store/partner-center/
 store/listingData-*.csv
+
+# graphify's knowledge graph of the repo (graph.html, GRAPH_REPORT.md, its cache), built locally.
+graphify-out/

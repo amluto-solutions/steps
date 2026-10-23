@@ -53,12 +53,12 @@ describe("naming clicks from their screenshots (F016)", () => {
       { words: [{ text: "CREATE", x: 18.2, y: 26.3, w: 3.8, h: 2.2 }] },
       { words: [{ text: "Email", x: 9.2, y: 28.9, w: 2.2, h: 1.8 }] },
     ];
-    const outlines = new Map([["a", { x: 8.3, y: 23.2, w: 3.9, h: 4.3 }]]);
+    const screens = new Map([["a", { element: { x: 8.3, y: 23.2, w: 3.9, h: 4.3 } }]]);
     const [withOutline] = await nameFromScreen(
       [unnamed("a")],
       wordsOf({ "m-a": rail }),
       wording,
-      outlines,
+      screens,
     );
     expect(withOutline?.actionText).toBe('Click "Email"');
     const [without] = await nameFromScreen([unnamed("a")], wordsOf({ "m-a": rail }), wording);
@@ -75,6 +75,22 @@ describe("naming clicks from their screenshots (F016)", () => {
     const [step] = await nameFromScreen([unnamed("a")], wordsOf({ "m-a": "unavailable" }), wording);
     expect(step?.actionText).toBe('Click in "Settings"');
     expect(step?.reviewRequired).toBe(true);
+  });
+
+  it("never names a click in Windows' input panel from its screenshot (#109)", async () => {
+    // A clipboard history item clicked: should the panel show in the picture, its words at the
+    // click are the clipboard's text.
+    const panel: GuideStep = {
+      ...unnamed("a"),
+      actionText: "Click in the input panel",
+      textParts: { verb: "click", target: "", kind: "inputPanel" },
+      context: { app: "TextInputHost.exe", windowTitle: "Windows Input Experience" },
+      naming: { name: "", kind: "inputPanel", source: "window", needsReview: true },
+    };
+    const clipboard = [{ words: [{ text: "Door code 4417", x: 6, y: 25, w: 10, h: 2 }] }];
+    const [step] = await nameFromScreen([panel], wordsOf({ "m-a": clipboard }), wording);
+    expect(step).toEqual(panel);
+    expect(JSON.stringify(step)).not.toContain("4417");
   });
 
   it("never names a click from words under its step's blur", async () => {
