@@ -8,8 +8,10 @@ use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use chrono::{DateTime, SecondsFormat, Utc};
 use serde_json::Value;
+use time::format_description::well_known::Rfc3339;
+use time::macros::format_description;
+use time::{OffsetDateTime, UtcOffset};
 
 use crate::error::{LibraryError, Result};
 
@@ -55,19 +57,39 @@ pub fn new_id() -> String {
 /// Now, as the ISO 8601 UTC string the UI writes (`2026-09-25T10:32:00.000Z`).
 #[must_use]
 pub fn now_iso() -> String {
-    Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true)
+    iso_millis(OffsetDateTime::now_utc()).unwrap_or_default()
+}
+
+/// `time` in UTC as `2026-09-25T10:32:00.000Z`: always three digits of milliseconds and a `Z`,
+/// the shape JavaScript's `toISOString` writes, so files from both apps compare as text.
+/// `None` only for a year `time` can't format, which no clock or file of ours reaches.
+pub(crate) fn iso_millis(time: OffsetDateTime) -> Option<String> {
+    let shape =
+        format_description!("[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond digits:3]Z");
+    time.to_offset(UtcOffset::UTC).format(&shape).ok()
 }
 
 /// Parses an ISO 8601 timestamp written by us or the UI.
-pub(crate) fn parse_iso(value: &str) -> Option<DateTime<Utc>> {
-    DateTime::parse_from_rfc3339(value)
+pub(crate) fn parse_iso(value: &str) -> Option<OffsetDateTime> {
+    OffsetDateTime::parse(value, &Rfc3339)
         .ok()
-        .map(|time| time.with_timezone(&Utc))
+        .map(|time| time.to_offset(UtcOffset::UTC))
 }
 
 /// Milliseconds since 1970, for folder-name suffixes.
 pub(crate) fn unix_millis() -> i64 {
-    Utc::now().timestamp_millis()
+    i64::try_from(OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000_000).unwrap_or_default()
+}
+
+/// Now on this computer's clock as `24/11/2026 18:41`, for names people read. `time` can't
+/// read the local offset safely in a process with several threads on Linux, so there the time
+/// is UTC and says so (`24/11/2026 18:41 UTC`) rather than looking local and being wrong.
+pub(crate) fn local_stamp() -> String {
+    let (now, zone) = OffsetDateTime::now_local()
+        .map_or_else(|_| (OffsetDateTime::now_utc(), " UTC"), |now| (now, ""));
+    let shape = format_description!("[day]/[month]/[year] [hour]:[minute]");
+    let stamp = now.format(&shape).unwrap_or_default();
+    format!("{stamp}{zone}")
 }
 
 /// Replaces `path` with `bytes` so readers only ever see the old or the new file: a uniquely
@@ -277,5 +299,27 @@ mod tests {
         let now = now_iso();
         assert!(now.ends_with('Z'));
         assert!(parse_iso(&now).is_some());
+    }
+
+    #[test]
+    fn timestamps_keep_the_shape_the_ui_writes() {
+        let time = OffsetDateTime::from_unix_timestamp_nanos(1_790_000_000_123_000_000).unwrap();
+        assert_eq!(iso_millis(time).unwrap(), "2026-09-21T14:13:20.123Z");
+        let whole = OffsetDateTime::from_unix_timestamp(1_790_000_000).unwrap();
+        assert_eq!(iso_millis(whole).unwrap(), "2026-09-21T14:13:20.000Z");
+        // An offset from elsewhere comes back as the same instant in UTC.
+        let parsed = parse_iso("2026-09-21T16:13:20.123+02:00").unwrap();
+        assert_eq!(iso_millis(parsed).unwrap(), "2026-09-21T14:13:20.123Z");
+        assert!(parse_iso("21/09/2026").is_none());
+    }
+
+    #[test]
+    fn local_stamp_is_day_month_year() {
+        let stamp = local_stamp();
+        let bytes = stamp.as_bytes();
+        assert_eq!(
+            (bytes[2], bytes[5], bytes[10], bytes[13]),
+            (b'/', b'/', b' ', b':')
+        );
     }
 }

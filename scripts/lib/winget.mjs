@@ -9,8 +9,11 @@ import { execFileSync } from "node:child_process";
 import { releasePage, REPOSITORY } from "./github.mjs";
 
 export const PACKAGE_ID = "Amluto.Steps";
-/** The manifest schema, which `winget validate` checks them against. */
-export const MANIFEST_VERSION = "1.10.0";
+/**
+ * The manifest schema, which `winget validate` checks them against. winget-pkgs' bot labels a
+ * pull request Manifest-Version-Deprecated once it falls behind (1.10.0 did on 30/10/2026).
+ */
+export const MANIFEST_VERSION = "1.28.0";
 /** The setup's uninstall entry is named after the product (Tauri's NSIS template). */
 const SETUP_PRODUCT_CODE = "Steps";
 const PUBLISHER = "Amluto Solutions Ltd";
@@ -51,7 +54,10 @@ function manifest(type, fields) {
     }
   };
   const render = (item) => (typeof item === "number" ? String(item) : scalar(item));
-  write({ ...fields, ManifestType: type, ManifestVersion: MANIFEST_VERSION }, "");
+  write({ ...fields, ManifestType: type }, "");
+  // Bare, as winget-pkgs' own manifests have it: a moderator's bot reads the line as text and
+  // took the quoted "1.28.0" for a deprecated version (#445938, 30/10/2026).
+  lines.push(`ManifestVersion: ${MANIFEST_VERSION}`);
   return `${lines.join("\n")}\n`;
 }
 

@@ -4,7 +4,6 @@ import type { CalloutKind, PdfLayout, RichText } from "@amluto-steps/core";
 
 import { withEmojiFont, type EmojiChoice } from "./emoji";
 import { fontCodePoints } from "./font-coverage";
-import { base64 } from "./html";
 import { tagDefinition, tagged, type PdfMakeLike } from "./pdf-tags";
 import type { RenderBlock, RenderCode, RenderModel, RenderStep } from "./model";
 import {
@@ -827,8 +826,6 @@ interface PdfMake {
   createPdf: typeof pdfmakeModule.createPdf;
   setFonts: typeof pdfmakeModule.setFonts;
   setUrlAccessPolicy: typeof pdfmakeModule.setUrlAccessPolicy;
-  addVirtualFileSystem?: (vfs: Record<string, string>) => void;
-  virtualfs?: { writeFileSync(name: string, data: string, encoding: string): void };
 }
 
 // The browser build and the Node build (tests) are both CommonJS singletons.
@@ -875,14 +872,15 @@ export async function renderPdf(
     files.emoji = bytes;
     families.Emoji = { normal: "emoji", bold: "emoji", italics: "emoji", bolditalics: "emoji" };
   });
-  const vfs = Object.fromEntries(
-    Object.entries(files).map(([name, bytes]) => [name, base64(bytes)]),
+  // Each font goes in as its bytes (pdfmake 0.3.14 and later), so nothing is kept in pdfmake's
+  // shared file store between documents, and the browser and Node builds take the same path.
+  const binary = Object.fromEntries(
+    Object.entries(families).map(([family, styles]) => [
+      family,
+      Object.fromEntries(Object.entries(styles).map(([style, name]) => [style, files[name]])),
+    ]),
   );
-  if (pdfmake.addVirtualFileSystem) pdfmake.addVirtualFileSystem(vfs);
-  else
-    for (const [name, data] of Object.entries(vfs))
-      pdfmake.virtualfs?.writeFileSync(name, data, "base64");
-  pdfmake.setFonts(families);
+  pdfmake.setFonts(binary as unknown as Parameters<PdfMake["setFonts"]>[0]);
   // No network: images are data URLs, and any URL in a document is refused.
   pdfmake.setUrlAccessPolicy(() => false);
   // Tagged (docs/spec/05-export.md#tagged-pdf): each line and picture is marked as what it is,

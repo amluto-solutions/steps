@@ -143,7 +143,7 @@ impl Library {
         let source = self.version_dir(guide_id, version_id)?;
         let mut guide = read_json(&source.join("guide.json"))?;
         crate::util::check_format_version(&guide, "version")?;
-        let stamp = chrono::Local::now().format("%d/%m/%Y %H:%M");
+        let stamp = crate::util::local_stamp();
         self.save_version(guide_id, &format!("Before restoring {stamp}"), author)?;
 
         // The guide keeps its identity (a version copied from elsewhere may carry another id)

@@ -2,6 +2,11 @@
 
 What changes for people using Steps, newest first. The notes under each version are shown in the app when that version is offered as an update.
 
+## 1.0.2 (24/11/2026)
+
+- **Security updates** to the parts Steps is built on, among them fixes to how it reads web addresses and cookies and to the library that makes PDFs.
+- **On Linux,** the version Steps saves before you restore another one now gives the time in UTC, and says so, where the local time can't be read safely.
+
 ## 1.0.1 (23/10/2026)
 
 - **Passwords stay out of guides in more places.** Typing keeps what was typed only when Steps is sure which box it went to. So a password is no longer kept when a notification takes focus as you type, after a click on a box's label, in an Excel add-in, or in a remote session (Remote Desktop and other remote-access apps). To be safe, typing on a web page that ends within about a second of a click on the page's text becomes "Type" with no value; you can add what was typed in the editor.

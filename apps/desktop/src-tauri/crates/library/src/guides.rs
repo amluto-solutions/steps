@@ -13,8 +13,8 @@ use serde_json::Value;
 
 use crate::error::{LibraryError, Result};
 use crate::util::{
-    check_format_version, checked, copy_files, copy_tree, is_safe_segment, new_id, now_iso,
-    parse_iso, read_json, unix_millis, write_json_atomic, write_json_new,
+    check_format_version, checked, copy_files, copy_tree, is_safe_segment, iso_millis, new_id,
+    now_iso, parse_iso, read_json, unix_millis, write_json_atomic, write_json_new,
 };
 
 /// The top-level fields of `guide.json` this version knows (`GuideV1`). Any other field came from
@@ -597,7 +597,7 @@ impl Library {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
             Err(error) => return Err(error.into()),
         };
-        let cutoff = chrono::Utc::now() - chrono::Duration::days(TRASH_DAYS);
+        let cutoff = time::OffsetDateTime::now_utc() - time::Duration::days(TRASH_DAYS);
         let mut result = Vec::new();
         for entry in entries.filter_map(std::result::Result::ok) {
             let name = entry.file_name().to_string_lossy().into_owned();
@@ -871,8 +871,10 @@ fn read_trash_entry(folder: &Path, trash_id: &str) -> Option<TrashEntry> {
         .filter(|value| parse_iso(value).is_some())
         .or_else(|| {
             let millis = trash_id.rsplit_once('-')?.1.parse::<i64>().ok()?;
-            chrono::DateTime::from_timestamp_millis(millis)
-                .map(|time| time.to_rfc3339_opts(chrono::SecondsFormat::Millis, true))
+            let time =
+                time::OffsetDateTime::from_unix_timestamp_nanos(i128::from(millis) * 1_000_000)
+                    .ok()?;
+            iso_millis(time)
         })
         .unwrap_or_default();
     Some(TrashEntry {

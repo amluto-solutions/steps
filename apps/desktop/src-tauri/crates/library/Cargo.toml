@@ -9,10 +9,11 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
-chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
 image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "webp"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
+# Already in the program through Tauri (cookie); chrono, used before, is unmaintained (RUSTSEC-2026-0543).
+time = { version = "0.3.55", default-features = false, features = ["std", "formatting", "parsing", "macros", "local-offset"] }
 thiserror = "2.0.21"
 unicode-normalization = "0.1.25"
 webp = { version = "0.3.1", default-features = false }

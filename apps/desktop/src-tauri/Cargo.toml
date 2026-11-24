@@ -5,7 +5,7 @@ exclude = ["vendor"]
 resolver = "3"
 
 [workspace.package]
-version = "1.0.1"
+version = "1.0.2"
 edition = "2024"
 rust-version = "1.98"
 authors = ["Amluto Solutions Ltd"]
@@ -41,8 +41,8 @@ crate-type = ["rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-capture = { version = "1.0.1", path = "crates/capture" }
-library = { version = "1.0.1", path = "crates/library" }
+capture = { version = "1.0.2", path = "crates/capture" }
+library = { version = "1.0.2", path = "crates/library" }
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-log = "2"
 tauri-plugin-global-shortcut = "2"

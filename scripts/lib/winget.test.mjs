@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { PACKAGE_ID, wingetManifests } from "./winget.mjs";
+import { MANIFEST_VERSION, PACKAGE_ID, wingetManifests } from "./winget.mjs";
 
 const release = {
   version: "0.4.0",
@@ -36,6 +36,8 @@ describe("winget manifests", () => {
     for (const text of Object.values(files)) {
       expect(text).toContain('PackageIdentifier: "Amluto.Steps"');
       expect(text).toContain('PackageVersion: "0.4.0"');
+      // Unquoted and last, as moderators' tools read it.
+      expect(text).toMatch(new RegExp(`\\nManifestVersion: ${MANIFEST_VERSION}\\n$`));
     }
   });
 

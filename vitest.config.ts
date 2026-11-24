@@ -1,3 +1,5 @@
+import { resolve } from "node:path";
+
 import babel from "@rolldown/plugin-babel";
 import { reactCompilerPreset } from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
@@ -11,6 +13,14 @@ compiler.rolldown.applyToEnvironmentHook = () => true;
 
 export default defineConfig({
   plugins: [babel({ presets: [compiler] })],
+  resolve: {
+    alias: [
+      {
+        find: /^pdfmake$/,
+        replacement: resolve(import.meta.dirname, "scripts/vitest/pdfmake.mjs"),
+      },
+    ],
+  },
   test: {
     include: [
       "packages/*/src/**/*.test.{ts,tsx}",
